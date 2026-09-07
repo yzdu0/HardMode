@@ -1,10 +1,15 @@
-/* Hard Mode — daily Steiner (moss) + Graph Colouring (modern). No deps. */
+/* NP-Hard mode — deterministic daily graph puzzles. */
 (function () {
   "use strict";
 
+  type Point = [number, number];
+  type Edge = [number, number];
+  type PuzzleMode = "daily" | "tutorial" | "custom";
+  type GameKey = "steiner" | "color" | "graphle" | "treedle";
+  type CustomSession = { id: string; name: string; game: "steiner" | "color"; data: any };
+
   // ---------- dates ----------
-  function todayKey(d) {
-    d = d || new Date();
+  function todayKey(d: Date = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
@@ -28,9 +33,9 @@
   const MIN_DATE = addDays(TODAY_REAL, -89);
   const ARCHIVE_DAYS = 30;
   let activeDate = TODAY_REAL;
-  let mode = "daily"; // 'daily', 'tutorial' or 'custom'
-  let customSession = null; // {id, name, game} for custom play sessions
-  function storeKey(game) {
+  let mode: PuzzleMode = "daily";
+  let customSession: CustomSession | null = null;
+  function storeKey(game: GameKey) {
     if (mode === "tutorial") return "hm-tutorial-" + game;
     if (mode === "custom") return "hm-custom-" + (customSession ? customSession.id : "x") + "-" + game;
     return "hm-" + activeDate + "-" + game;
@@ -82,8 +87,10 @@
     for (const k of Object.keys(VIEWS)) {
       const on = k === which;
       VIEWS[k][0].classList.toggle("active", on);
+      VIEWS[k][0].setAttribute("aria-selected", String(on));
       VIEWS[k][1].classList.toggle("hidden", !on);
     }
+    if (which !== "steiner") welcomeCard.classList.add("hidden");
   }
   tabS.onclick = () => { if (mode !== "daily") exitToDaily("steiner"); else showView("steiner"); };
   tabC.onclick = () => { if (mode !== "daily") exitToDaily("color"); else showView("color"); };
@@ -103,7 +110,7 @@
   };
 
   // ---------- streak (always relative to real today) ----------
-  const GAMES = ["steiner", "color", "graphle", "treedle"];
+  const GAMES: GameKey[] = ["steiner", "color", "graphle", "treedle"];
   function isSolvedStore(key, game) {
     try {
       const d = JSON.parse(localStorage.getItem("hm-" + key + "-" + game) || "null");
@@ -138,6 +145,18 @@
   document.getElementById("themeDark").onclick = () => setTheme("dark");
   document.getElementById("themeMinimal").onclick = () => setTheme("minimal");
 
+  // ---------- first-visit orientation ----------
+  const welcomeCard = document.getElementById("welcomeCard");
+  const welcomeDismiss = document.getElementById("welcomeDismiss");
+  let hasSeenWelcome = false;
+  try { hasSeenWelcome = localStorage.getItem("nph-welcome") === "done"; } catch (_) {}
+  if (!hasSeenWelcome) welcomeCard.classList.remove("hidden");
+  welcomeDismiss.onclick = () => {
+    welcomeCard.classList.add("hidden");
+    try { localStorage.setItem("nph-welcome", "done"); } catch (_) {}
+    gridEl?.focus?.();
+  };
+
   // ============================================================
   // GAME 1 — STEINER TREE (moss)
   // ============================================================
@@ -145,7 +164,7 @@
 
   // ---- shared steiner construction helpers ----
   function stKey(r, c) { return r + "," + c; }
-  function stPlaceTerms(rr, N, count, minSep, ok) {
+  function stPlaceTerms(rr, N, count, minSep, ok = null) {
     const terms = [];
     for (let attempt = 0; attempt < 2000 && terms.length < count; attempt++) {
       const r = randInt(rr, 0, N), c = randInt(rr, 0, N);
@@ -157,7 +176,7 @@
     return terms.length === count ? terms : null;
   }
   function stGrowWalls(rr, N, termSet, target, locked, clump) {
-    const walls = new Set([...locked]);
+    const walls = new Set<string>([...locked]);
     let tries = 0;
     while (walls.size - locked.size < target && tries++ < 2500) {
       let r, c;
@@ -178,7 +197,7 @@
     return walls;
   }
   function stBfsSeen(N, terms, walls) {
-    const seen = new Set([stKey(terms[0][0], terms[0][1])]);
+    const seen = new Set<string>([stKey(terms[0][0], terms[0][1])]);
     const q = [terms[0]];
     while (q.length) {
       const [r, c] = q.pop();
@@ -218,7 +237,7 @@
     }
     return stFreeConnected(N, terms, walls);
   }
-  function stClaim(rr, N, termSet, walls, special, ok) {
+  function stClaim(rr, N, termSet, walls, special, ok = null) {
     for (let t = 0; t < 500; t++) {
       const r = randInt(rr, 0, N), c = randInt(rr, 0, N);
       const k = stKey(r, c);
@@ -227,7 +246,7 @@
     return null;
   }
   function stScatterSpecials(rr, N, termSet, walls, special, nBonus, nPen, nPortals) {
-    const take = (n, type, pid) => {
+    const take = (n, type, pid = null) => {
       const cells = [];
       for (let i = 0; i < n; i++) {
         const cell = stClaim(rr, N, termSet, walls, special, null);
@@ -239,7 +258,7 @@
     };
     take(nBonus, "bonus");
     take(nPen, "penalty");
-    const portalPairs = {};
+    const portalPairs: Record<string, Point[]> = {};
     const ids = ["A", "B"];
     for (let i = 0; i < Math.min(nPortals, 2); i++) {
       const cells = take(2, "portal", ids[i]);
@@ -254,11 +273,11 @@
     const N = 12;
     const terms = stPlaceTerms(rr, N, 7, 5);
     if (!terms) return null;
-    const termSet = new Set(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set();
+    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
+    const locked = new Set<string>();
     const walls = stGrowWalls(rr, N, termSet, 34, locked, 0.65);
     if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map();
+    const special = new Map<string, any>();
     const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 6, 6, 2);
     return { N, terms, termSet, walls, special, portalPairs, kind: "classic" };
   }
@@ -268,18 +287,18 @@
     const N = 13;
     const terms = stPlaceTerms(rr, N, 3 + Math.floor(rr() * 2), 6);
     if (!terms) return null;
-    const termSet = new Set(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set();
+    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
+    const locked = new Set<string>();
     const walls = stGrowWalls(rr, N, termSet, 12, locked, 0.2);
     if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map();
+    const special = new Map<string, any>();
     const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 6, 6, 1 + Math.floor(rr() * 2));
     return { N, terms, termSet, walls, special, portalPairs, kind: "open field" };
   }
   // chambers: locked rock bars with seeded door gaps — room-to-room routing
   function famChambers(rr) {
     const N = 12;
-    const locked = new Set();
+    const locked = new Set<string>();
     for (const bc of [4, 8]) {
       const g1 = 1 + Math.floor(rr() * 10);
       let g2 = 1 + Math.floor(rr() * 10);
@@ -292,17 +311,17 @@
     const notBar = (r, c) => !locked.has(stKey(r, c));
     const terms = stPlaceTerms(rr, N, 5 + Math.floor(rr() * 2), 4, notBar);
     if (!terms) return null;
-    const termSet = new Set(terms.map(([r, c]) => stKey(r, c)));
+    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
     const walls = stGrowWalls(rr, N, termSet, 10, locked, 0.3);
     if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map();
+    const special = new Map<string, any>();
     const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 4, 4, 2);
     return { N, terms, termSet, walls, special, portalPairs, kind: "chambers" };
   }
   // the divide: near-solid locked band with one door; portals are the highway
   function famSplit(rr) {
     const N = 12;
-    const locked = new Set();
+    const locked = new Set<string>();
     const doorR = Math.floor(rr() * N);
     for (let r = 0; r < N; r++) for (const c of [5, 6]) {
       if (r === doorR) continue; // the door spans both columns
@@ -313,10 +332,10 @@
     const right = stPlaceTerms(rr, N, 3, 4, (r, c) => c >= 7 && free(r, c));
     if (!left || !right) return null;
     const terms = left.concat(right);
-    const termSet = new Set(terms.map(([r, c]) => stKey(r, c)));
+    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
     const walls = stGrowWalls(rr, N, termSet, 8, locked, 0.3);
     if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map();
+    const special = new Map<string, any>();
     const take = (n, type) => {
       for (let i = 0; i < n; i++) {
         const cell = stClaim(rr, N, termSet, walls, special, null);
@@ -326,7 +345,7 @@
     take(4, "bonus"); take(4, "penalty");
     // portals always bridge the divide, serving the rows far from the door
     // (where the trek to the door hurts most)
-    const portalPairs = {};
+    const portalPairs: Record<string, Point[]> = {};
     const ids = ["A", "B"];
     for (const pid of ids) {
       const far = (side) => (r, c) => side(r, c) && Math.abs(r - doorR) >= 3;
@@ -337,7 +356,7 @@
       if (a && b) {
         special.set(stKey(a[0], a[1]), { type: "portal", pid });
         special.set(stKey(b[0], b[1]), { type: "portal", pid });
-        portalPairs[pid] = [a, b];
+        portalPairs[pid] = [a as Point, b as Point];
       }
     }
     return { N, terms, termSet, walls, special, portalPairs, kind: "the divide" };
@@ -347,11 +366,11 @@
     const N = 12;
     const terms = stPlaceTerms(rr, N, 5, 5);
     if (!terms) return null;
-    const termSet = new Set(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set();
+    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
+    const locked = new Set<string>();
     const walls = stGrowWalls(rr, N, termSet, 18, locked, 0.6);
     if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map();
+    const special = new Map<string, any>();
     const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 10, 8, 1);
     return { N, terms, termSet, walls, special, portalPairs, kind: "thorn garden" };
   }
@@ -363,7 +382,7 @@
   // minimum network cost, or NaN if the terminals are disconnected.
   function solveSteinerExact(N, terms, walls, special, portalPairs) {
     const key = (r, c) => r + "," + c;
-    const idx = new Map(), cells = [];
+    const idx = new Map<string, number>(), cells: Point[] = [];
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
       const k = key(r, c);
       if (walls.has(k)) continue;
@@ -479,7 +498,7 @@
     }
     // last-resort open board (always valid)
     const terms = [[1, 1], [1, 10], [10, 1], [10, 10]];
-    const walls = new Set(), special = new Map(), portalPairs = {};
+    const walls = new Set<string>(), special = new Map<string, any>(), portalPairs: Record<string, Point[]> = {};
     const par = solveSteinerExact(12, terms, walls, special, portalPairs);
     return { terms, termSet: new Set(terms.map(([r, c]) => stKey(r, c))), walls, special, par, portalPairs, kind: "classic", N: 12 };
   }
@@ -489,8 +508,8 @@
     const N = 12;
     const terms = [[1, 1], [1, 10], [10, 5]];
     const termSet = new Set(terms.map(([r, c]) => r + "," + c));
-    const walls = new Set([[2, 5], [3, 5], [4, 5], [5, 5], [6, 5], [7, 5]].map(([r, c]) => r + "," + c));
-    const special = new Map();
+    const walls = new Set<string>([[2, 5], [3, 5], [4, 5], [5, 5], [6, 5], [7, 5]].map(([r, c]) => r + "," + c));
+    const special = new Map<string, any>();
     special.set("1,5", { type: "penalty" });
     special.set("8,3", { type: "bonus" });
     special.set("3,8", { type: "bonus" });
@@ -509,14 +528,14 @@
     };
   }
 
-  let S = genSteiner(activeDate);
+  let S: any = genSteiner(activeDate);
   GN = S.N;
   const gridEl = document.getElementById("steinerGrid");
   const steinerMeta = document.getElementById("steinerMeta");
   const steinerMsg = document.getElementById("steinerMsg");
   gridEl.style.gridTemplateColumns = "repeat(" + GN + ", 1fr)";
-  const sel = new Set();
-  const cellEls = new Map();
+  const sel = new Set<string>();
+  const cellEls = new Map<string, HTMLElement>();
   const skey = (r, c) => r + "," + c;
 
   function cellCost(r, c) {
@@ -549,21 +568,27 @@
       }
       d.className = cls;
       d.textContent = txt;
-      d.dataset.r = r; d.dataset.c = c;
+      d.dataset.r = String(r); d.dataset.c = String(c);
+      d.setAttribute("role", "gridcell");
+      d.tabIndex = r === 0 && c === 0 ? 0 : -1;
+      const cellKind = S.termSet.has(k) ? "seed" : S.walls.has(k) ? "rock" :
+        sp?.type === "bonus" ? "free spore" : sp?.type === "penalty" ? "thorn, cost three" :
+        sp?.type === "portal" ? "portal " + sp.pid : "empty cell";
+      d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind);
       gridEl.appendChild(d);
       cellEls.set(k, d);
     }
   }
   function steinerConnectivity() {
-    const active = new Set([...S.termSet, ...sel]);
-    const jump = new Map();
+    const active = new Set<string>([...S.termSet, ...sel]);
+    const jump = new Map<string, string>();
     for (const pid of Object.keys(S.portalPairs)) {
       const [a, b] = S.portalPairs[pid];
       const ka = skey(a[0], a[1]), kb = skey(b[0], b[1]);
       if (active.has(ka) && active.has(kb)) { jump.set(ka, kb); jump.set(kb, ka); }
     }
     const start = skey(S.terms[0][0], S.terms[0][1]);
-    const seen = new Set([start]);
+    const seen = new Set<string>([start]);
     const q = [start];
     while (q.length) {
       const k = q.pop();
@@ -581,7 +606,10 @@
     return { reached, reachedCount: reached.size, allConnected: reached.size === S.terms.length };
   }
   function paintSteiner() {
-    cellEls.forEach((el, k) => el.classList.toggle("path", sel.has(k)));
+    cellEls.forEach((el, k) => {
+      el.classList.toggle("path", sel.has(k));
+      if (!S.termSet.has(k) && !S.walls.has(k)) el.setAttribute("aria-pressed", String(sel.has(k)));
+    });
     const conn = steinerConnectivity();
     S.terms.forEach(([r, c]) => {
       const el = cellEls.get(skey(r, c));
@@ -603,7 +631,7 @@
     paintSteiner();
   }
   gridEl.addEventListener("pointerdown", (e) => {
-    const t = e.target.closest(".cell");
+    const t = (e.target as Element).closest(".cell") as HTMLElement | null;
     if (!t) return;
     e.preventDefault();
     isDown = true;
@@ -617,9 +645,26 @@
   gridEl.addEventListener("pointermove", (e) => {
     if (!isDown || dragMode === null) return;
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    const t = el && el.closest ? el.closest(".cell") : null;
+    const t = el?.closest(".cell") as HTMLElement | null;
     if (!t || !gridEl.contains(t)) return;
     toggleCell(+t.dataset.r, +t.dataset.c, dragMode);
+  });
+  gridEl.addEventListener("keydown", (e: KeyboardEvent) => {
+    const t = (e.target as Element).closest(".cell") as HTMLElement | null;
+    if (!t) return;
+    const r = Number(t.dataset.r), c = Number(t.dataset.c);
+    const moves: Record<string, Point> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const [dr, dc] = moves[e.key];
+      const nr = Math.max(0, Math.min(GN - 1, r + dr));
+      const nc = Math.max(0, Math.min(GN - 1, c + dc));
+      const next = cellEls.get(skey(nr, nc));
+      if (next) { t.tabIndex = -1; next.tabIndex = 0; next.focus(); }
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleCell(r, c, null);
+    }
   });
   window.addEventListener("pointerup", () => { isDown = false; dragMode = null; });
 
@@ -661,14 +706,14 @@
   }
   document.getElementById("steinerShare").onclick = async () => {
     const conn = steinerConnectivity();
-    shareText("Hard Mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + " (par " + S.par + ")" : "❌ unsolved") + "\n" + location.href);
+    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + " (par " + S.par + ")" : "❌ unsolved") + "\n" + location.href);
   };
 
   // ============================================================
   // GAME 2 — GRAPH COLOURING (modern, intentional graphs)
   // ============================================================
   const PALETTE = ["#FF2E63", "#00BFFF", "#FFC800", "#7C4DFF", "#00E676", "#FF6D00"];
-  const DARK_TEXT = new Set([2, 4]); // yellow + bright green need dark labels
+  const DARK_TEXT = new Set<number>([2, 4]); // yellow + bright green need dark labels
   let CN = 9; // node count varies per daily graph (8-12)
 
   function chromaticNumber(n, edges) {
@@ -693,7 +738,7 @@
   function isConnected(n, edges) {
     const adj = Array.from({ length: n }, () => []);
     edges.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
-    const seen = new Set([0]); const q = [0];
+    const seen = new Set<number>([0]); const q: number[] = [0];
     while (q.length) { const v = q.pop(); for (const w of adj[v]) if (!seen.has(w)) { seen.add(w); q.push(w); } }
     return seen.size === n;
   }
@@ -710,7 +755,7 @@
       const a = (2 * Math.PI * i) / 6 - Math.PI / 2;
       pos.push([170 + 122 * Math.cos(a), 170 + 122 * Math.sin(a)]);
     }
-    const set = new Set();
+    const set = new Set<string>();
     for (let i = 1; i <= 6; i++) {
       set.add(edgeKey(i, i === 6 ? 1 : i + 1)); // rim cycle
       set.add(edgeKey(0, i)); // spokes
@@ -733,7 +778,7 @@
     }
     const steps = [2, 3];
     const k = steps[Math.floor(rng() * steps.length)];
-    const set = new Set();
+    const set = new Set<string>();
     for (let i = 0; i < 7; i++) {
       set.add(edgeKey(i, (i + 1) % 7));
       set.add(edgeKey(i, (i + k) % 7));
@@ -757,7 +802,7 @@
     const forced = [], choice = [];
     for (let i = 0; i < nF; i++) { const c = Math.floor(rr() * k); forced.push(c); plant.push(c); }
     for (let i = 0; i < nC; i++) { const c = Math.floor(rr() * k); choice.push(c); plant.push(c); }
-    const set = new Set();
+    const set = new Set<string>();
     for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) set.add(edgeKey(i, j));
     const idxF = (t) => k + t, idxC = (t) => k + nF + t;
     for (let t = 0; t < nF; t++) {
@@ -811,7 +856,7 @@
           55 + (r * 230) / (R - 1) + (rr() - 0.5) * 14,
         ]);
       }
-      const set = new Set();
+      const set = new Set<string>();
       for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
         const i = r * C + c;
         if (c + 1 < C) set.add(edgeKey(i, i + 1));
@@ -851,7 +896,7 @@
       const n = 7 + Math.floor(rr() * 3); // 7-9
       const ivs = [];
       for (let i = 0; i < n; i++) { const s = rr() * 8; ivs.push([s, s + 1.5 + rr() * 2.5]); }
-      const set = new Set();
+      const set = new Set<string>();
       for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
         if (ivs[i][0] < ivs[j][1] && ivs[j][0] < ivs[i][1]) set.add(edgeKey(i, j));
       }
@@ -861,7 +906,7 @@
       const order = ivs.map((iv, i) => [(iv[0] + iv[1]) / 2, i]).sort((a, b) => a[0] - b[0]);
       const laneOf = new Array(n).fill(-1);
       for (const [, i] of order) {
-        const used = new Set();
+        const used = new Set<number>();
         for (let j = 0; j < n; j++) {
           if (j !== i && laneOf[j] >= 0 && ivs[i][0] < ivs[j][1] && ivs[j][0] < ivs[i][1]) used.add(laneOf[j]);
         }
@@ -903,7 +948,7 @@
     if (!lit) lit = [{ v: 0, neg: !A[0] }, { v: 1, neg: A[1] }, { v: 0, neg: !A[0] }];
     const L = ({ v, neg }) => (neg ? 4 + 2 * v : 3 + 2 * v);
     const [a, b, c] = lit.map(L);
-    const set = new Set();
+    const set = new Set<string>();
     const E = (u, v) => set.add(edgeKey(u, v));
     E(0, 1); E(1, 2); E(0, 2); // palette T-F-B
     for (let i = 0; i < 2; i++) { E(3 + 2 * i, 4 + 2 * i); E(3 + 2 * i, 2); E(4 + 2 * i, 2); }
@@ -1045,7 +1090,7 @@
     return { edges: fb.edges, chi, pos: fb.pos, n: fb.n, kind: fb.kind, labels: fb.labels || null };
   }
 
-  let G = genGraph(activeDate);
+  let G: any = genGraph(activeDate);
   CN = G.n;
   const svg = document.getElementById("graphSvg");
   const colorMeta = document.getElementById("colorMeta");
@@ -1064,7 +1109,7 @@
       return;
     }
     hintBtn.classList.remove("hidden");
-    hintBtn.textContent = hintOpen ? "💡 Hide the guide" : "💡 Stuck? How to solve this type";
+    hintBtn.textContent = hintOpen ? "Hide strategy" : "Show a strategy for this graph";
     if (!hintOpen) {
       kindBox.classList.add("hidden");
       return;
@@ -1112,7 +1157,7 @@
       b.style.background = PALETTE[i];
       b.setAttribute("aria-label", "Colour " + (i + 1));
       if (G.kind === "sudoku") {
-        b.textContent = i + 1;
+        b.textContent = String(i + 1);
         b.style.color = DARK_TEXT.has(i) ? "#0f172a" : "#fff";
         b.style.fontWeight = "800";
         b.style.fontSize = "18px";
@@ -1173,14 +1218,14 @@
       // sudoku: constraints ARE the grid — draw 2x3 box outlines instead
       for (let br = 0; br < 3; br++) for (let bc = 0; bc < 2; bc++) {
         const rect = document.createElementNS(NS, "rect");
-        rect.setAttribute("x", 42 + bc * 3 * 51.2 - 25.6);
-        rect.setAttribute("y", 42 + br * 2 * 51.2 - 25.6);
-        rect.setAttribute("width", 3 * 51.2);
-        rect.setAttribute("height", 2 * 51.2);
-        rect.setAttribute("rx", 8);
+        rect.setAttribute("x", String(42 + bc * 3 * 51.2 - 25.6));
+        rect.setAttribute("y", String(42 + br * 2 * 51.2 - 25.6));
+        rect.setAttribute("width", String(3 * 51.2));
+        rect.setAttribute("height", String(2 * 51.2));
+        rect.setAttribute("rx", "8");
         rect.setAttribute("fill", "none");
         rect.setAttribute("stroke", "#c9cfbd");
-        rect.setAttribute("stroke-width", 2);
+        rect.setAttribute("stroke-width", "2");
         rect.style.pointerEvents = "none";
         svg.appendChild(rect);
       }
@@ -1206,8 +1251,8 @@
         svg.appendChild(p);
       } else {
         const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
-        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
+        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
         if (bad) l.classList.add("conflict");
         svg.appendChild(l);
       }
@@ -1217,40 +1262,47 @@
     }
     // nodes touching a clash get a red ring (the only conflict signal when
     // edges are hidden, useful everywhere)
-    const badNodes = new Set();
+    const badNodes = new Set<number>();
     G.edges.forEach(([u, v]) => {
       if (coloring[u] !== -1 && coloring[u] === coloring[v]) { badNodes.add(u); badNodes.add(v); }
     });
     for (let i = 0; i < CN; i++) {
       const halo = document.createElementNS(NS, "circle");
-      halo.setAttribute("cx", G.pos[i][0]); halo.setAttribute("cy", G.pos[i][1]);
-      halo.setAttribute("r", R + 4);
+      halo.setAttribute("cx", String(G.pos[i][0])); halo.setAttribute("cy", String(G.pos[i][1]));
+      halo.setAttribute("r", String(R + 4));
       halo.setAttribute("fill", "none");
       halo.setAttribute("stroke", coloring[i] === -1 ? "rgba(34,48,28,0.20)" : PALETTE[coloring[i]]);
-      halo.setAttribute("stroke-width", coloring[i] === -1 ? 2 : 3);
-      halo.setAttribute("opacity", coloring[i] === -1 ? 1 : 0.55);
+      halo.setAttribute("stroke-width", coloring[i] === -1 ? "2" : "3");
+      halo.setAttribute("opacity", coloring[i] === -1 ? "1" : "0.55");
       halo.style.pointerEvents = "none";
       svg.appendChild(halo);
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", G.pos[i][0]); c.setAttribute("cy", G.pos[i][1]);
-      c.setAttribute("r", R);
+      c.setAttribute("cx", String(G.pos[i][0])); c.setAttribute("cy", String(G.pos[i][1]));
+      c.setAttribute("r", String(R));
       c.setAttribute("class", "node");
+      c.setAttribute("role", "button");
+      c.setAttribute("tabindex", "0");
+      c.setAttribute("aria-label", "Dot " + (i + 1) + (G.locked && G.locked[i] >= 0 ? ", fixed" : coloring[i] === -1 ? ", uncoloured" : ", colour " + (coloring[i] + 1)));
       if (badNodes.has(i)) c.setAttribute("stroke", "#e11d48");
       if (G.locked && G.locked[i] >= 0) c.setAttribute("stroke-width", "3.5");
       c.style.fill = coloring[i] === -1 ? "#eef1e8" : PALETTE[coloring[i]];
-      c.dataset.v = i;
-      c.addEventListener("click", () => {
+      c.dataset.v = String(i);
+      const paintNode = () => {
         if (G.locked && G.locked[i] >= 0) return; // givens are fixed
         if (coloring[i] === activeColor) coloring[i] = -1;
         else coloring[i] = activeColor;
         saveColor(false);
         refreshColor();
+      };
+      c.addEventListener("click", paintNode);
+      c.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); paintNode(); }
       });
       svg.appendChild(c);
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", G.pos[i][0]); t.setAttribute("y", G.pos[i][1] + 4);
+      t.setAttribute("x", String(G.pos[i][0])); t.setAttribute("y", String(G.pos[i][1] + 4));
       t.setAttribute("text-anchor", "middle");
-      t.textContent = G.labels ? G.labels[i] : i + 1;
+      t.textContent = String(G.labels ? G.labels[i] : i + 1);
       if (G.labels) t.setAttribute("font-size", G.kind === "sudoku" ? "14" : "10");
       if (coloring[i] === -1) t.style.fill = "#5c6650";
       else t.style.fill = DARK_TEXT.has(coloring[i]) ? "#0f172a" : "#fff";
@@ -1339,7 +1391,7 @@
   document.getElementById("colorShare").onclick = () => {
     const st = colorStats();
     const ok = st.uncolored === 0 && st.bad === 0;
-    shareText("Hard Mode " + shareLabel() + "\nColouring 🎨: " + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + "\n" + location.href);
+    shareText("NP-Hard mode " + shareLabel() + "\nColouring 🎨: " + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + "\n" + location.href);
   };
 
   async function shareText(txt) {
@@ -1357,7 +1409,7 @@
     const g = grid.map((row) => row.slice());
     let count = 0;
     function candidates(r, c) {
-      const used = new Set();
+      const used = new Set<number>();
       for (let i = 0; i < SN; i++) {
         if (g[r][i] >= 0) used.add(g[r][i]);
         if (g[i][c] >= 0) used.add(g[i][c]);
@@ -1445,7 +1497,7 @@
     return e;
   }
   function glAdj(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set());
+    const adj = Array.from({ length: n }, () => new Set<number>());
     edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
     return adj;
   }
@@ -1552,8 +1604,8 @@
   const graphleDraft = document.getElementById("graphleDraft");
   const graphleHist = document.getElementById("graphleHist");
   const graphleMsg = document.getElementById("graphleMsg");
-  const graphleGuessBtn = document.getElementById("graphleGuess");
-  let glDraft = new Set(); // "u-v" with u < v
+  const graphleGuessBtn = document.getElementById("graphleGuess") as HTMLButtonElement;
+  let glDraft = new Set<string>(); // "u-v" with u < v
   let glPending = -1;
   let glGuesses = []; // {mask, tiles}
   let glDone = null; // 'won' | 'lost'
@@ -1585,20 +1637,22 @@
         graphleSvg.appendChild(p);
       } else {
         const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
-        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
+        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
         graphleSvg.appendChild(l);
       }
     });
     for (let i = 0; i < GL_N; i++) {
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", GL_POS[i][0]); c.setAttribute("cy", GL_POS[i][1]);
-      c.setAttribute("r", 19);
+      c.setAttribute("cx", String(GL_POS[i][0])); c.setAttribute("cy", String(GL_POS[i][1]));
+      c.setAttribute("r", "19");
       c.setAttribute("class", "node" + (i === glPending ? " pending" : ""));
+      c.setAttribute("role", "button");
+      c.setAttribute("tabindex", "0");
+      c.setAttribute("aria-label", "Dot " + (i + 1) + (i === glPending ? ", selected" : ""));
       c.style.fill = "#eef1e8";
-      c.dataset.v = i;
-      c.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
+      c.dataset.v = String(i);
+      const selectGraphleNode = () => {
         if (glDone) return;
         if (glPending < 0) glPending = i;
         else if (glPending === i) glPending = -1;
@@ -1609,12 +1663,19 @@
           glPending = -1;
         }
         paintGraphle();
+      };
+      c.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        selectGraphleNode();
+      });
+      c.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectGraphleNode(); }
       });
       graphleSvg.appendChild(c);
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", GL_POS[i][0]); t.setAttribute("y", GL_POS[i][1] + 4);
+      t.setAttribute("x", String(GL_POS[i][0])); t.setAttribute("y", String(GL_POS[i][1] + 4));
       t.setAttribute("text-anchor", "middle");
-      t.textContent = i + 1;
+      t.textContent = String(i + 1);
       t.style.fill = "#5c6650";
       graphleSvg.appendChild(t);
     }
@@ -1626,7 +1687,8 @@
     graphleMeta.innerHTML = glDone === "won" ? "Solved!" :
       glDone === "lost" ? "Out of tries." :
       "Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
-    graphleGuessBtn.style.opacity = glDone || !left ? 0.4 : 1;
+    graphleGuessBtn.style.opacity = glDone || !left ? "0.4" : "1";
+    graphleGuessBtn.disabled = Boolean(glDone || !left);
   }
   function graphMiniSvg(mask, pairs, pos) {
     const NS = "http://www.w3.org/2000/svg";
@@ -1636,8 +1698,8 @@
     pairs.forEach(([u, v], i) => {
       if (!(mask & (1 << i))) return;
       const l = document.createElementNS(NS, "line");
-      l.setAttribute("x1", pos[u][0]); l.setAttribute("y1", pos[u][1]);
-      l.setAttribute("x2", pos[v][0]); l.setAttribute("y2", pos[v][1]);
+      l.setAttribute("x1", String(pos[u][0])); l.setAttribute("y1", String(pos[u][1]));
+      l.setAttribute("x2", String(pos[v][0])); l.setAttribute("y2", String(pos[v][1]));
       l.setAttribute("stroke", "#9aa78f");
       l.setAttribute("stroke-width", "12");
       l.setAttribute("stroke-linecap", "round");
@@ -1645,8 +1707,8 @@
     });
     for (let i = 0; i < pos.length; i++) {
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", pos[i][0]); c.setAttribute("cy", pos[i][1]);
-      c.setAttribute("r", 26);
+      c.setAttribute("cx", String(pos[i][0])); c.setAttribute("cy", String(pos[i][1]));
+      c.setAttribute("r", "26");
       c.setAttribute("fill", "#fff");
       c.setAttribute("stroke", "#22301c");
       c.setAttribute("stroke-width", "10");
@@ -1657,7 +1719,7 @@
   function glMiniSvg(mask) {
     return graphMiniSvg(mask, GL_PAIRS, GL_POS);
   }
-  function glAddHistRow(mask, tiles, prefix) {
+  function glAddHistRow(mask, tiles, prefix = "") {
     const row = document.createElement("div");
     row.className = "grow";
     row.appendChild(glMiniSvg(mask));
@@ -1719,7 +1781,7 @@
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = glGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = glDone === "won" ? glGuesses.length + "/" + GL_TRIES : "X/" + GL_TRIES;
-    shareText("Hard Mode Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("NP-Hard mode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
   };
   function saveGraphle() {
     try {
@@ -1753,22 +1815,7 @@
   function rebuildGraphle() {
     GL_TARGET = genGraphleTarget(activeDate);
     GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
-    glDraft = new Set();
-    glPending = -1;
-    glGuesses = [];
-    glDone = null;
-    graphleHist.innerHTML = "";
-    graphleMsg.textContent = ""; graphleMsg.className = "msg";
-    loadGraphle();
-    for (const g of glGuesses) glAddHistRow(g.mask, g.tiles);
-    if (glDone === "lost") glRevealTarget();
-    paintGraphle();
-  }
-
-  function rebuildGraphle() {
-    GL_TARGET = genGraphleTarget(activeDate);
-    GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
-    glDraft = new Set();
+    glDraft = new Set<string>();
     glPending = -1;
     glGuesses = [];
     glDone = null;
@@ -1809,7 +1856,7 @@
     for (let i = 0; i < n - 2; i++) code.push(Math.floor(rng() * n));
     const deg = new Array(n).fill(1);
     code.forEach((v) => deg[v]++);
-    const idx = new Map();
+    const idx = new Map<string, number>();
     TR_PAIRS.forEach(([u, v], i) => idx.set(u + "-" + v, i));
     let mask = 0;
     for (const v of code) {
@@ -1825,7 +1872,7 @@
     return mask;
   }
   function trDiameter(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set());
+    const adj = Array.from({ length: n }, () => new Set<number>());
     edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
     let diam = 0;
     for (let s = 0; s < n; s++) {
@@ -1844,7 +1891,7 @@
     return diam;
   }
   function trWiener(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set());
+    const adj = Array.from({ length: n }, () => new Set<number>());
     edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
     let sum = 0;
     for (let s = 0; s < n; s++) {
@@ -1863,7 +1910,7 @@
     return sum;
   }
   function trIndependence(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set());
+    const adj = Array.from({ length: n }, () => new Set<number>());
     edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
     let best = 0;
     const pop = (m) => { let c = 0; while (m) { c += m & 1; m >>>= 1; } return c; };
@@ -1930,8 +1977,8 @@
   const treedleDraft = document.getElementById("treedleDraft");
   const treedleHist = document.getElementById("treedleHist");
   const treedleMsg = document.getElementById("treedleMsg");
-  const treedleGuessBtn = document.getElementById("treedleGuess");
-  let trDraft = new Set(); // "u-v" with u < v
+  const treedleGuessBtn = document.getElementById("treedleGuess") as HTMLButtonElement;
+  let trDraft = new Set<string>(); // "u-v" with u < v
   let trPending = -1;
   let trGuesses = []; // {mask, tiles}
   let trDone = null; // 'won' | 'lost'
@@ -1963,20 +2010,22 @@
         treedleSvg.appendChild(p);
       } else {
         const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
-        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
+        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
         treedleSvg.appendChild(l);
       }
     });
     for (let i = 0; i < TR_N; i++) {
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", TR_POS[i][0]); c.setAttribute("cy", TR_POS[i][1]);
-      c.setAttribute("r", 19);
+      c.setAttribute("cx", String(TR_POS[i][0])); c.setAttribute("cy", String(TR_POS[i][1]));
+      c.setAttribute("r", "19");
       c.setAttribute("class", "node" + (i === trPending ? " pending" : ""));
+      c.setAttribute("role", "button");
+      c.setAttribute("tabindex", "0");
+      c.setAttribute("aria-label", "Dot " + (i + 1) + (i === trPending ? ", selected" : ""));
       c.style.fill = "#eef1e8";
-      c.dataset.v = i;
-      c.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
+      c.dataset.v = String(i);
+      const selectTreedleNode = () => {
         if (trDone) return;
         if (trPending < 0) trPending = i;
         else if (trPending === i) trPending = -1;
@@ -1987,12 +2036,19 @@
           trPending = -1;
         }
         paintTreedle();
+      };
+      c.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        selectTreedleNode();
+      });
+      c.addEventListener("keydown", (e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTreedleNode(); }
       });
       treedleSvg.appendChild(c);
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", TR_POS[i][0]); t.setAttribute("y", TR_POS[i][1] + 4);
+      t.setAttribute("x", String(TR_POS[i][0])); t.setAttribute("y", String(TR_POS[i][1] + 4));
       t.setAttribute("text-anchor", "middle");
-      t.textContent = i + 1;
+      t.textContent = String(i + 1);
       t.style.fill = "#5c6650";
       treedleSvg.appendChild(t);
     }
@@ -2004,9 +2060,10 @@
     treedleMeta.innerHTML = trDone === "won" ? "Solved!" :
       trDone === "lost" ? "Out of tries." :
       "Guess <b>" + (trGuesses.length + 1) + "</b>/" + TR_TRIES;
-    treedleGuessBtn.style.opacity = trDone || !left ? 0.4 : 1;
+    treedleGuessBtn.style.opacity = trDone || !left ? "0.4" : "1";
+    treedleGuessBtn.disabled = Boolean(trDone || !left);
   }
-  function trAddHistRow(mask, tiles, prefix) {
+  function trAddHistRow(mask, tiles, prefix = "") {
     const row = document.createElement("div");
     row.className = "grow";
     row.appendChild(graphMiniSvg(mask, TR_PAIRS, TR_POS));
@@ -2068,7 +2125,7 @@
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = trGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = trDone === "won" ? trGuesses.length + "/" + TR_TRIES : "X/" + TR_TRIES;
-    shareText("Hard Mode Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("NP-Hard mode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
   };
   function saveTreedle() {
     try {
@@ -2102,7 +2159,7 @@
   function rebuildTreedle() {
     TR_TARGET = genTreedleTarget(activeDate);
     TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
-    trDraft = new Set();
+    trDraft = new Set<string>();
     trPending = -1;
     trGuesses = [];
     trDone = null;
@@ -2121,9 +2178,9 @@
   const dateBtn = document.getElementById("dateBtn");
   const archiveEl = document.getElementById("archive");
   const archiveList = document.getElementById("archiveList");
-  const archiveDate = document.getElementById("archiveDate");
-  const prevBtn = document.getElementById("prevDay");
-  const nextBtn = document.getElementById("nextDay");
+  const archiveDate = document.getElementById("archiveDate") as HTMLInputElement;
+  const prevBtn = document.getElementById("prevDay") as HTMLButtonElement;
+  const nextBtn = document.getElementById("nextDay") as HTMLButtonElement;
 
   function isSolved(key, game) {
     try {
@@ -2138,9 +2195,19 @@
     archiveDate.min = MIN_DATE;
     prevBtn.disabled = activeDate <= MIN_DATE;
     nextBtn.disabled = activeDate >= TODAY_REAL;
-    prevBtn.style.opacity = prevBtn.disabled ? 0.4 : 1;
-    nextBtn.style.opacity = nextBtn.disabled ? 0.4 : 1;
+    prevBtn.style.opacity = prevBtn.disabled ? "0.4" : "1";
+    nextBtn.style.opacity = nextBtn.disabled ? "0.4" : "1";
     archiveList.innerHTML = "";
+    const solvedToday = GAMES.filter((game) => isSolved(activeDate, game)).length;
+    const progress = document.getElementById("todayProgress");
+    progress.querySelector("span").textContent = activeDate === TODAY_REAL ? "Today" : "Selected";
+    progress.querySelector("strong").textContent = solvedToday + " / 4";
+    const puzzleTabs = [tabS, tabC, tabG, tabT];
+    puzzleTabs.forEach((tab, index) => {
+      const done = isSolved(activeDate, GAMES[index]);
+      tab.classList.toggle("done", done);
+      tab.setAttribute("aria-label", tab.textContent.trim() + (done ? ", solved" : ", not solved"));
+    });
     for (let i = 0; i < ARCHIVE_DAYS; i++) {
       const k = addDays(TODAY_REAL, -i);
       const s = isSolved(k, "steiner"), c = isSolved(k, "color"), gr = isSolved(k, "graphle"), tr = isSolved(k, "treedle");
@@ -2218,7 +2285,7 @@
       const termSet = new Set(terms.map(([r, c]) => r + "," + c));
       const walls = new Set((d.walls || []).map(([r, c]) => r + "," + c));
       for (const k of termSet) if (walls.has(k)) return null;
-      const special = new Map();
+      const special = new Map<string, any>();
       for (const [r, c] of (d.bonus || [])) special.set(r + "," + c, { type: "bonus" });
       for (const [r, c] of (d.pen || [])) special.set(r + "," + c, { type: "penalty" });
       const portalPairs = {};
@@ -2239,7 +2306,7 @@
     const d = obj.data;
     const n = d.n | 0;
     if (!(n >= 5 && n <= 10) || !Array.isArray(d.edges)) return null;
-    const seen = new Set(), edges = [];
+    const seen = new Set<string>(), edges: Edge[] = [];
     for (const e of d.edges) {
       if (!Array.isArray(e) || e.length !== 2) return null;
       const [u, v] = e;
@@ -2282,9 +2349,9 @@
   ];
   let edTool = "term";
   const edTerms = [];
-  const edWalls = new Set();
-  const edSpecial = new Map();
-  const edCells = new Map();
+  const edWalls = new Set<string>();
+  const edSpecial = new Map<string, any>();
+  const edCells = new Map<string, HTMLElement>();
   const edKey = (r, c) => r + "," + c;
   function edMsg(text, good) {
     edSteinerMsg.textContent = text;
@@ -2379,7 +2446,7 @@
     for (let r = 0; r < EDIT_N; r++) for (let c = 0; c < EDIT_N; c++) {
       const d = document.createElement("div");
       d.className = "cell free";
-      d.dataset.r = r; d.dataset.c = c;
+      d.dataset.r = String(r); d.dataset.c = String(c);
       edSteinerGrid.appendChild(d);
       edCells.set(edKey(r, c), d);
     }
@@ -2391,7 +2458,7 @@
   }
   let edDragPaint = null, edIsDown = false;
   edSteinerGrid.addEventListener("pointerdown", (e) => {
-    const t = e.target.closest(".cell");
+    const t = (e.target as Element).closest(".cell") as HTMLElement | null;
     if (!t) return;
     e.preventDefault();
     edIsDown = true;
@@ -2402,7 +2469,7 @@
   edSteinerGrid.addEventListener("pointermove", (e) => {
     if (!edIsDown) return;
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    const t = el && el.closest ? el.closest(".cell") : null;
+    const t = el?.closest(".cell") as HTMLElement | null;
     if (!t || !edSteinerGrid.contains(t)) return;
     applyEdTool(+t.dataset.r, +t.dataset.c);
   });
@@ -2454,7 +2521,7 @@
   const ED_CTOOLS = [["move", "✥ move"], ["link", "🔗 link"]];
   let edN = 7, edToolC = "move", edPending = -1, edDrag = -1;
   let edPos = [];
-  let edEdges = new Set(); // "u-v" with u < v
+  let edEdges = new Set<string>(); // "u-v" with u < v
   function edCMsg(text, good) {
     edColorMsg.textContent = text;
     edColorMsg.className = "msg" + (good === true ? " good" : good === false ? " bad" : "");
@@ -2493,18 +2560,18 @@
         editorSvg.appendChild(p);
       } else {
         const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
-        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
+        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
         editorSvg.appendChild(l);
       }
     });
     for (let i = 0; i < edN; i++) {
       const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", edPos[i][0]); c.setAttribute("cy", edPos[i][1]);
-      c.setAttribute("r", 19);
+      c.setAttribute("cx", String(edPos[i][0])); c.setAttribute("cy", String(edPos[i][1]));
+      c.setAttribute("r", "19");
       c.setAttribute("class", "node" + (i === edPending ? " pending" : ""));
       c.style.fill = "#eef1e8";
-      c.dataset.v = i;
+      c.dataset.v = String(i);
       c.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         if (edToolC === "move") {
@@ -2525,9 +2592,9 @@
       });
       editorSvg.appendChild(c);
       const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", edPos[i][0]); t.setAttribute("y", edPos[i][1] + 4);
+      t.setAttribute("x", String(edPos[i][0])); t.setAttribute("y", String(edPos[i][1] + 4));
       t.setAttribute("text-anchor", "middle");
-      t.textContent = i + 1;
+      t.textContent = String(i + 1);
       t.style.fill = "#5c6650";
       editorSvg.appendChild(t);
     }
