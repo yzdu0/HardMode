@@ -216,6 +216,65 @@ header h1 {
   filter: drop-shadow(0 2px 3px rgba(20, 33, 15, 0.25));
 }
 #graphSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
+/* ---------- Graphle (Wordle for graphs) ---------- */
+#graphleSvg {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #ffffff;
+  margin-top: 8px;
+  box-shadow: 0 4px 14px rgba(20, 33, 15, 0.06);
+}
+#graphleSvg line { stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
+#graphleSvg path.edge { fill: none; stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
+#graphleSvg circle.node {
+  stroke: #22301c;
+  stroke-width: 2;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 3px rgba(20, 33, 15, 0.25));
+}
+#graphleSvg circle.node.pending { stroke: #e11d48; stroke-width: 3.5; }
+#graphleSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
+/* ---------- Treedle (Wordle for trees) ---------- */
+#treedleSvg {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #ffffff;
+  margin-top: 8px;
+  box-shadow: 0 4px 14px rgba(20, 33, 15, 0.06);
+}
+#treedleSvg line { stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
+#treedleSvg path.edge { fill: none; stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
+#treedleSvg circle.node {
+  stroke: #22301c;
+  stroke-width: 2;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 3px rgba(20, 33, 15, 0.25));
+}
+#treedleSvg circle.node.pending { stroke: #e11d48; stroke-width: 3.5; }
+#treedleSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
+body[data-theme="dark"] #treedleSvg { background: #151b15; }
+body[data-theme="minimal"] #treedleSvg { background: #fff; border: 1px solid #111; }
+body[data-theme="dark"] #graphleSvg { background: #151b15; }
+body[data-theme="minimal"] #graphleSvg { background: #fff; border: 1px solid #111; }
+.ghist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ghist:empty { display: none; }
+.grow { display: flex; gap: 6px; align-items: stretch; }
+.grow svg.mini {
+  width: 62px; height: 62px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  flex: 0 0 auto;
+}
+.gtiles { display: flex; gap: 4px; flex: 1; }
+.gtile { flex: 1; border-radius: 6px; padding: 3px 0; text-align: center; font-weight: 800; min-width: 0; }
+.gtile small { display: block; font-size: 9px; font-weight: 700; opacity: 0.8; }
+.gtile span { font-size: 15px; }
+.g-green { background: #6aaa64; color: #fff; }
+.g-yellow { background: #c9b458; color: #fff; }
+.g-gray { background: #787c7e; color: #fff; }
 #editorSvg {
   width: 100%;
   border: 1px solid var(--line);

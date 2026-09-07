@@ -69,11 +69,15 @@
   // ---------- tabs ----------
   const tabS = document.getElementById("tabSteiner");
   const tabC = document.getElementById("tabColor");
+  const tabG = document.getElementById("tabGraphle");
+  const tabT = document.getElementById("tabTreedle");
   const tabE = document.getElementById("tabEditor");
   const viewS = document.getElementById("viewSteiner");
   const viewC = document.getElementById("viewColor");
+  const viewG = document.getElementById("viewGraphle");
+  const viewT = document.getElementById("viewTreedle");
   const viewE = document.getElementById("viewEditor");
-  const VIEWS = { steiner: [tabS, viewS], color: [tabC, viewC], editor: [tabE, viewE] };
+  const VIEWS = { steiner: [tabS, viewS], color: [tabC, viewC], graphle: [tabG, viewG], treedle: [tabT, viewT], editor: [tabE, viewE] };
   function showView(which) {
     for (const k of Object.keys(VIEWS)) {
       const on = k === which;
@@ -83,6 +87,8 @@
   }
   tabS.onclick = () => { if (mode !== "daily") exitToDaily("steiner"); else showView("steiner"); };
   tabC.onclick = () => { if (mode !== "daily") exitToDaily("color"); else showView("color"); };
+  tabG.onclick = () => { if (mode !== "daily") exitToDaily("graphle"); else showView("graphle"); };
+  tabT.onclick = () => { if (mode !== "daily") exitToDaily("treedle"); else showView("treedle"); };
   tabE.onclick = () => {
     if (mode !== "daily") {
       mode = "daily";
@@ -97,7 +103,7 @@
   };
 
   // ---------- streak (always relative to real today) ----------
-  const GAMES = ["steiner", "color"];
+  const GAMES = ["steiner", "color", "graphle", "treedle"];
   function isSolvedStore(key, game) {
     try {
       const d = JSON.parse(localStorage.getItem("hm-" + key + "-" + game) || "null");
@@ -116,6 +122,21 @@
     }
     document.getElementById("streakLabel").textContent = "🔥 " + s + " day streak";
   }
+
+  // ---------- theme (light / dark / minimal), persisted ----------
+  const THEME_IDS = { light: "themeLight", dark: "themeDark", minimal: "themeMinimal" };
+  function setTheme(t) {
+    if (t !== "dark" && t !== "minimal") t = "light";
+    if (t === "light") delete document.body.dataset.theme;
+    else document.body.dataset.theme = t;
+    try { localStorage.setItem("hm-theme", t); } catch (_) {}
+    for (const k of Object.keys(THEME_IDS)) {
+      document.getElementById(THEME_IDS[k]).classList.toggle("active", k === t);
+    }
+  }
+  document.getElementById("themeLight").onclick = () => setTheme("light");
+  document.getElementById("themeDark").onclick = () => setTheme("dark");
+  document.getElementById("themeMinimal").onclick = () => setTheme("minimal");
 
   // ============================================================
   // GAME 1 — STEINER TREE (moss)
@@ -1406,6 +1427,694 @@
   }
 
   // ============================================================
+  // GAME 3 — GRAPHLE: Wordle for graphs (guess the hidden 6-node graph)
+  // Win by matching all six property tiles, not the exact wiring.
+  // ============================================================
+  const GL_N = 6, GL_TRIES = 6;
+  // fixed pair order = bit positions of guess/target masks
+  const GL_PAIRS = [];
+  for (let u = 0; u < GL_N; u++) for (let v = u + 1; v < GL_N; v++) GL_PAIRS.push([u, v]);
+  const GL_POS = [];
+  for (let i = 0; i < GL_N; i++) {
+    const a = (2 * Math.PI * i) / GL_N - Math.PI / 2;
+    GL_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
+  }
+  function glEdgesFromMask(mask) {
+    const e = [];
+    GL_PAIRS.forEach(([u, v], i) => { if (mask & (1 << i)) e.push([u, v]); });
+    return e;
+  }
+  function glAdj(n, edges) {
+    const adj = Array.from({ length: n }, () => new Set());
+    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
+    return adj;
+  }
+  function glCountTriangles(n, edges) {
+    const adj = glAdj(n, edges);
+    let t = 0;
+    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+      if (!adj[a].has(b)) continue;
+      for (let c = b + 1; c < n; c++) if (adj[a].has(c) && adj[b].has(c)) t++;
+    }
+    return t;
+  }
+  // distinct simple cycles, length >= 3; rotations/reversals count once
+  function glCountCycles(n, edges) {
+    const adj = glAdj(n, edges);
+    let count = 0;
+    function perms(arr) {
+      if (arr.length <= 1) return [arr];
+      const out = [];
+      for (let i = 0; i < arr.length; i++) {
+        for (const rest of perms(arr.slice(0, i).concat(arr.slice(i + 1)))) out.push([arr[i]].concat(rest));
+      }
+      return out;
+    }
+    function combos(arr, k, start, prefix, cb) {
+      if (prefix.length === k) { cb(prefix); return; }
+      for (let i = start; i < arr.length; i++) combos(arr, k, i + 1, prefix.concat(arr[i]), cb);
+    }
+    const verts = [...Array(n).keys()];
+    for (let k = 3; k <= n; k++) {
+      combos(verts, k, 0, [], (sub) => {
+        const s0 = sub[0], rest = sub.slice(1); // sub sorted: s0 is min (fixes rotation)
+        for (const p of perms(rest)) {
+          if (p[0] > p[p.length - 1]) continue; // fix reflection
+          let ok = adj[s0].has(p[0]) && adj[p[p.length - 1]].has(s0);
+          for (let i = 0; ok && i + 1 < p.length; i++) ok = adj[p[i]].has(p[i + 1]);
+          if (ok) count++;
+        }
+      });
+    }
+    return count;
+  }
+  function glDiameter(n, edges) {
+    const adj = glAdj(n, edges);
+    let diam = 0;
+    for (let s = 0; s < n; s++) {
+      const dist = new Array(n).fill(-1);
+      dist[s] = 0;
+      const q = [s];
+      while (q.length) {
+        const u = q.shift();
+        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
+      }
+      for (let t = 0; t < n; t++) {
+        if (dist[t] < 0) return Infinity;
+        if (dist[t] > diam) diam = dist[t];
+      }
+    }
+    return diam;
+  }
+  function glProps(edges) {
+    return {
+      e: edges.length,
+      chi: chromaticNumber(GL_N, edges),
+      tri: glCountTriangles(GL_N, edges),
+      cyc: glCountCycles(GL_N, edges),
+      diam: glDiameter(GL_N, edges),
+    };
+  }
+  function glCompare(t, g) {
+    // numeric tiles: green exact; else yellow (±1) / gray with ↑/↓ showing
+    // whether the TARGET is higher or lower than the guess
+    const num = (a, b) => {
+      if (a === b) return { cls: "g-green", dir: "" };
+      return { cls: Math.abs(a - b) === 1 ? "g-yellow" : "g-gray", dir: a > b ? "↑" : "↓" };
+    };
+    const tile = (label, value, r) => ({ label, value: value + r.dir, cls: r.cls });
+    const out = [
+      tile("E", String(g.e), num(t.e, g.e)),
+      tile("χ", String(g.chi), num(t.chi, g.chi)),
+      tile("△", String(g.tri), num(t.tri, g.tri)),
+      tile("Cyc", String(g.cyc), num(t.cyc, g.cyc)),
+    ];
+    const dv = isFinite(g.diam) ? String(g.diam) : "∞";
+    if (t.diam === g.diam) out.push({ label: "Diam", value: dv, cls: "g-green" });
+    else if (!isFinite(t.diam) || !isFinite(g.diam)) {
+      out.push({ label: "Diam", value: dv, cls: "g-gray" });
+      out[out.length - 1].value += !isFinite(t.diam) ? "↑" : "↓";
+    }     else {
+      const r = num(t.diam, g.diam);
+      out.push({ label: "Diam", value: dv + r.dir, cls: r.cls });
+    }
+    return out;
+  }
+  function genGraphleTarget(dateKey) {
+    const rng = rngFor(dateKey, "graphle");
+    return Math.floor(rng() * (1 << GL_PAIRS.length));
+  }
+
+  let GL_TARGET = genGraphleTarget(activeDate);
+  let GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
+  const graphleSvg = document.getElementById("graphleSvg");
+  const graphleMeta = document.getElementById("graphleMeta");
+  const graphleDraft = document.getElementById("graphleDraft");
+  const graphleHist = document.getElementById("graphleHist");
+  const graphleMsg = document.getElementById("graphleMsg");
+  const graphleGuessBtn = document.getElementById("graphleGuess");
+  let glDraft = new Set(); // "u-v" with u < v
+  let glPending = -1;
+  let glGuesses = []; // {mask, tiles}
+  let glDone = null; // 'won' | 'lost'
+  function glDraftStats() {
+    const p = glProps([...glDraft].map((k) => k.split("-").map(Number)));
+    return "E " + p.e + " · χ " + p.chi + " · △ " + p.tri + " · Cyc " + p.cyc +
+      " · Diam " + (isFinite(p.diam) ? p.diam : "∞");
+  }
+  function paintGraphle() {
+    graphleSvg.innerHTML = "";
+    const NS = "http://www.w3.org/2000/svg";
+    const R = 19;
+    glDraft.forEach((k) => {
+      const [u, v] = k.split("-").map(Number);
+      const [x1, y1] = GL_POS[u], [x2, y2] = GL_POS[v];
+      let bi = -1, bd = Infinity;
+      for (let w = 0; w < GL_N; w++) {
+        if (w === u || w === v) continue;
+        const d = segPointDist(x1, y1, x2, y2, GL_POS[w][0], GL_POS[w][1]);
+        if (d < bd) { bd = d; bi = w; }
+      }
+      if (bi >= 0 && bd < R + 4) {
+        const others = [];
+        for (let w = 0; w < GL_N; w++) if (w !== u && w !== v) others.push(GL_POS[w]);
+        const cp = edgeBow(x1, y1, x2, y2, GL_POS[bi][0], GL_POS[bi][1], R, others);
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", "M " + x1 + " " + y1 + " Q " + cp[0] + " " + cp[1] + " " + x2 + " " + y2);
+        p.setAttribute("class", "edge");
+        graphleSvg.appendChild(p);
+      } else {
+        const l = document.createElementNS(NS, "line");
+        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        graphleSvg.appendChild(l);
+      }
+    });
+    for (let i = 0; i < GL_N; i++) {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", GL_POS[i][0]); c.setAttribute("cy", GL_POS[i][1]);
+      c.setAttribute("r", 19);
+      c.setAttribute("class", "node" + (i === glPending ? " pending" : ""));
+      c.style.fill = "#eef1e8";
+      c.dataset.v = i;
+      c.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (glDone) return;
+        if (glPending < 0) glPending = i;
+        else if (glPending === i) glPending = -1;
+        else {
+          const a = Math.min(glPending, i), b = Math.max(glPending, i);
+          const k = a + "-" + b;
+          if (glDraft.has(k)) glDraft.delete(k); else glDraft.add(k);
+          glPending = -1;
+        }
+        paintGraphle();
+      });
+      graphleSvg.appendChild(c);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", GL_POS[i][0]); t.setAttribute("y", GL_POS[i][1] + 4);
+      t.setAttribute("text-anchor", "middle");
+      t.textContent = i + 1;
+      t.style.fill = "#5c6650";
+      graphleSvg.appendChild(t);
+    }
+    graphleDraft.textContent = "Draft: " + glDraftStats();
+    paintGraphleMeta();
+  }
+  function paintGraphleMeta() {
+    const left = GL_TRIES - glGuesses.length;
+    graphleMeta.innerHTML = glDone === "won" ? "Solved!" :
+      glDone === "lost" ? "Out of tries." :
+      "Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
+    graphleGuessBtn.style.opacity = glDone || !left ? 0.4 : 1;
+  }
+  function graphMiniSvg(mask, pairs, pos) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 340 340");
+    svg.setAttribute("class", "mini");
+    pairs.forEach(([u, v], i) => {
+      if (!(mask & (1 << i))) return;
+      const l = document.createElementNS(NS, "line");
+      l.setAttribute("x1", pos[u][0]); l.setAttribute("y1", pos[u][1]);
+      l.setAttribute("x2", pos[v][0]); l.setAttribute("y2", pos[v][1]);
+      l.setAttribute("stroke", "#9aa78f");
+      l.setAttribute("stroke-width", "12");
+      l.setAttribute("stroke-linecap", "round");
+      svg.appendChild(l);
+    });
+    for (let i = 0; i < pos.length; i++) {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", pos[i][0]); c.setAttribute("cy", pos[i][1]);
+      c.setAttribute("r", 26);
+      c.setAttribute("fill", "#fff");
+      c.setAttribute("stroke", "#22301c");
+      c.setAttribute("stroke-width", "10");
+      svg.appendChild(c);
+    }
+    return svg;
+  }
+  function glMiniSvg(mask) {
+    return graphMiniSvg(mask, GL_PAIRS, GL_POS);
+  }
+  function glAddHistRow(mask, tiles, prefix) {
+    const row = document.createElement("div");
+    row.className = "grow";
+    row.appendChild(glMiniSvg(mask));
+    const box = document.createElement("div");
+    box.className = "gtiles";
+    if (prefix) {
+      const p = document.createElement("div");
+      p.textContent = prefix;
+      p.style.cssText = "font-size:11px;font-weight:700;color:#6b7561;min-width:52px;";
+      box.appendChild(p);
+    }
+    tiles.forEach((t) => {
+      const d = document.createElement("div");
+      d.className = "gtile " + t.cls;
+      const s = document.createElement("small");
+      s.textContent = t.label;
+      const v = document.createElement("span");
+      v.textContent = t.value;
+      d.appendChild(s); d.appendChild(v);
+      box.appendChild(d);
+    });
+    row.appendChild(box);
+    graphleHist.appendChild(row);
+  }
+  function glRevealTarget() {
+    glAddHistRow(GL_TARGET, glCompare(GL_TPROPS, GL_TPROPS), "Answer");
+  }
+  document.getElementById("graphleClear").onclick = () => {
+    if (glDone) return;
+    glDraft.clear(); glPending = -1;
+    paintGraphle();
+  };
+  document.getElementById("graphleGuess").onclick = () => {
+    if (glDone || glGuesses.length >= GL_TRIES) return;
+    let mask = 0;
+    GL_PAIRS.forEach(([u, v], i) => { if (glDraft.has(u + "-" + v)) mask |= (1 << i); });
+    const tiles = glCompare(GL_TPROPS, glProps(glEdgesFromMask(mask)));
+    glGuesses.push({ mask, tiles });
+    glDraft.clear(); glPending = -1;
+    glAddHistRow(mask, tiles);
+    if (tiles.every((t) => t.cls === "g-green")) {
+      glDone = "won";
+      saveGraphle();
+      graphleMsg.textContent = "Solved in " + glGuesses.length + "/" + GL_TRIES + "! 🎉";
+      graphleMsg.className = "msg good";
+      updateStreak(); renderArchive();
+    } else if (glGuesses.length >= GL_TRIES) {
+      glDone = "lost";
+      saveGraphle();
+      graphleMsg.textContent = "Out of tries — the answer is revealed below.";
+      graphleMsg.className = "msg bad";
+      glRevealTarget();
+    } else {
+      saveGraphle();
+    }
+    paintGraphle();
+  };
+  document.getElementById("graphleShare").onclick = () => {
+    const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
+    const lines = glGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
+    const score = glDone === "won" ? glGuesses.length + "/" + GL_TRIES : "X/" + GL_TRIES;
+    shareText("Hard Mode Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+  };
+  function saveGraphle() {
+    try {
+      localStorage.setItem("hm-" + activeDate + "-graphle", JSON.stringify({
+        masks: glGuesses.map((g) => g.mask),
+        solved: glDone === "won",
+        lost: glDone === "lost",
+      }));
+    } catch (_) {}
+  }
+  function loadGraphle() {
+    try {
+      const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-graphle") || "null");
+      if (d && Array.isArray(d.masks)) {
+        for (const mask of d.masks) {
+          if (typeof mask !== "number" || mask < 0 || mask >= (1 << GL_PAIRS.length)) continue;
+          glGuesses.push({ mask, tiles: glCompare(GL_TPROPS, glProps(glEdgesFromMask(mask))) });
+        }
+        if (d.solved) {
+          glDone = "won";
+          graphleMsg.textContent = "Solved in " + glGuesses.length + "/" + GL_TRIES + "! 🎉";
+          graphleMsg.className = "msg good";
+        } else if (d.lost) {
+          glDone = "lost";
+          graphleMsg.textContent = "Out of tries — the answer is revealed below.";
+          graphleMsg.className = "msg bad";
+        }
+      }
+    } catch (_) {}
+  }
+  function rebuildGraphle() {
+    GL_TARGET = genGraphleTarget(activeDate);
+    GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
+    glDraft = new Set();
+    glPending = -1;
+    glGuesses = [];
+    glDone = null;
+    graphleHist.innerHTML = "";
+    graphleMsg.textContent = ""; graphleMsg.className = "msg";
+    loadGraphle();
+    for (const g of glGuesses) glAddHistRow(g.mask, g.tiles);
+    if (glDone === "lost") glRevealTarget();
+    paintGraphle();
+  }
+
+  function rebuildGraphle() {
+    GL_TARGET = genGraphleTarget(activeDate);
+    GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
+    glDraft = new Set();
+    glPending = -1;
+    glGuesses = [];
+    glDone = null;
+    graphleHist.innerHTML = "";
+    graphleMsg.textContent = ""; graphleMsg.className = "msg";
+    loadGraphle();
+    for (const g of glGuesses) glAddHistRow(g.mask, g.tiles);
+    if (glDone === "lost") glRevealTarget();
+    paintGraphle();
+  }
+
+  // ============================================================
+  // GAME 4 — TREEDLE: Wordle for trees (guess the hidden tree)
+  // Same guessing game as Graphle, but the answer is always a tree:
+  // connected, no cycles. Win by matching all six tree tiles.
+  // ============================================================
+  const TR_N = 8, TR_TRIES = 6;
+  const TR_PAIRS = [];
+  for (let u = 0; u < TR_N; u++) for (let v = u + 1; v < TR_N; v++) TR_PAIRS.push([u, v]);
+  const TR_POS = [];
+  for (let i = 0; i < TR_N; i++) {
+    const a = (2 * Math.PI * i) / TR_N - Math.PI / 2;
+    TR_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
+  }
+  function trEdgesFromMask(mask) {
+    const e = [];
+    TR_PAIRS.forEach(([u, v], i) => { if (mask & (1 << i)) e.push([u, v]); });
+    return e;
+  }
+  function trDegrees(n, edges) {
+    const d = new Array(n).fill(0);
+    edges.forEach(([u, v]) => { d[u]++; d[v]++; });
+    return d;
+  }
+  // uniform random labelled tree via Prüfer sequences (Cayley)
+  function trRandomTreeMask(rng, n) {
+    const code = [];
+    for (let i = 0; i < n - 2; i++) code.push(Math.floor(rng() * n));
+    const deg = new Array(n).fill(1);
+    code.forEach((v) => deg[v]++);
+    const idx = new Map();
+    TR_PAIRS.forEach(([u, v], i) => idx.set(u + "-" + v, i));
+    let mask = 0;
+    for (const v of code) {
+      let leaf = -1;
+      for (let i = 0; i < n; i++) if (deg[i] === 1) { leaf = i; break; }
+      const a = Math.min(leaf, v), b = Math.max(leaf, v);
+      mask |= (1 << idx.get(a + "-" + b));
+      deg[leaf]--; deg[v]--;
+    }
+    const rest = [];
+    for (let i = 0; i < n; i++) if (deg[i] === 1) rest.push(i);
+    mask |= (1 << idx.get(Math.min(rest[0], rest[1]) + "-" + Math.max(rest[0], rest[1])));
+    return mask;
+  }
+  function trDiameter(n, edges) {
+    const adj = Array.from({ length: n }, () => new Set());
+    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
+    let diam = 0;
+    for (let s = 0; s < n; s++) {
+      const dist = new Array(n).fill(-1);
+      dist[s] = 0;
+      const q = [s];
+      while (q.length) {
+        const u = q.shift();
+        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
+      }
+      for (let t = 0; t < n; t++) {
+        if (dist[t] < 0) return Infinity;
+        if (dist[t] > diam) diam = dist[t];
+      }
+    }
+    return diam;
+  }
+  function trWiener(n, edges) {
+    const adj = Array.from({ length: n }, () => new Set());
+    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
+    let sum = 0;
+    for (let s = 0; s < n; s++) {
+      const dist = new Array(n).fill(-1);
+      dist[s] = 0;
+      const q = [s];
+      while (q.length) {
+        const u = q.shift();
+        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
+      }
+      for (let t = s + 1; t < n; t++) {
+        if (dist[t] < 0) return Infinity;
+        sum += dist[t];
+      }
+    }
+    return sum;
+  }
+  function trIndependence(n, edges) {
+    const adj = Array.from({ length: n }, () => new Set());
+    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
+    let best = 0;
+    const pop = (m) => { let c = 0; while (m) { c += m & 1; m >>>= 1; } return c; };
+    for (let m = 0; m < (1 << n); m++) {
+      if (pop(m) <= best) continue;
+      let ok = true;
+      for (let i = 0; i < n && ok; i++) {
+        if (!(m & (1 << i))) continue;
+        for (let j = i + 1; j < n; j++) {
+          if ((m & (1 << j)) && adj[i].has(j)) { ok = false; break; }
+        }
+      }
+      if (ok) best = pop(m);
+    }
+    return best;
+  }
+  function trProps(edges) {
+    const d = trDegrees(TR_N, edges);
+    return {
+      leaf: d.filter((x) => x === 1).length,
+      diam: trDiameter(TR_N, edges),
+      maxd: Math.max(...d),
+      w: trWiener(TR_N, edges),
+      alpha: trIndependence(TR_N, edges),
+    };
+  }
+  function trCompare(t, g) {
+    const num = (a, b) => {
+      if (a === b) return { cls: "g-green", dir: "" };
+      return { cls: Math.abs(a - b) === 1 ? "g-yellow" : "g-gray", dir: a > b ? "↑" : "↓" };
+    };
+    const tile = (label, value, r) => ({ label, value: value + r.dir, cls: r.cls });
+    const out = [
+      tile("Leaf", String(g.leaf), num(t.leaf, g.leaf)),
+      tile("Δ", String(g.maxd), num(t.maxd, g.maxd)),
+      tile("α", String(g.alpha), num(t.alpha, g.alpha)),
+    ];
+    const dv = isFinite(g.diam) ? String(g.diam) : "∞";
+    if (t.diam === g.diam) out.push({ label: "Diam", value: dv, cls: "g-green" });
+    else if (!isFinite(t.diam) || !isFinite(g.diam)) {
+      out.push({ label: "Diam", value: dv + (!isFinite(t.diam) ? "↑" : "↓"), cls: "g-gray" });
+    } else {
+      const r = num(t.diam, g.diam);
+      out.push({ label: "Diam", value: dv + r.dir, cls: r.cls });
+    }
+    const wv = isFinite(g.w) ? String(g.w) : "∞";
+    if (t.w === g.w) out.push({ label: "W", value: wv, cls: "g-green" });
+    else if (!isFinite(t.w) || !isFinite(g.w)) {
+      out.push({ label: "W", value: wv + (!isFinite(t.w) ? "↑" : "↓"), cls: "g-gray" });
+    } else {
+      const r = num(t.w, g.w);
+      out.push({ label: "W", value: wv + r.dir, cls: r.cls });
+    }
+    return out;
+  }
+  function genTreedleTarget(dateKey) {
+    return trRandomTreeMask(rngFor(dateKey, "treedle"), TR_N);
+  }
+
+  let TR_TARGET = genTreedleTarget(activeDate);
+  let TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
+  const treedleSvg = document.getElementById("treedleSvg");
+  const treedleMeta = document.getElementById("treedleMeta");
+  const treedleDraft = document.getElementById("treedleDraft");
+  const treedleHist = document.getElementById("treedleHist");
+  const treedleMsg = document.getElementById("treedleMsg");
+  const treedleGuessBtn = document.getElementById("treedleGuess");
+  let trDraft = new Set(); // "u-v" with u < v
+  let trPending = -1;
+  let trGuesses = []; // {mask, tiles}
+  let trDone = null; // 'won' | 'lost'
+  function trDraftStats() {
+    const p = trProps([...trDraft].map((k) => k.split("-").map(Number)));
+    return "Leaf " + p.leaf + " · Diam " + (isFinite(p.diam) ? p.diam : "∞") +
+      " · Δ " + p.maxd + " · W " + (isFinite(p.w) ? p.w : "∞") + " · α " + p.alpha;
+  }
+  function paintTreedle() {
+    treedleSvg.innerHTML = "";
+    const NS = "http://www.w3.org/2000/svg";
+    const R = 19;
+    trDraft.forEach((k) => {
+      const [u, v] = k.split("-").map(Number);
+      const [x1, y1] = TR_POS[u], [x2, y2] = TR_POS[v];
+      let bi = -1, bd = Infinity;
+      for (let w = 0; w < TR_N; w++) {
+        if (w === u || w === v) continue;
+        const d = segPointDist(x1, y1, x2, y2, TR_POS[w][0], TR_POS[w][1]);
+        if (d < bd) { bd = d; bi = w; }
+      }
+      if (bi >= 0 && bd < R + 4) {
+        const others = [];
+        for (let w = 0; w < TR_N; w++) if (w !== u && w !== v) others.push(TR_POS[w]);
+        const cp = edgeBow(x1, y1, x2, y2, TR_POS[bi][0], TR_POS[bi][1], R, others);
+        const p = document.createElementNS(NS, "path");
+        p.setAttribute("d", "M " + x1 + " " + y1 + " Q " + cp[0] + " " + cp[1] + " " + x2 + " " + y2);
+        p.setAttribute("class", "edge");
+        treedleSvg.appendChild(p);
+      } else {
+        const l = document.createElementNS(NS, "line");
+        l.setAttribute("x1", x1); l.setAttribute("y1", y1);
+        l.setAttribute("x2", x2); l.setAttribute("y2", y2);
+        treedleSvg.appendChild(l);
+      }
+    });
+    for (let i = 0; i < TR_N; i++) {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", TR_POS[i][0]); c.setAttribute("cy", TR_POS[i][1]);
+      c.setAttribute("r", 19);
+      c.setAttribute("class", "node" + (i === trPending ? " pending" : ""));
+      c.style.fill = "#eef1e8";
+      c.dataset.v = i;
+      c.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (trDone) return;
+        if (trPending < 0) trPending = i;
+        else if (trPending === i) trPending = -1;
+        else {
+          const a = Math.min(trPending, i), b = Math.max(trPending, i);
+          const k = a + "-" + b;
+          if (trDraft.has(k)) trDraft.delete(k); else trDraft.add(k);
+          trPending = -1;
+        }
+        paintTreedle();
+      });
+      treedleSvg.appendChild(c);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", TR_POS[i][0]); t.setAttribute("y", TR_POS[i][1] + 4);
+      t.setAttribute("text-anchor", "middle");
+      t.textContent = i + 1;
+      t.style.fill = "#5c6650";
+      treedleSvg.appendChild(t);
+    }
+    treedleDraft.textContent = "Draft: " + trDraftStats();
+    paintTreedleMeta();
+  }
+  function paintTreedleMeta() {
+    const left = TR_TRIES - trGuesses.length;
+    treedleMeta.innerHTML = trDone === "won" ? "Solved!" :
+      trDone === "lost" ? "Out of tries." :
+      "Guess <b>" + (trGuesses.length + 1) + "</b>/" + TR_TRIES;
+    treedleGuessBtn.style.opacity = trDone || !left ? 0.4 : 1;
+  }
+  function trAddHistRow(mask, tiles, prefix) {
+    const row = document.createElement("div");
+    row.className = "grow";
+    row.appendChild(graphMiniSvg(mask, TR_PAIRS, TR_POS));
+    const box = document.createElement("div");
+    box.className = "gtiles";
+    if (prefix) {
+      const p = document.createElement("div");
+      p.textContent = prefix;
+      p.style.cssText = "font-size:11px;font-weight:700;color:#6b7561;min-width:52px;";
+      box.appendChild(p);
+    }
+    tiles.forEach((t) => {
+      const d = document.createElement("div");
+      d.className = "gtile " + t.cls;
+      const s = document.createElement("small");
+      s.textContent = t.label;
+      const v = document.createElement("span");
+      v.textContent = t.value;
+      d.appendChild(s); d.appendChild(v);
+      box.appendChild(d);
+    });
+    row.appendChild(box);
+    treedleHist.appendChild(row);
+  }
+  function trRevealTarget() {
+    trAddHistRow(TR_TARGET, trCompare(TR_TPROPS, TR_TPROPS), "Answer");
+  }
+  document.getElementById("treedleClear").onclick = () => {
+    if (trDone) return;
+    trDraft.clear(); trPending = -1;
+    paintTreedle();
+  };
+  document.getElementById("treedleGuess").onclick = () => {
+    if (trDone || trGuesses.length >= TR_TRIES) return;
+    let mask = 0;
+    TR_PAIRS.forEach(([u, v], i) => { if (trDraft.has(u + "-" + v)) mask |= (1 << i); });
+    const tiles = trCompare(TR_TPROPS, trProps(trEdgesFromMask(mask)));
+    trGuesses.push({ mask, tiles });
+    trDraft.clear(); trPending = -1;
+    trAddHistRow(mask, tiles);
+    if (tiles.every((t) => t.cls === "g-green")) {
+      trDone = "won";
+      saveTreedle();
+      treedleMsg.textContent = "Solved in " + trGuesses.length + "/" + TR_TRIES + "! 🎉";
+      treedleMsg.className = "msg good";
+      updateStreak(); renderArchive();
+    } else if (trGuesses.length >= TR_TRIES) {
+      trDone = "lost";
+      saveTreedle();
+      treedleMsg.textContent = "Out of tries — the answer is revealed below.";
+      treedleMsg.className = "msg bad";
+      trRevealTarget();
+    } else {
+      saveTreedle();
+    }
+    paintTreedle();
+  };
+  document.getElementById("treedleShare").onclick = () => {
+    const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
+    const lines = trGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
+    const score = trDone === "won" ? trGuesses.length + "/" + TR_TRIES : "X/" + TR_TRIES;
+    shareText("Hard Mode Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+  };
+  function saveTreedle() {
+    try {
+      localStorage.setItem("hm-" + activeDate + "-treedle", JSON.stringify({
+        masks: trGuesses.map((g) => g.mask),
+        solved: trDone === "won",
+        lost: trDone === "lost",
+      }));
+    } catch (_) {}
+  }
+  function loadTreedle() {
+    try {
+      const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-treedle") || "null");
+      if (d && Array.isArray(d.masks)) {
+        for (const mask of d.masks) {
+          if (typeof mask !== "number" || mask < 0 || mask >= (1 << TR_PAIRS.length)) continue;
+          trGuesses.push({ mask, tiles: trCompare(TR_TPROPS, trProps(trEdgesFromMask(mask))) });
+        }
+        if (d.solved) {
+          trDone = "won";
+          treedleMsg.textContent = "Solved in " + trGuesses.length + "/" + TR_TRIES + "! 🎉";
+          treedleMsg.className = "msg good";
+        } else if (d.lost) {
+          trDone = "lost";
+          treedleMsg.textContent = "Out of tries — the answer is revealed below.";
+          treedleMsg.className = "msg bad";
+        }
+      }
+    } catch (_) {}
+  }
+  function rebuildTreedle() {
+    TR_TARGET = genTreedleTarget(activeDate);
+    TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
+    trDraft = new Set();
+    trPending = -1;
+    trGuesses = [];
+    trDone = null;
+    treedleHist.innerHTML = "";
+    treedleMsg.textContent = ""; treedleMsg.className = "msg";
+    loadTreedle();
+    for (const g of trGuesses) trAddHistRow(g.mask, g.tiles);
+    if (trDone === "lost") trRevealTarget();
+    paintTreedle();
+  }
+
+  // ============================================================
   // ARCHIVE + date navigation (all games)
   // ============================================================
   const dateLabel = document.getElementById("dateLabel");
@@ -1434,11 +2143,11 @@
     archiveList.innerHTML = "";
     for (let i = 0; i < ARCHIVE_DAYS; i++) {
       const k = addDays(TODAY_REAL, -i);
-      const s = isSolved(k, "steiner"), c = isSolved(k, "color");
+      const s = isSolved(k, "steiner"), c = isSolved(k, "color"), gr = isSolved(k, "graphle"), tr = isSolved(k, "treedle");
       const b = document.createElement("button");
       b.className = "archive-item" + (k === activeDate ? " current" : "");
-      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "·") + (c ? "🎨" : "·") + "</span>";
-      const done = [s && "steiner", c && "colouring"].filter(Boolean);
+      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "·") + (c ? "🎨" : "·") + (gr ? "◉" : "·") + (tr ? "🌳" : "·") + "</span>";
+      const done = [s && "steiner", c && "colouring", gr && "graphle", tr && "treedle"].filter(Boolean);
       b.title = k + (done.length ? " — " + done.join(", ") : "");
       b.onclick = () => setActiveDate(k);
       archiveList.appendChild(b);
@@ -1470,6 +2179,10 @@
       const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-color") || "null");
       if (d && d.solved) checkColor(false);
     } catch (_) {}
+    // rebuild graphle
+    rebuildGraphle();
+    // rebuild treedle
+    rebuildTreedle();
     renderArchive();
   }
   dateBtn.onclick = () => archiveEl.classList.toggle("hidden");
@@ -2094,8 +2807,16 @@
   document.getElementById("colorTutBack").onclick = () => exitToDaily("color");
 
   // ---------- init ----------
+  let __initTheme = "light";
+  try {
+    const s = localStorage.getItem("hm-theme");
+    if (s === "dark" || s === "minimal") __initTheme = s;
+  } catch (_) {}
+  setTheme(__initTheme);
   buildGrid(); loadSteiner(); paintSteiner();
   loadColor(); refreshColor();
+  rebuildGraphle();
+  rebuildTreedle();
   // re-assert solved banners after load
   try {
     const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-steiner") || "null");

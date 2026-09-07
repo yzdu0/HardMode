@@ -27,6 +27,8 @@
       <nav class="tabs">
         <button id="tabSteiner" class="tab active">1 · Steiner</button>
         <button id="tabColor" class="tab">2 · Colouring</button>
+        <button id="tabGraphle" class="tab">3 · Graphle</button>
+        <button id="tabTreedle" class="tab">4 · Treedle</button>
         <button id="tabEditor" class="tab">✎ Editor</button>
       </nav>
     </header>
@@ -102,6 +104,44 @@
         </details>
       </section>
 
+      <!-- GRAPHLE -->
+      <section id="viewGraphle" class="view hidden">
+        <p class="rules"><b>Guess the hidden graph.</b> 6 dots, 6 tries. Tap two dots to toggle a link, then Guess — each tile goes green (exact), yellow (off by one) or gray, with ↑/↓ showing whether the answer is higher or lower. Match all five properties to win.</p>
+        <div id="graphleMeta" class="meta"></div>
+        <svg id="graphleSvg" viewBox="0 0 340 340" aria-label="Graphle board"></svg>
+        <div id="graphleDraft" class="meta"></div>
+        <div class="row">
+          <button id="graphleClear" class="btn">Clear</button>
+          <button id="graphleGuess" class="btn primary">Guess</button>
+          <button id="graphleShare" class="btn">Share</button>
+        </div>
+        <div id="graphleHist" class="ghist"></div>
+        <div id="graphleMsg" class="msg"></div>
+        <details class="how">
+          <summary>Properties explained</summary>
+          <p><b>E</b> edges · <b>χ</b> chromatic number (fewest colours with neighbours differing) · <b>△</b> triangles (3 mutually linked dots) · <b>Cyc</b> simple cycles of length ≥ 3 (rotations and reversals count once) · <b>Diam</b> longest shortest-path (∞ if disconnected). Yellow means off by exactly one; ↑/↓ means the answer is higher/lower than your guess; ∞ matches only exactly.</p>
+        </details>
+      </section>
+
+      <!-- TREEDLE -->
+      <section id="viewTreedle" class="view hidden">
+        <p class="rules"><b>Guess the hidden tree.</b> 8 dots, 6 tries. Tap two dots to toggle a link, then Guess — each tile goes green (exact), yellow (off by one) or gray, with ↑/↓ showing whether the answer is higher or lower. The answer is always a tree: connected, no cycles. Match all five properties to win.</p>
+        <div id="treedleMeta" class="meta"></div>
+        <svg id="treedleSvg" viewBox="0 0 340 340" aria-label="Treedle board"></svg>
+        <div id="treedleDraft" class="meta"></div>
+        <div class="row">
+          <button id="treedleClear" class="btn">Clear</button>
+          <button id="treedleGuess" class="btn primary">Guess</button>
+          <button id="treedleShare" class="btn">Share</button>
+        </div>
+        <div id="treedleHist" class="ghist"></div>
+        <div id="treedleMsg" class="msg"></div>
+        <details class="how">
+          <summary>Properties explained</summary>
+          <p><b>Leaf</b> leaves, i.e. dots with exactly one link · <b>Diam</b> longest shortest-path (∞ if disconnected) · <b>Δ</b> max degree, the busiest dot · <b>W</b> Wiener index, the sum of all pairwise distances (∞ if disconnected) · <b>α</b> independence number, the largest set of dots with no links between them. Yellow means off by exactly one; ↑/↓ means the answer is higher/lower than your guess; ∞ matches only exactly. Note: a tree on 8 dots always has exactly 7 edges, and 7 edges plus connected guarantees a tree.</p>
+        </details>
+      </section>
+
       <!-- EDITOR -->
       <section id="viewEditor" class="view hidden">
         <p class="rules"><b>Build levels.</b> Paint a board, playtest it with true par / χ, keep it, share it with a link.</p>
@@ -148,7 +188,7 @@
     </main>
 
     <footer>
-      <p>Two puzzles a day. Same boards for everyone. Progress saves on this device.</p>
+      <p>Four puzzles a day. Same boards for everyone. Progress saves on this device.</p>
       <div class="themerow">Theme:
         <button id="themeLight" class="tbtn">☀️ Light</button>
         <button id="themeDark" class="tbtn">🌙 Dark</button>
