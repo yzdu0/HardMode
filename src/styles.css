@@ -115,6 +115,34 @@ header h1 span { color: var(--muted); font-weight: 500; }
 }
 .btn.primary { background: var(--fg); color: #fff; border-color: var(--fg); }
 .btn.active { background: var(--fg); color: #fff; border-color: var(--fg); }
+/* Share sheet — replaces the browser's alert() so the result reads as part of
+   the app, and stays selectable when the clipboard write is refused. */
+.sharebox {
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--fg);
+  padding: 18px;
+  box-shadow: 0 18px 48px rgba(16, 22, 15, 0.22);
+}
+.sharebox::backdrop { background: rgba(16, 22, 15, 0.42); }
+.sharebox h3 { margin: 0 0 10px; font-size: 16px; letter-spacing: -0.02em; }
+.sharebox pre {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f7f8f5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.sharebox .row { margin: 0; }
 .how { margin-top: 14px; font-size: 13px; color: #333; }
 .how summary { cursor: pointer; color: var(--muted); }
 .linkbtn {
@@ -175,6 +203,29 @@ header h1 span { color: var(--muted); font-weight: 500; }
   padding: 0;
   box-shadow: none;
 }
+/* A wrapping board is a cylinder: rails down both sides mark where the row's
+   two ends meet, and the arrows say which way you may step through. */
+.grid.wraps {
+  border-left: 3px dashed #7fb069;
+  border-right: 3px dashed #7fb069;
+  padding: 0 5px;
+  margin: 18px -8px 0;
+  position: relative;
+}
+.grid.wraps::before,
+.grid.wraps::after {
+  position: absolute;
+  top: -17px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #7fb069;
+}
+.grid.wraps::before { content: "↔ wraps"; left: 0; }
+.grid.wraps::after { content: "wraps ↔"; right: 0; }
+body[data-theme="minimal"] .grid.wraps { border-left-color: #111; border-right-color: #111; }
+body[data-theme="minimal"] .grid.wraps::before,
+body[data-theme="minimal"] .grid.wraps::after { color: #111; }
 .cell {
   aspect-ratio: 1;
   border: 1px solid transparent;
@@ -235,6 +286,9 @@ header h1 span { color: var(--muted); font-weight: 500; }
 #graphSvg line.conflict { stroke: #e11d48; stroke-width: 3.5; opacity: 1; }
 #graphSvg path.edge { fill: none; stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
 #graphSvg path.edge.conflict { stroke: #e11d48; stroke-width: 3.5; opacity: 1; }
+/* Hover highlight: strong enough to trace, quiet enough not to read as a
+   conflict. Clashing edges keep their red. */
+#graphSvg line.lit, #graphSvg path.edge.lit { stroke-width: 3.5; opacity: 1; }
 #graphSvg circle.node {
   stroke: #22301c;
   stroke-width: 2;
@@ -403,6 +457,8 @@ body[data-theme="dark"] .archive-item.current,
 body[data-theme="dark"] .tool.active { color: #10140e; }
 body[data-theme="dark"] .lib-item button { background: #232b22; color: var(--fg); }
 body[data-theme="dark"] .archive-head input { background: #10140e; color: var(--fg); color-scheme: dark; }
+body[data-theme="dark"] .sharebox { background: #1a211a; }
+body[data-theme="dark"] .sharebox pre { background: #10140e; }
 body[data-theme="dark"] .how { color: var(--fg); }
 body[data-theme="dark"] .linkbtn { color: var(--muted); }
 body[data-theme="dark"] .cell.free { background: #222a20; color: #6f7a68; }
@@ -422,7 +478,9 @@ body[data-theme="minimal"] {
   background: #fff;
   color: var(--fg);
 }
-body[data-theme="minimal"] .app * { border-radius: 0 !important; box-shadow: none !important; filter: none !important; }
+body[data-theme="minimal"] .app *,
+body[data-theme="minimal"] .sharebox,
+body[data-theme="minimal"] .sharebox * { border-radius: 0 !important; box-shadow: none !important; filter: none !important; }
 body[data-theme="minimal"] .grid { gap: 1px; background: #111; padding: 0; border: 1px solid #111; }
 body[data-theme="minimal"] .cell { border-color: transparent; }
 body[data-theme="minimal"] .cell.free { background: #fff; color: #fff; }
@@ -513,6 +571,12 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .tuthead .btn.small { min-height: 36px; padding: 7px 10px; }
 .help-copy, .property-copy { margin: 0 0 10px; line-height: 1.5; }
 .property-copy { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+/* Metric glossary: the symbol stays pinned left so the column reads as a key. */
+.metric-list { display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; margin: 0; font-size: 13px; line-height: 1.5; }
+.metric-list dt { font-weight: 800; color: var(--fg); text-align: right; }
+.metric-list dd { margin: 0; color: var(--muted); }
+.metric-list dd b { color: var(--fg); font-weight: 700; }
+.metric-list dd i { font-style: italic; }
 .tutorial-steps { display: grid; gap: 6px; }
 .tutorial-steps p { margin: 0; padding: 9px 10px; border-radius: 9px; background: #fff; }
 .tutpar { color: var(--muted); }
@@ -547,6 +611,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 }
 #graphSvg line, #graphleSvg line, #treedleSvg line, #editorSvg line,
 #graphSvg path.edge, #graphleSvg path.edge, #treedleSvg path.edge { stroke: #9ba1ad; }
+#graphSvg line.lit:not(.conflict), #graphSvg path.edge.lit:not(.conflict) { stroke: #3157d5; }
 #graphSvg circle.node, #graphleSvg circle.node, #treedleSvg circle.node, #editorSvg circle.node { stroke: #2e3138; filter: none; }
 .palette { gap: 8px; }
 .swatch { width: 42px; height: 42px; border-radius: 10px; box-shadow: none; }
@@ -576,6 +641,11 @@ body[data-theme="dark"] .archive-item,
 body[data-theme="dark"] .tool,
 body[data-theme="dark"] .lib-item,
 body[data-theme="dark"] .custombar { background: #171a20; }
+/* The blanket .btn background above also lands on .btn.primary, which left the
+   dark label of a primary action sitting on a dark fill. Invert it back. */
+body[data-theme="dark"] .btn.primary,
+body[data-theme="dark"] .btn.active,
+body[data-theme="dark"] .tool.active { border-color: var(--accent); background: var(--accent); color: #10140e; }
 body[data-theme="dark"] .tab.active { border-color: #6f88e8; background: #202b50; color: #c5d0ff; }
 body[data-theme="dark"] .tutorial-steps p { background: #171a20; }
 body[data-theme="dark"] .tutbox,
@@ -584,6 +654,10 @@ body[data-theme="dark"] #graphSvg,
 body[data-theme="dark"] #graphleSvg,
 body[data-theme="dark"] #treedleSvg,
 body[data-theme="dark"] #editorSvg { background: #11141a; }
+body[data-theme="dark"] #graphSvg line.lit:not(.conflict),
+body[data-theme="dark"] #graphSvg path.edge.lit:not(.conflict) { stroke: #8ea8ff; }
+body[data-theme="minimal"] #graphSvg line.lit:not(.conflict),
+body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111; }
 
 @media (max-width: 560px) {
   .site-header { margin-bottom: 12px; }

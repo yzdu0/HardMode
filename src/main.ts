@@ -1,5 +1,10 @@
 /* NP-Hard mode — deterministic daily graph puzzles. */
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
+import { generateColorGraph, chromaticNumber, isConnected, shuffled, COLOR_REVISION } from "./color-levels";
+import {
+  GRAPHLE_PAIRS, TREEDLE_PAIRS, graphleEdges, treedleEdges, graphleProps, treedleProps,
+  generateGraphleTarget, generateTreedleTarget, GUESS_REVISION,
+} from "./guess-levels";
 import { solveSteinerExact } from "./steiner-solver";
 (function () {
   "use strict";
@@ -38,7 +43,8 @@ import { solveSteinerExact } from "./steiner-solver";
   let mode: PuzzleMode = "daily";
   let customSession: CustomSession | null = null;
   function dailyStoreKey(date: string, game: GameKey) {
-    return "hm-" + date + "-" + game + (game === "steiner" ? "-" + STEINER_REVISION : "");
+    const revision = game === "steiner" ? STEINER_REVISION : game === "color" ? COLOR_REVISION : GUESS_REVISION;
+    return "hm-" + date + "-" + game + "-" + revision;
   }
   function storeKey(game: GameKey) {
     if (mode === "tutorial") return "hm-tutorial-" + game;
@@ -51,30 +57,6 @@ import { solveSteinerExact } from "./steiner-solver";
     return activeDate;
   }
 
-  function xmur3(str) {
-    let h = 1779033703 ^ str.length;
-    for (let i = 0; i < str.length; i++) {
-      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    return function () {
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      return (h ^= h >>> 16) >>> 0;
-    };
-  }
-  function mulberry32(a) {
-    return function () {
-      a |= 0; a = (a + 0x6d2b79f5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-  function rngFor(dateKey, salt) {
-    return mulberry32(xmur3(dateKey + "|" + salt)());
-  }
-  function randInt(rng, lo, hi) { return lo + Math.floor(rng() * (hi - lo)); }
 
   // ---------- tabs ----------
   const tabS = document.getElementById("tabSteiner");
@@ -119,8 +101,11 @@ import { solveSteinerExact } from "./steiner-solver";
     try {
       const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
       // Keep earned streaks from the original boards without restoring old moves.
-      const legacy = game === "steiner" ? JSON.parse(localStorage.getItem("hm-" + key + "-steiner") || "null") : null;
-      return !!(d?.solved || legacy?.solved);
+      const legacySolved = game === "steiner" && ["", "-challenge-1", "-challenge-2", "-challenge-3"].some(suffix => {
+        try { return !!JSON.parse(localStorage.getItem("hm-" + key + "-steiner" + suffix) || "null")?.solved; }
+        catch (_) { return false; }
+      });
+      return !!(d?.solved || legacySolved);
     } catch (_) { return false; }
   }
   function updateStreak() {
@@ -207,8 +192,8 @@ import { solveSteinerExact } from "./steiner-solver";
     special.set("5,1", { type: "portal", pid: "A" });
     special.set("5,10", { type: "portal", pid: "A" });
     const portalPairs = { A: [[5, 1], [5, 10]] };
-    const par = solveSteinerExact(N, terms, walls, special, portalPairs);
-    return { terms, termSet, walls, special, par, portalPairs };
+    const target = solveSteinerExact(N, terms, walls, special, portalPairs);
+    return { terms, termSet, walls, special, target, portalPairs };
   }
   function tutorialGraph() {
     return {
@@ -244,6 +229,10 @@ import { solveSteinerExact } from "./steiner-solver";
     gridEl.innerHTML = "";
     cellEls.clear();
     gridEl.style.gridTemplateColumns = "repeat(" + GN + ", 1fr)";
+    gridEl.classList.toggle("wraps", Boolean(S.wrap));
+    gridEl.setAttribute("aria-label", S.wrap
+      ? "Steiner grid, wrapping: the left and right edges are joined"
+      : "Steiner grid");
     for (let r = 0; r < GN; r++) for (let c = 0; c < GN; c++) {
       const d = document.createElement("div");
       const k = skey(r, c);
@@ -265,7 +254,8 @@ import { solveSteinerExact } from "./steiner-solver";
       const cellKind = S.termSet.has(k) ? "seed" : S.walls.has(k) ? "rock" :
         sp?.type === "bonus" ? "free spore" : sp?.type === "penalty" ? "thorn, cost three" :
         sp?.type === "portal" ? "portal " + sp.pid : "empty cell";
-      d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind);
+      const seam = S.wrap && (c === 0 || c === GN - 1) ? ", on the wrapping edge" : "";
+      d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind + seam);
       gridEl.appendChild(d);
       cellEls.set(k, d);
     }
@@ -286,7 +276,9 @@ import { solveSteinerExact } from "./steiner-solver";
       const [r, c] = k.split(",").map(Number);
       if (jump.has(k)) { const j = jump.get(k); if (!seen.has(j)) { seen.add(j); q.push(j); } }
       for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nr = r + dr, nc = c + dc;
+        const nr = r + dr;
+        // On a wrapping board the row's two ends are neighbours.
+        const nc = S.wrap && dr === 0 ? (c + dc + GN) % GN : c + dc;
         if (nr < 0 || nc < 0 || nr >= GN || nc >= GN) continue;
         const nk = skey(nr, nc);
         if (!active.has(nk) || seen.has(nk)) continue;
@@ -309,7 +301,7 @@ import { solveSteinerExact } from "./steiner-solver";
     });
     const cost = currentCost();
     const status = conn.allConnected ? " · <b>CONNECTED ✓</b>" : " · " + conn.reachedCount + "/" + S.terms.length + " linked";
-    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Cost <b>" + cost + "</b> · Par " + S.par + status + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + "</span>" : "");
+    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Cost <b>" + cost + "</b> · Target " + S.target + status + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrap ? " ↔ wraps" : "") + "</span>" : "");
   }
   let dragMode = null, isDown = false;
   function toggleCell(r, c, mode) {
@@ -349,7 +341,7 @@ import { solveSteinerExact } from "./steiner-solver";
       e.preventDefault();
       const [dr, dc] = moves[e.key];
       const nr = Math.max(0, Math.min(GN - 1, r + dr));
-      const nc = Math.max(0, Math.min(GN - 1, c + dc));
+      const nc = S.wrap && dr === 0 ? (c + dc + GN) % GN : Math.max(0, Math.min(GN - 1, c + dc));
       const next = cellEls.get(skey(nr, nc));
       if (next) { t.tabIndex = -1; next.tabIndex = 0; next.focus(); }
     } else if (e.key === "Enter" || e.key === " ") {
@@ -366,10 +358,10 @@ import { solveSteinerExact } from "./steiner-solver";
     const cost = currentCost();
     if (conn.allConnected) {
       let verdict;
-      if (cost <= S.par) verdict = "Perfect — matches the exact optimum! 🌟";
-      else if (cost <= S.par + 2) verdict = "Close to optimal.";
+      if (cost <= S.target) verdict = "Perfect — matches the exact optimum! 🌟";
+      else if (cost <= S.target + 2) verdict = "Close to optimal.";
       else verdict = "Valid, but the optimum is lower — look for shared paths, spores and portals.";
-      steinerMsg.textContent = "Solved! Cost " + cost + " (par " + S.par + ") — " + verdict;
+      steinerMsg.textContent = "Solved! Cost " + cost + " (target " + S.target + ") — " + verdict;
       steinerMsg.className = "msg good";
       saveSteiner(true);
       updateStreak(); renderArchive();
@@ -397,7 +389,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   document.getElementById("steinerShare").onclick = async () => {
     const conn = steinerConnectivity();
-    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + " (par " + S.par + ")" : "❌ unsolved") + "\n" + location.href);
+    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + " (target " + S.target + ")" : "❌ unsolved") + "\n" + location.href);
   };
 
   // ============================================================
@@ -407,271 +399,13 @@ import { solveSteinerExact } from "./steiner-solver";
   const DARK_TEXT = new Set<number>([2, 4]); // yellow + bright green need dark labels
   let CN = 9; // node count varies per daily graph (8-12)
 
-  function chromaticNumber(n, edges) {
-    const adj = Array.from({ length: n }, () => []);
-    edges.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
-    const order = [...Array(n).keys()].sort((a, b) => adj[b].length - adj[a].length);
-    function canColor(k) {
-      const col = new Array(n).fill(-1);
-      function bt(i) {
-        if (i === n) return true;
-        const v = order[i];
-        for (let c = 0; c < k; c++) {
-          if (adj[v].every((w) => col[w] !== c)) { col[v] = c; if (bt(i + 1)) return true; col[v] = -1; }
-        }
-        return false;
-      }
-      return bt(0);
-    }
-    for (let k = 1; k <= n; k++) if (canColor(k)) return k;
-    return n;
-  }
-  function isConnected(n, edges) {
-    const adj = Array.from({ length: n }, () => []);
-    edges.forEach(([u, v]) => { adj[u].push(v); adj[v].push(u); });
-    const seen = new Set<number>([0]); const q: number[] = [0];
-    while (q.length) { const v = q.pop(); for (const w of adj[v]) if (!seen.has(w)) { seen.add(w); q.push(w); } }
-    return seen.size === n;
-  }
-  function edgeKey(u, v) { return u < v ? u + "-" + v : v + "-" + u; }
-  function shuffled(arr, rng) {
-    const a = arr.slice();
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
-    return a;
-  }
-  // --- intentional archetypes (structured, symmetric layouts) ---
-  function archWheel(rng) {
-    const pos = [[170, 170]];
-    for (let i = 0; i < 6; i++) {
-      const a = (2 * Math.PI * i) / 6 - Math.PI / 2;
-      pos.push([170 + 122 * Math.cos(a), 170 + 122 * Math.sin(a)]);
-    }
-    const set = new Set<string>();
-    for (let i = 1; i <= 6; i++) {
-      set.add(edgeKey(i, i === 6 ? 1 : i + 1)); // rim cycle
-      set.add(edgeKey(0, i)); // spokes
-    }
-    // drop 1 spoke for asymmetry-with-structure
-    set.delete(edgeKey(0, 1 + Math.floor(rng() * 6)));
-    // one rim chord to force odd cycles (-> chi 4 sometimes)
-    if (rng() < 0.6) {
-      const i = 1 + Math.floor(rng() * 6);
-      const j = 1 + ((i - 1 + 2 + Math.floor(rng() * 2)) % 6);
-      if (i !== j) set.add(edgeKey(i, j));
-    }
-    return { edges: [...set].map((s) => s.split("-").map(Number)), pos, n: 7, kind: "wheel", plant: null };
-  }
-  function archCirculant(rng) {
-    const pos = [];
-    for (let i = 0; i < 7; i++) {
-      const a = (2 * Math.PI * i) / 7 - Math.PI / 2;
-      pos.push([170 + 122 * Math.cos(a), 170 + 122 * Math.sin(a)]);
-    }
-    const steps = [2, 3];
-    const k = steps[Math.floor(rng() * steps.length)];
-    const set = new Set<string>();
-    for (let i = 0; i < 7; i++) {
-      set.add(edgeKey(i, (i + 1) % 7));
-      set.add(edgeKey(i, (i + k) % 7));
-    }
-    // drop 0-2 edges for variety
-    const arr = [...set];
-    const drop = Math.floor(rng() * 3);
-    for (let i = 0; i < drop; i++) set.delete(arr[Math.floor(rng() * arr.length)]);
-    return { edges: [...set].map((s) => s.split("-").map(Number)), pos, n: 7, kind: "rings", plant: null };
-  }
-  // --- NP-flavoured archetypes: hard instances with known optimum by construction ---
-  // SAT-style planted colouring: a K_k clique fixes the colour permutation, then
-  // "forced" vertices touch all-but-one colour (unit propagation) and "choice"
-  // vertices branch like SAT decisions. chi = k exactly.
-  function archPlanted(rr) {
-    const k = rr() < 0.7 ? 3 : 4;
-    const nF = 2, nC = 2 + Math.floor(rr() * 2); // 2-3 choice nodes
-    const n = k + nF + nC;
-    const plant = [];
-    for (let i = 0; i < k; i++) plant.push(i);
-    const forced = [], choice = [];
-    for (let i = 0; i < nF; i++) { const c = Math.floor(rr() * k); forced.push(c); plant.push(c); }
-    for (let i = 0; i < nC; i++) { const c = Math.floor(rr() * k); choice.push(c); plant.push(c); }
-    const set = new Set<string>();
-    for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) set.add(edgeKey(i, j));
-    const idxF = (t) => k + t, idxC = (t) => k + nF + t;
-    for (let t = 0; t < nF; t++) {
-      const c = forced[t];
-      for (let col = 0; col < k; col++) if (col !== c) set.add(edgeKey(idxF(t), col));
-    }
-    for (let t = 0; t < nC; t++) {
-      const c = choice[t];
-      const others = shuffled([...Array(k).keys()].filter((x) => x !== c), rr);
-      const deg = 1 + Math.floor(rr() * (k - 1));
-      for (let d = 0; d < Math.min(deg, others.length); d++) set.add(edgeKey(idxC(t), others[d]));
-    }
-    // chain consecutive forced nodes (different colours) for a propagation feel
-    for (let t = 1; t < nF; t++) {
-      const u = idxF(t - 1), v = idxF(t);
-      if (plant[u] !== plant[v]) set.add(edgeKey(u, v));
-    }
-    // extra cross edges between non-clique nodes of different planted colours
-    let extra = 1 + Math.floor(rr() * 2), guard = 0;
-    while (extra > 0 && guard++ < 80) {
-      const u = k + Math.floor(rr() * (n - k)), v = k + Math.floor(rr() * (n - k));
-      if (u === v || plant[u] === plant[v]) continue;
-      const e = edgeKey(u, v);
-      if (set.has(e)) continue;
-      set.add(e); extra--;
-    }
-    // layered layout: clique on top, forced middle, choice bottom
-    const pos = new Array(n);
-    const placeRow = (ids, y) => {
-      ids.forEach((id, i) => { pos[id] = [ids.length === 1 ? 170 : 50 + (i * 240) / (ids.length - 1), y]; });
-    };
-    placeRow([...Array(k).keys()], 66);
-    placeRow(forced.map((_, t) => idxF(t)), 175);
-    placeRow(choice.map((_, t) => idxC(t)), 280);
-    return { edges: [...set].map((s) => s.split("-").map(Number)), pos, n, kind: "propagation chain", plant };
-  }
-  // --- real-world families: maps, timetables, SAT reductions ---
-  // MAP: districts of a grid map sharing a border are adjacent. One diagonal
-  // per square keeps the drawing planar — a genuine map, so (four-colour
-  // theorem) it never needs a 5th colour. Usually needs only 3.
-  function archMap(rr) {
-    const shapes = [[3, 3], [2, 4]];
-    let fallback = null;
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const [R, C] = shapes[Math.floor(rr() * shapes.length)];
-      const n = R * C;
-      const pos = [];
-      for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
-        pos.push([
-          55 + (c * 230) / (C - 1) + (rr() - 0.5) * 14,
-          55 + (r * 230) / (R - 1) + (rr() - 0.5) * 14,
-        ]);
-      }
-      const set = new Set<string>();
-      for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
-        const i = r * C + c;
-        if (c + 1 < C) set.add(edgeKey(i, i + 1));
-        if (r + 1 < R) set.add(edgeKey(i, i + C));
-      }
-      const sqs = [];
-      for (let r = 0; r < R - 1; r++) for (let c = 0; c < C - 1; c++) {
-        const a = r * C + c;
-        sqs.push([a, a + 1, a + C, a + C + 1]);
-      }
-      const order = shuffled(sqs, rr);
-      const nDiag = Math.min(order.length, 2 + Math.floor(rr() * 3));
-      for (let i = 0; i < nDiag; i++) {
-        const [a, b, c, d] = order[i];
-        if (rr() < 0.5) set.add(edgeKey(a, d)); else set.add(edgeKey(b, c));
-      }
-      const edges = [...set].map((s) => s.split("-").map(Number));
-      if (edges.length < n + 2 || edges.length > 2 * n + 2 || !isConnected(n, edges)) continue;
-      const chi = chromaticNumber(n, edges);
-      const built = { edges, pos, n, kind: "map", plant: null, labels: null };
-      if (chi === 3) return built;
-      if (chi === 4 && !fallback) fallback = { ...built, chi };
-    }
-    if (fallback) return fallback;
-    // deterministic safety net: plain 3x3 grid + 2 diagonals (chi 3)
-    const pos = [];
-    for (let i = 0; i < 9; i++) pos.push([70 + (i % 3) * 100, 70 + Math.floor(i / 3) * 100]);
-    const edges = [[0,1],[1,2],[3,4],[4,5],[6,7],[7,8],[0,3],[1,4],[2,5],[3,6],[4,7],[5,8],[0,4],[4,8]];
-    return { edges, pos, n: 9, kind: "map", plant: null, labels: null, chi: 3 };
-  }
-  // TIMETABLE: vertices are exams, edges join exams sharing students
-  // (random intervals on a timeline). Interval graphs are perfect: the
-  // clique bound is always tight, so greedy reasoning goes a long way.
-  function archTimetable(rr) {
-    let fallback = null;
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const n = 7 + Math.floor(rr() * 3); // 7-9
-      const ivs = [];
-      for (let i = 0; i < n; i++) { const s = rr() * 8; ivs.push([s, s + 1.5 + rr() * 2.5]); }
-      const set = new Set<string>();
-      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
-        if (ivs[i][0] < ivs[j][1] && ivs[j][0] < ivs[i][1]) set.add(edgeKey(i, j));
-      }
-      const edges = [...set].map((s) => s.split("-").map(Number));
-      if (edges.length < n + 2 || edges.length > 2 * n + 2 || !isConnected(n, edges)) continue;
-      // lay out left-to-right in time order, staggered into lanes
-      const order = ivs.map((iv, i) => [(iv[0] + iv[1]) / 2, i]).sort((a, b) => a[0] - b[0]);
-      const laneOf = new Array(n).fill(-1);
-      for (const [, i] of order) {
-        const used = new Set<number>();
-        for (let j = 0; j < n; j++) {
-          if (j !== i && laneOf[j] >= 0 && ivs[i][0] < ivs[j][1] && ivs[j][0] < ivs[i][1]) used.add(laneOf[j]);
-        }
-        let l = 0;
-        while (used.has(l)) l++;
-        laneOf[i] = l;
-      }
-      const lanes = Math.max(...laneOf) + 1;
-      const pos = ivs.map((iv, i) => [
-        44 + (((iv[0] + iv[1]) / 2) / 10) * 252,
-        lanes === 1 ? 170 : 60 + (laneOf[i] * 220) / (lanes - 1),
-      ]);
-      const chi = chromaticNumber(n, edges);
-      const built = { edges, pos, n, kind: "timetable", plant: null, labels: null };
-      if (chi === 3) return { ...built, chi };
-      if (chi === 4 && !fallback) fallback = { ...built, chi };
-    }
-    return fallback;
-  }
-  // SAT REDUCTION: a 3-SAT clause over 2 variables compiled into a 5-node
-  // gadget, + a True/False/Base palette triangle and true/false literal nodes
-  // per variable. Colouring the graph IS solving the formula (planted
-  // satisfiable, so chi is always 3). Gadget (p,q,r,s,t) for (a|b|c):
-  //   p-a, p-b, p-T;  q-p, q-a;  r-q, r-b;  s-r, s-c;  t-s, t-F, t-B
-  // is extendable from any T/F literal assignment iff a|b|c holds.
-  // A variable may repeat across the three slots (wiring in twice) —
-  // opposite signs in one clause are skipped so clauses stay meaningful.
-  function archSat(rr) {
-    const A = [rr() < 0.5, rr() < 0.5]; // planted assignment
-    const litName = ({ v, neg }) => (neg ? "!" : "") + "x" + (v + 1);
-    let lit = null;
-    for (let t = 0; t < 50 && !lit; t++) {
-      // both variables appear; third slot random (same-sign repeats ok)
-      const slots = shuffled([0, 1, Math.floor(rr() * 2)], rr);
-      const cand = slots.map((v) => ({ v, neg: rr() < 0.5 }));
-      const taut = cand.some((l1, i) => cand.some((l2, j) => j > i && l1.v === l2.v && l1.neg !== l2.neg));
-      if (!taut && cand.some(({ v, neg }) => A[v] !== neg)) lit = cand;
-    }
-    if (!lit) lit = [{ v: 0, neg: !A[0] }, { v: 1, neg: A[1] }, { v: 0, neg: !A[0] }];
-    const L = ({ v, neg }) => (neg ? 4 + 2 * v : 3 + 2 * v);
-    const [a, b, c] = lit.map(L);
-    const set = new Set<string>();
-    const E = (u, v) => set.add(edgeKey(u, v));
-    E(0, 1); E(1, 2); E(0, 2); // palette T-F-B
-    for (let i = 0; i < 2; i++) { E(3 + 2 * i, 4 + 2 * i); E(3 + 2 * i, 2); E(4 + 2 * i, 2); }
-    const P = 7, Q = 8, R = 9, S = 10, TT = 11;
-    E(P, a); E(P, b); E(P, 0);
-    E(Q, P); E(Q, a);
-    E(R, Q); E(R, b);
-    E(S, R); E(S, c);
-    E(TT, S); E(TT, 1); E(TT, 2);
-    const pos = [
-      [90, 52], [250, 52], [170, 112], // T F B
-      [64, 182], [141, 182], [218, 182], [295, 182], // x1 !x1 x2 !x2
-      [58, 274], [128, 272], [194, 272], [260, 272], // p q r s
-      [295, 300], // t (output, bottom-right)
-    ];
-    return {
-      edges: [...set].map((s) => s.split("-").map(Number)),
-      chi: 3, pos, n: 12, kind: "sat reduction", plant: null,
-      labels: ["T", "F", "B", "x1", "!x1", "x2", "!x2", "p", "q", "r", "s", "t"],
-      clause: lit.map(litName),
-      // palette pre-locked: pink=True, blue=False, yellow=Base (planted
-      // assignment maps True->0 etc., so chi stays 3)
-      locked: [0, 1, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-    };
-  }
   // SUDOKU as graph colouring: 36 cells on a grid; every row, column and
   // 2x3 box is a clique (216 edges — drawn as the grid itself, never as
   // lines). Givens arrive locked to their digit; paint the rest 1-6.
   // chi is exactly 6: each row needs 6 distinct colours, digits achieve it.
-  function archSudoku(rr) {
+  function buildSudokuGraph(rr) {
     const solution = sudokuComplete(rr);
-    const puzzle = sudokuDig(solution, rr, 19 + Math.floor(rr() * 3));
+    const puzzle = sudokuDig(solution, rr, 24 + Math.floor(rr() * 3));
     const pos = [];
     for (let r = 0; r < SN; r++) for (let c = 0; c < SN; c++) pos.push([42 + c * 51.2, 42 + r * 51.2]);
     const at = (r, c) => r * SN + c;
@@ -724,7 +458,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const seen = new Set(edges.map(([u, v]) => (u < v ? u + "-" + v : v + "-" + u)));
     const extraEdges = [];
     {
-      const want = 2 + Math.floor(rr() * 3);
+      const want = 4 + Math.floor(rr() * 3);
       let tries = 0;
       while (extraEdges.length < want && tries++ < 2000) {
         const u = Math.floor(rr() * 36), v = Math.floor(rr() * 36);
@@ -749,36 +483,8 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     return { edges, extraEdges, chi: 6, pos, n: 36, kind: "sudoku", plant: null, labels, locked, hideEdges: true, solution };
   }
-  const ARCHES = [archMap, archTimetable, archSat, archSudoku, archWheel, archPlanted, archCirculant];
-
-  function genGraph(dateKey) {
-    const rng = rngFor(dateKey, "color");
-    const startIdx = Math.floor(rng() * ARCHES.length);
-    for (let t = 0; t < ARCHES.length; t++) {
-      const fn = ARCHES[(startIdx + t) % ARCHES.length];
-      // fresh rng stream per archetype attempt for determinism
-      const rr = mulberry32(xmur3(dateKey + "|color|" + fn.name)());
-      const built = fn(rr);
-      if (!built) continue;
-      if (built.kind === "sudoku") {
-        // exact by construction (rows need 6 colours, digits achieve 6 —
-        // extra links respect the planted solution too);
-        // far too dense to run the exact solver on, and no need to
-        if (!isConnected(built.n, built.edges)) continue;
-        return { edges: built.edges, extraEdges: built.extraEdges, chi: 6, pos: built.pos, n: built.n, kind: built.kind, labels: built.labels, locked: built.locked, hideEdges: true };
-      }
-      const { edges, pos, n } = built;
-      if (n < 7 || n > 16) continue;
-      if (edges.length < n + 2 || edges.length > 2 * n + 2) continue;
-      if (!isConnected(n, edges)) continue;
-      const chi = built.chi !== undefined ? built.chi : chromaticNumber(n, edges);
-      if (chi < 3 || chi > 4) continue;
-      return { edges, chi, pos, n, kind: built.kind, labels: built.labels || null, locked: built.locked || null, clause: built.clause || null };
-    }
-    // fallback: small map (always valid)
-    const fb = archMap(mulberry32(7));
-    const chi = fb.chi !== undefined ? fb.chi : chromaticNumber(fb.n, fb.edges);
-    return { edges: fb.edges, chi, pos: fb.pos, n: fb.n, kind: fb.kind, labels: fb.labels || null };
+  function genGraph(dateKey: string) {
+    return generateColorGraph(dateKey, buildSudokuGraph);
   }
 
   let G: any = genGraph(activeDate);
@@ -806,7 +512,7 @@ import { solveSteinerExact } from "./steiner-solver";
       return;
     }
     kindTitle.textContent = info[0];
-    kindBody.innerHTML = (G.kind === "sat reduction" && G.clause ? "Today's clause: <b>" + G.clause.join(" ∨ ") + "</b> — make it true.<br>" : "") + info[1];
+    kindBody.innerHTML = (G.kind === "sat reduction" && G.clauses ? "Today's formula: <b>" + G.clauses.map((c) => "(" + c.join(" ∨ ") + ")").join(" ∧ ") + "</b> — make it true.<br>" : "") + info[1];
     kindBox.classList.remove("hidden");
   }
   hintBtn.onclick = () => {
@@ -816,21 +522,25 @@ import { solveSteinerExact } from "./steiner-solver";
   // Solving guide per puzzle family.
   const KIND_INFO = {
     "map": ["Map — colour the districts",
-      "Neighbouring districts (sharing a border, not just a point) must differ. Start with the most-bordered district and colour its neighbourhood first — constraints cascade from there. A triangle of three mutually adjacent districts forces 3 colours, and the four-colour theorem guarantees you never need a 5th, so if you're reaching for one, backtrack instead."],
+      "Neighbouring districts (sharing a border, not just a point) must differ. Start with the most-bordered district and colour its neighbourhood first — constraints cascade from there. A triangle of three mutually adjacent districts forces 3 colours, and the four-colour theorem guarantees you never need a 5th. These maps are triangulated on purpose, so 4 is usually the honest answer: when you run out of room, back up to the last district that had a real choice rather than reaching for a 5th colour."],
     "timetable": ["Timetable — schedule the exams",
-      "Each dot is an exam; an edge means shared students, so linked exams need different time slots (colours). Dots run left-to-right in start order. Sweep an imaginary vertical line across: the busiest slice — the most exams all pairwise clashing — is a clique and sets your minimum. Greedy works here: take exams left to right, giving each the first slot none of its earlier neighbours uses."],
+      "Each dot is an exam; an edge means shared students, so linked exams need different time slots (colours). Dots run left-to-right in start order. Sweep an imaginary vertical line across: the busiest slice — the most exams all pairwise clashing — is a clique and sets your minimum, and these days are built so that slice holds four. Greedy works here: take exams left to right, giving each the first slot none of its earlier neighbours uses."],
+    "frequencies": ["Frequencies — assign the channels",
+      "Each dot is a radio mast; two masts within range of each other interfere and need different channels. There is no tidy structure to lean on, so read it off the picture: find the tightest cluster first, because a clump of four mutually-in-range masts already uses up every channel you have. Colour that cluster, then work outwards along the masts with the fewest free channels left. When you stall, the mast to change is rarely the one you are stuck on — it is the one two steps back that had two options and took the wrong one."],
+    "triangle-free": ["Triangle-free — no clique to find",
+      "There is not one triangle in this graph. Every habit that says \"find three mutual neighbours and start there\" is useless, and yet three colours provably cannot finish it — that is the whole trick. It is built in layers: an odd ring on the outside, a mirror of each ring node just inside it (wired to that node's two ring neighbours, never to the node itself), and one hub joined to every mirror. Try it with three and watch what happens: colour the ring, and each mirror is squeezed towards a single colour, which leaves the hub with nothing. So the fourth colour has to go somewhere — spend it on the hub, or on one carefully chosen mirror, and let the rest fall out."],
     "sat reduction": ["SAT reduction — colouring solves the formula",
-      "Two colours do all the work here: <b>pink (T) means TRUE, blue (F) means FALSE</b> — they arrive locked, and yellow B is just scaffolding. Your whole job is deciding x1 and x2.<br>1. <b>Read the variables.</b> x1/!x1 and x2/!x2 both touch yellow, so each pair splits pink/blue. Painting those four dots <b>is</b> picking true/false for x1 and x2 — 4 options total.<br>2. <b>Read the chain.</b> p → q → r → s → t is the clause as a burning fuse. p touches its two literals and pink T, so if both literals are blue, p is forced yellow — which forces q pink, r yellow, s pink — and then t, touching pink s plus blue and yellow, has no colour left. That dead end <b>is</b> the clause being false. Any pink literal breaks the fuse and leaves t paintable.<br>3. <b>Solve it.</b> Pick an assignment that makes today's clause true (try x1 pink first) and paint the four variable dots. Walk the chain left to right, taking any non-clashing colour. Stuck at t? First rewind to your last free chain choice — r is the usual fork — and only flip a variable if the chain truly has no way through.<br>All 12 coloured, no red: your pinks and blues satisfy the formula. ★★★."],
-    "wheel": ["Wheel — hub plus rim",
-      "The hub touches everything, so colour it first and never reuse its colour on the rim. An even rim then alternates 2 colours (3 total); an odd rim can't alternate, forcing one extra colour somewhere (4 total). Count the rim before you commit."],
-    "rings": ["Rings — a loop with shortcuts",
-      "Walk the ring around, alternating colours where you can; each chord is a shortcut constraint that can force a third (or fourth) colour. Anchor 3 colours on any triangle first, then propagate around."],
+      "Two colours do all the work here: <b>pink (T) means TRUE, blue (F) means FALSE</b> — they arrive locked, and yellow B is just scaffolding. Your whole job is deciding x1, x2 and x3.<br>1. <b>Read the variables.</b> Each pair x/!x touches yellow, so each splits pink/blue. Painting those six dots <b>is</b> picking true/false for the three variables — 8 assignments in all.<br>2. <b>Read a fuse.</b> Each clause is a chain p → q → r → s → t. p touches its first two literals and pink T, so if both are blue, p is forced yellow — which forces q pink, r yellow, s pink — and then t, touching pink s plus blue and yellow, has no colour left. That dead end <b>is</b> the clause being false. Any pink literal breaks the fuse and leaves t paintable.<br>3. <b>Solve it.</b> Both fuses share the same six literal dots, so one assignment has to satisfy both clauses at once — that is the part that is actually hard. Pick an assignment that makes today's formula true, paint the six variable dots, then walk each chain left to right taking any non-clashing colour. Stuck at a t? First rewind to that chain's last free choice — r is the usual fork — and only flip a variable if the chain truly has no way through, then recheck the other clause.<br>All 19 coloured, no red: your pinks and blues satisfy the formula. ★★★."],
     "propagation chain": ["Propagation chain — a planted puzzle",
-      "The top clique fixes the colour permutation (every colour appears exactly once up there). Middle dots touch all-but-one colour — they're forced, so paint them first like unit propagation in SAT. Bottom dots are genuine choices: branch on one and propagate the consequences."],
+      "The clique across the top fixes the colour permutation (every colour appears exactly once up there). Middle dots touch all-but-one colour — they're forced, so paint them first like unit propagation in SAT. Bottom dots are genuine choices, and they are cross-linked to each other, so a choice that looks free can still collide two dots later: branch on one, propagate, and be ready to undo."],
     "sudoku": ["Sudoku — the grid IS the graph",
       "Every row, column and 2×3 box is one big clique — all six cells pairwise linked, which is why those edges aren't drawn (216 would blanket the board). The few links you <b>can</b> see are extra rivalries beyond Sudoku rules: those pairs must differ too, so factor them in early — they usually decide the hardest cells. Dark digits are locked givens; the chips are digits 1–6. Tactics carry straight over: naked singles (a cell with only one legal digit) and hidden singles (a digit with only one home in a row, column or box). Six colours is optimal — each row needs all six — so a clean fill is ★★★."],
   };
-  let numColors = Math.min(4, Math.max(3, G.chi + 1));
+  // The palette opens with exactly as many colours as the graph needs: one
+  // spare turns most of these puzzles into a formality. "More colours" is there
+  // for anyone who wants the easier win.
+  const openingColors = (g) => g.kind === "sudoku" ? 6 : g.kind === "custom" ? Math.min(6, g.chi + 1) : g.chi;
+  let numColors = openingColors(G);
   let activeColor = 0;
   let coloring = [];
   // Fill from save or fresh; locked givens (sudoku) are always forced.
@@ -901,8 +611,18 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     return best;
   }
+  // Hovering a dot lights the edges it belongs to, which is the only way to
+  // read a busy graph without tracing lines by eye. The hovered dot survives a
+  // repaint, so painting a colour under the cursor does not drop the highlight.
+  let colorHover = -1;
+  let colorLinks: { el: SVGElement; u: number; v: number }[] = [];
+  function litEdges() {
+    colorLinks.forEach(({ el, u, v }) =>
+      el.classList.toggle("lit", colorHover >= 0 && (u === colorHover || v === colorHover)));
+  }
   function drawGraph() {
     svg.innerHTML = "";
+    colorLinks = [];
     const NS = "http://www.w3.org/2000/svg";
     const R = G.n > 12 ? 15 : 19;
     if (G.hideEdges) {
@@ -920,7 +640,7 @@ import { solveSteinerExact } from "./steiner-solver";
         rect.style.pointerEvents = "none";
         svg.appendChild(rect);
       }
-    } else {
+    }
     const drawLink = ([u, v]) => {
       const [x1, y1] = G.pos[u], [x2, y2] = G.pos[v];
       // nearest third node: bow the edge around it if it would hide beneath
@@ -934,23 +654,24 @@ import { solveSteinerExact } from "./steiner-solver";
       const cls = "edge" + (bad ? " conflict" : "");
       const others = [];
       for (let w = 0; w < CN; w++) if (w !== u && w !== v) others.push(G.pos[w]);
+      let el;
       if (bi >= 0 && bd < R + 4) {
         const cp = edgeBow(x1, y1, x2, y2, G.pos[bi][0], G.pos[bi][1], R, others);
-        const p = document.createElementNS(NS, "path");
-        p.setAttribute("d", "M " + x1 + " " + y1 + " Q " + cp[0] + " " + cp[1] + " " + x2 + " " + y2);
-        p.setAttribute("class", cls);
-        svg.appendChild(p);
+        el = document.createElementNS(NS, "path");
+        el.setAttribute("d", "M " + x1 + " " + y1 + " Q " + cp[0] + " " + cp[1] + " " + x2 + " " + y2);
+        el.setAttribute("class", cls);
       } else {
-        const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
-        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
-        if (bad) l.classList.add("conflict");
-        svg.appendChild(l);
+        el = document.createElementNS(NS, "line");
+        el.setAttribute("x1", String(x1)); el.setAttribute("y1", String(y1));
+        el.setAttribute("x2", String(x2)); el.setAttribute("y2", String(y2));
+        if (bad) el.classList.add("conflict");
       }
+      svg.appendChild(el);
+      colorLinks.push({ el, u, v });
     };
+    // Sudoku hides the 216 rule edges but must still show the extra rivalries.
     if (G.hideEdges) (G.extraEdges || []).forEach(drawLink);
     else G.edges.forEach(drawLink);
-    }
     // nodes touching a clash get a red ring (the only conflict signal when
     // edges are hidden, useful everywhere)
     const badNodes = new Set<number>();
@@ -989,6 +710,16 @@ import { solveSteinerExact } from "./steiner-solver";
       c.addEventListener("keydown", (e: KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); paintNode(); }
       });
+      // Touch has no hover: a tap would light edges and leave them lit.
+      const lightUp = (e: PointerEvent) => {
+        if (e.pointerType === "touch") return;
+        colorHover = i; litEdges();
+      };
+      const lightDown = () => { if (colorHover === i) { colorHover = -1; litEdges(); } };
+      c.addEventListener("pointerenter", lightUp);
+      c.addEventListener("pointerleave", lightDown);
+      c.addEventListener("focus", () => { colorHover = i; litEdges(); });
+      c.addEventListener("blur", lightDown);
       svg.appendChild(c);
       const t = document.createElementNS(NS, "text");
       t.setAttribute("x", String(G.pos[i][0])); t.setAttribute("y", String(G.pos[i][1] + 4));
@@ -1002,6 +733,7 @@ import { solveSteinerExact } from "./steiner-solver";
       t.setAttribute("stroke-width", "0.6");
       svg.appendChild(t);
     }
+    litEdges();
   }
   function colorStats() {
     const used = new Set(coloring.filter((c) => c !== -1));
@@ -1069,11 +801,11 @@ import { solveSteinerExact } from "./steiner-solver";
         if (Array.isArray(d.coloring) && d.coloring.length === CN) for (let i = 0; i < CN; i++) coloring[i] = d.coloring[i];
         if (G.kind === "sudoku") numColors = 6;
         else if (d.numColors) numColors = Math.min(6, Math.max(2, d.numColors));
-        else numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : Math.min(4, Math.max(3, G.chi + 1));
+        else numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : openingColors(G);
         if (typeof d.activeColor === "number") activeColor = Math.min(numColors - 1, Math.max(0, d.activeColor));
         if (d.solved) checkColor(false);
       } else {
-        numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : G.kind === "sudoku" ? 6 : G.kind === "custom" ? Math.min(6, G.chi + 1) : Math.min(4, Math.max(3, G.chi + 1));
+        numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : openingColors(G);
         activeColor = 0;
       }
       if (G.locked) for (let i = 0; i < CN; i++) if (G.locked[i] >= 0) coloring[i] = G.locked[i];
@@ -1085,10 +817,44 @@ import { solveSteinerExact } from "./steiner-solver";
     shareText("NP-Hard mode " + shareLabel() + "\nColouring 🎨: " + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + "\n" + location.href);
   };
 
-  async function shareText(txt) {
-    try { await navigator.clipboard.writeText(txt); alert("Copied to clipboard:\n\n" + txt); }
-    catch (_) { alert(txt); }
+  // ---------- share sheet ----------
+  const shareBox = document.getElementById("shareBox") as HTMLDialogElement;
+  const shareTitle = document.getElementById("shareTitle");
+  const shareBody = document.getElementById("shareBody");
+  const shareCopyBtn = document.getElementById("shareCopy");
+  const shareSendBtn = document.getElementById("shareSend");
+  let sharePayload = "";
+  async function copyShare() {
+    try {
+      await navigator.clipboard.writeText(sharePayload);
+      shareTitle.textContent = "Copied to clipboard";
+      return true;
+    } catch (_) {
+      // Clipboard access is refused often enough (insecure origin, permissions,
+      // an old browser) that the text has to stay readable and selectable.
+      shareTitle.textContent = "Copy this to share";
+      return false;
+    }
   }
+  async function shareText(txt) {
+    sharePayload = txt;
+    shareBody.textContent = txt;
+    const copied = await copyShare();
+    shareSendBtn.classList.toggle("hidden", !navigator.share);
+    if (typeof shareBox.showModal === "function") {
+      if (!shareBox.open) shareBox.showModal();
+      if (!copied) (shareBody as HTMLElement).focus();
+    } else {
+      alert(txt); // very old browsers: better a plain box than nothing
+    }
+  }
+  shareCopyBtn.onclick = () => { copyShare(); };
+  shareSendBtn.onclick = async () => {
+    try { await navigator.share({ text: sharePayload }); } catch (_) {}
+  };
+  document.getElementById("shareDone").onclick = () => shareBox.close();
+  // Clicking the backdrop lands on the dialog itself, never on its contents.
+  shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
 
   // ============================================================
   // GAME 3 — SUDOKU 6x6 (2x3 boxes), unique-solution dailies
@@ -1175,89 +941,14 @@ import { solveSteinerExact } from "./steiner-solver";
   // ============================================================
   const GL_N = 6, GL_TRIES = 6;
   // fixed pair order = bit positions of guess/target masks
-  const GL_PAIRS = [];
-  for (let u = 0; u < GL_N; u++) for (let v = u + 1; v < GL_N; v++) GL_PAIRS.push([u, v]);
+  const GL_PAIRS = GRAPHLE_PAIRS;
   const GL_POS = [];
   for (let i = 0; i < GL_N; i++) {
     const a = (2 * Math.PI * i) / GL_N - Math.PI / 2;
     GL_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
   }
-  function glEdgesFromMask(mask) {
-    const e = [];
-    GL_PAIRS.forEach(([u, v], i) => { if (mask & (1 << i)) e.push([u, v]); });
-    return e;
-  }
-  function glAdj(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set<number>());
-    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
-    return adj;
-  }
-  function glCountTriangles(n, edges) {
-    const adj = glAdj(n, edges);
-    let t = 0;
-    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
-      if (!adj[a].has(b)) continue;
-      for (let c = b + 1; c < n; c++) if (adj[a].has(c) && adj[b].has(c)) t++;
-    }
-    return t;
-  }
-  // distinct simple cycles, length >= 3; rotations/reversals count once
-  function glCountCycles(n, edges) {
-    const adj = glAdj(n, edges);
-    let count = 0;
-    function perms(arr) {
-      if (arr.length <= 1) return [arr];
-      const out = [];
-      for (let i = 0; i < arr.length; i++) {
-        for (const rest of perms(arr.slice(0, i).concat(arr.slice(i + 1)))) out.push([arr[i]].concat(rest));
-      }
-      return out;
-    }
-    function combos(arr, k, start, prefix, cb) {
-      if (prefix.length === k) { cb(prefix); return; }
-      for (let i = start; i < arr.length; i++) combos(arr, k, i + 1, prefix.concat(arr[i]), cb);
-    }
-    const verts = [...Array(n).keys()];
-    for (let k = 3; k <= n; k++) {
-      combos(verts, k, 0, [], (sub) => {
-        const s0 = sub[0], rest = sub.slice(1); // sub sorted: s0 is min (fixes rotation)
-        for (const p of perms(rest)) {
-          if (p[0] > p[p.length - 1]) continue; // fix reflection
-          let ok = adj[s0].has(p[0]) && adj[p[p.length - 1]].has(s0);
-          for (let i = 0; ok && i + 1 < p.length; i++) ok = adj[p[i]].has(p[i + 1]);
-          if (ok) count++;
-        }
-      });
-    }
-    return count;
-  }
-  function glDiameter(n, edges) {
-    const adj = glAdj(n, edges);
-    let diam = 0;
-    for (let s = 0; s < n; s++) {
-      const dist = new Array(n).fill(-1);
-      dist[s] = 0;
-      const q = [s];
-      while (q.length) {
-        const u = q.shift();
-        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
-      }
-      for (let t = 0; t < n; t++) {
-        if (dist[t] < 0) return Infinity;
-        if (dist[t] > diam) diam = dist[t];
-      }
-    }
-    return diam;
-  }
-  function glProps(edges) {
-    return {
-      e: edges.length,
-      chi: chromaticNumber(GL_N, edges),
-      tri: glCountTriangles(GL_N, edges),
-      cyc: glCountCycles(GL_N, edges),
-      diam: glDiameter(GL_N, edges),
-    };
-  }
+  const glEdgesFromMask = graphleEdges;
+  const glProps = graphleProps;
   function glCompare(t, g) {
     // numeric tiles: green exact; else yellow (±1) / gray with ↑/↓ showing
     // whether the TARGET is higher or lower than the guess
@@ -1283,10 +974,7 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     return out;
   }
-  function genGraphleTarget(dateKey) {
-    const rng = rngFor(dateKey, "graphle");
-    return Math.floor(rng() * (1 << GL_PAIRS.length));
-  }
+  const genGraphleTarget = generateGraphleTarget;
 
   let GL_TARGET = genGraphleTarget(activeDate);
   let GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
@@ -1297,7 +985,14 @@ import { solveSteinerExact } from "./steiner-solver";
   const graphleMsg = document.getElementById("graphleMsg");
   const graphleGuessBtn = document.getElementById("graphleGuess") as HTMLButtonElement;
   let glDraft = new Set<string>(); // "u-v" with u < v
-  let glPending = -1;
+  let glPending = -1;   // the dot a chain is currently drawing from
+  const glLiftPen = () => { if (glPending >= 0) { glPending = -1; paintGraphle(); } };
+  graphleSvg.addEventListener("pointerdown", (e) => {
+    if ((e.target as Element).tagName !== "circle") glLiftPen();
+  });
+  graphleSvg.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Escape") glLiftPen();
+  });
   let glGuesses = []; // {mask, tiles}
   let glDone = null; // 'won' | 'lost'
   function glDraftStats() {
@@ -1345,13 +1040,13 @@ import { solveSteinerExact } from "./steiner-solver";
       c.dataset.v = String(i);
       const selectGraphleNode = () => {
         if (glDone) return;
-        if (glPending < 0) glPending = i;
-        else if (glPending === i) glPending = -1;
+        if (glPending < 0 || glPending === i) glPending = glPending === i ? -1 : i;
         else {
           const a = Math.min(glPending, i), b = Math.max(glPending, i);
           const k = a + "-" + b;
           if (glDraft.has(k)) glDraft.delete(k); else glDraft.add(k);
-          glPending = -1;
+          // Stay on the dot just reached, so a path can be drawn in one sweep.
+          glPending = i;
         }
         paintGraphle();
       };
@@ -1476,7 +1171,7 @@ import { solveSteinerExact } from "./steiner-solver";
   };
   function saveGraphle() {
     try {
-      localStorage.setItem("hm-" + activeDate + "-graphle", JSON.stringify({
+      localStorage.setItem(dailyStoreKey(activeDate, "graphle"), JSON.stringify({
         masks: glGuesses.map((g) => g.mask),
         solved: glDone === "won",
         lost: glDone === "lost",
@@ -1485,7 +1180,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   function loadGraphle() {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-graphle") || "null");
+      const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "graphle")) || "null");
       if (d && Array.isArray(d.masks)) {
         for (const mask of d.masks) {
           if (typeof mask !== "number" || mask < 0 || mask >= (1 << GL_PAIRS.length)) continue;
@@ -1524,110 +1219,14 @@ import { solveSteinerExact } from "./steiner-solver";
   // connected, no cycles. Win by matching all six tree tiles.
   // ============================================================
   const TR_N = 8, TR_TRIES = 6;
-  const TR_PAIRS = [];
-  for (let u = 0; u < TR_N; u++) for (let v = u + 1; v < TR_N; v++) TR_PAIRS.push([u, v]);
+  const TR_PAIRS = TREEDLE_PAIRS;
   const TR_POS = [];
   for (let i = 0; i < TR_N; i++) {
     const a = (2 * Math.PI * i) / TR_N - Math.PI / 2;
     TR_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
   }
-  function trEdgesFromMask(mask) {
-    const e = [];
-    TR_PAIRS.forEach(([u, v], i) => { if (mask & (1 << i)) e.push([u, v]); });
-    return e;
-  }
-  function trDegrees(n, edges) {
-    const d = new Array(n).fill(0);
-    edges.forEach(([u, v]) => { d[u]++; d[v]++; });
-    return d;
-  }
-  // uniform random labelled tree via Prüfer sequences (Cayley)
-  function trRandomTreeMask(rng, n) {
-    const code = [];
-    for (let i = 0; i < n - 2; i++) code.push(Math.floor(rng() * n));
-    const deg = new Array(n).fill(1);
-    code.forEach((v) => deg[v]++);
-    const idx = new Map<string, number>();
-    TR_PAIRS.forEach(([u, v], i) => idx.set(u + "-" + v, i));
-    let mask = 0;
-    for (const v of code) {
-      let leaf = -1;
-      for (let i = 0; i < n; i++) if (deg[i] === 1) { leaf = i; break; }
-      const a = Math.min(leaf, v), b = Math.max(leaf, v);
-      mask |= (1 << idx.get(a + "-" + b));
-      deg[leaf]--; deg[v]--;
-    }
-    const rest = [];
-    for (let i = 0; i < n; i++) if (deg[i] === 1) rest.push(i);
-    mask |= (1 << idx.get(Math.min(rest[0], rest[1]) + "-" + Math.max(rest[0], rest[1])));
-    return mask;
-  }
-  function trDiameter(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set<number>());
-    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
-    let diam = 0;
-    for (let s = 0; s < n; s++) {
-      const dist = new Array(n).fill(-1);
-      dist[s] = 0;
-      const q = [s];
-      while (q.length) {
-        const u = q.shift();
-        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
-      }
-      for (let t = 0; t < n; t++) {
-        if (dist[t] < 0) return Infinity;
-        if (dist[t] > diam) diam = dist[t];
-      }
-    }
-    return diam;
-  }
-  function trWiener(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set<number>());
-    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
-    let sum = 0;
-    for (let s = 0; s < n; s++) {
-      const dist = new Array(n).fill(-1);
-      dist[s] = 0;
-      const q = [s];
-      while (q.length) {
-        const u = q.shift();
-        for (const w of adj[u]) if (dist[w] < 0) { dist[w] = dist[u] + 1; q.push(w); }
-      }
-      for (let t = s + 1; t < n; t++) {
-        if (dist[t] < 0) return Infinity;
-        sum += dist[t];
-      }
-    }
-    return sum;
-  }
-  function trIndependence(n, edges) {
-    const adj = Array.from({ length: n }, () => new Set<number>());
-    edges.forEach(([u, v]) => { adj[u].add(v); adj[v].add(u); });
-    let best = 0;
-    const pop = (m) => { let c = 0; while (m) { c += m & 1; m >>>= 1; } return c; };
-    for (let m = 0; m < (1 << n); m++) {
-      if (pop(m) <= best) continue;
-      let ok = true;
-      for (let i = 0; i < n && ok; i++) {
-        if (!(m & (1 << i))) continue;
-        for (let j = i + 1; j < n; j++) {
-          if ((m & (1 << j)) && adj[i].has(j)) { ok = false; break; }
-        }
-      }
-      if (ok) best = pop(m);
-    }
-    return best;
-  }
-  function trProps(edges) {
-    const d = trDegrees(TR_N, edges);
-    return {
-      leaf: d.filter((x) => x === 1).length,
-      diam: trDiameter(TR_N, edges),
-      maxd: Math.max(...d),
-      w: trWiener(TR_N, edges),
-      alpha: trIndependence(TR_N, edges),
-    };
-  }
+  const trEdgesFromMask = treedleEdges;
+  const trProps = treedleProps;
   function trCompare(t, g) {
     const num = (a, b) => {
       if (a === b) return { cls: "g-green", dir: "" };
@@ -1657,9 +1256,7 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     return out;
   }
-  function genTreedleTarget(dateKey) {
-    return trRandomTreeMask(rngFor(dateKey, "treedle"), TR_N);
-  }
+  const genTreedleTarget = generateTreedleTarget;
 
   let TR_TARGET = genTreedleTarget(activeDate);
   let TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
@@ -1670,7 +1267,14 @@ import { solveSteinerExact } from "./steiner-solver";
   const treedleMsg = document.getElementById("treedleMsg");
   const treedleGuessBtn = document.getElementById("treedleGuess") as HTMLButtonElement;
   let trDraft = new Set<string>(); // "u-v" with u < v
-  let trPending = -1;
+  let trPending = -1;   // the dot a chain is currently drawing from
+  const trLiftPen = () => { if (trPending >= 0) { trPending = -1; paintTreedle(); } };
+  treedleSvg.addEventListener("pointerdown", (e) => {
+    if ((e.target as Element).tagName !== "circle") trLiftPen();
+  });
+  treedleSvg.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Escape") trLiftPen();
+  });
   let trGuesses = []; // {mask, tiles}
   let trDone = null; // 'won' | 'lost'
   function trDraftStats() {
@@ -1718,13 +1322,13 @@ import { solveSteinerExact } from "./steiner-solver";
       c.dataset.v = String(i);
       const selectTreedleNode = () => {
         if (trDone) return;
-        if (trPending < 0) trPending = i;
-        else if (trPending === i) trPending = -1;
+        if (trPending < 0 || trPending === i) trPending = trPending === i ? -1 : i;
         else {
           const a = Math.min(trPending, i), b = Math.max(trPending, i);
           const k = a + "-" + b;
           if (trDraft.has(k)) trDraft.delete(k); else trDraft.add(k);
-          trPending = -1;
+          // Stay on the dot just reached, so a path can be drawn in one sweep.
+          trPending = i;
         }
         paintTreedle();
       };
@@ -1820,7 +1424,7 @@ import { solveSteinerExact } from "./steiner-solver";
   };
   function saveTreedle() {
     try {
-      localStorage.setItem("hm-" + activeDate + "-treedle", JSON.stringify({
+      localStorage.setItem(dailyStoreKey(activeDate, "treedle"), JSON.stringify({
         masks: trGuesses.map((g) => g.mask),
         solved: trDone === "won",
         lost: trDone === "lost",
@@ -1829,7 +1433,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   function loadTreedle() {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-treedle") || "null");
+      const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "treedle")) || "null");
       if (d && Array.isArray(d.masks)) {
         for (const mask of d.masks) {
           if (typeof mask !== "number" || mask < 0 || mask >= (1 << TR_PAIRS.length)) continue;
@@ -1990,9 +1594,9 @@ import { solveSteinerExact } from "./steiner-solver";
       }
       for (const k of special.keys()) if (termSet.has(k) || walls.has(k)) return null;
       if (!stFreeConnected(N, terms, walls)) return null;
-      const par = solveSteinerExact(N, terms, walls, special, portalPairs);
-      if (!Number.isFinite(par)) return null;
-      return { game: "steiner", data: { N, terms, termSet, walls, special, portalPairs, par } };
+      const target = solveSteinerExact(N, terms, walls, special, portalPairs);
+      if (!Number.isFinite(target)) return null;
+      return { game: "steiner", data: { N, terms, termSet, walls, special, portalPairs, target } };
     }
     const d = obj.data;
     const n = d.n | 0;
@@ -2116,8 +1720,8 @@ import { solveSteinerExact } from "./steiner-solver";
     const d = edSteinerData();
     let s = "Seeds <b>" + d.terms.length + "</b> · rock " + d.walls.size;
     if (d.terms.length >= 2 && stFreeConnected(d.N, d.terms, d.walls)) {
-      const par = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
-      s += Number.isFinite(par) ? " · par <b>" + par + "</b> (exact)" : " · unsolvable shape";
+      const target = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
+      s += Number.isFinite(target) ? " · target <b>" + target + "</b> (exact)" : " · unsolvable shape";
     } else if (d.terms.length >= 2) s += " · seeds not all linked";
     else s += " · place at least 2 seeds";
     edSteinerMeta.innerHTML = s;
@@ -2178,9 +1782,9 @@ import { solveSteinerExact } from "./steiner-solver";
     const d = edSteinerData();
     if (d.terms.length < 2) return edMsg("Place at least 2 seeds first.", false);
     if (!stFreeConnected(d.N, d.terms, d.walls)) return edMsg("Seeds aren't all linked — open a path first.", false);
-    const par = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
-    if (!Number.isFinite(par)) return edMsg("No valid network — check the layout.", false);
-    enterCustom("steiner", { id: "playtest", name: "Playtest", data: { ...d, par } });
+    const target = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
+    if (!Number.isFinite(target)) return edMsg("No valid network — check the layout.", false);
+    enterCustom("steiner", { id: "playtest", name: "Playtest", data: { ...d, target } });
   };
   document.getElementById("edSteinerSave").onclick = () => {
     const d = edSteinerData();
@@ -2381,7 +1985,7 @@ import { solveSteinerExact } from "./steiner-solver";
       const row = document.createElement("div");
       row.className = "lib-item";
       const v = validateCustom({ game: entry.game, data: entry.data });
-      const sub = !v ? "broken" : entry.game === "steiner" ? "par " + v.data.par : "χ " + v.data.chi + " · " + v.data.edges.length + " edges";
+      const sub = !v ? "broken" : entry.game === "steiner" ? "target " + v.data.target : "χ " + v.data.chi + " · " + v.data.edges.length + " edges";
       const sp = document.createElement("span");
       sp.textContent = entry.name + " · " + sub;
       sp.title = entry.name;
@@ -2456,7 +2060,7 @@ import { solveSteinerExact } from "./steiner-solver";
       steinerTutBox.classList.add("hidden");
       const d = session.data;
       GN = d.N;
-      S = { terms: d.terms, termSet: d.termSet, walls: d.walls, special: d.special, portalPairs: d.portalPairs, par: d.par, kind: "custom" };
+      S = { terms: d.terms, termSet: d.termSet, walls: d.walls, special: d.special, portalPairs: d.portalPairs, target: d.target, kind: "custom" };
       sel.clear();
       buildGrid(); loadSteiner(); paintSteiner();
       steinerMsg.textContent = ""; steinerMsg.className = "msg";
@@ -2465,7 +2069,7 @@ import { solveSteinerExact } from "./steiner-solver";
         if (s && s.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
       } catch (_) {}
       document.getElementById("steinerCustomName").textContent = session.name;
-      document.getElementById("steinerCustomPar").textContent = d.par;
+      document.getElementById("steinerCustomTarget").textContent = d.target;
     } else {
       showView("color");
       colorCustomBar.classList.remove("hidden");
@@ -2530,7 +2134,7 @@ import { solveSteinerExact } from "./steiner-solver";
         const d = JSON.parse(localStorage.getItem(storeKey("steiner")) || "null");
         if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
       } catch (_) {}
-      document.getElementById("steinerTutPar").textContent = S.par;
+      document.getElementById("steinerTutTarget").textContent = S.target;
     } else {
       showView("color");
       colorTutBox.classList.remove("hidden");

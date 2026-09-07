@@ -56,11 +56,12 @@
             <p><b>Grow.</b> Tap or drag over pale cells. Drag over your route to erase it.</p>
             <p><b>Read the board.</b> Rocks block you, + cells are free, ! cells cost 3, and matching letters connect.</p>
             <p><b>Share routes.</b> Branch from one short trunk instead of drawing separate paths.</p>
+            <p><b>Mind the seam.</b> Some days the board wraps: green dashed rails down both sides mean the left and right edges are joined, so a route can leave one side and arrive on the other in the same row.</p>
           </div>
-          <p class="tutpar">Target cost: <b><span id="steinerTutPar"></span></b>. Connect all seeds first; optimise after.</p>
+          <p class="tutpar">Target cost: <b><span id="steinerTutTarget"></span></b>. Connect all seeds first; optimise after.</p>
         </div>
         <div id="steinerMeta" class="meta"></div>
-        <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b> · par <b id="steinerCustomPar"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
+        <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b> · target <b id="steinerCustomTarget"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
         <div id="steinerGrid" class="grid" role="grid" aria-label="Steiner grid"></div>
         <div class="row">
           <button id="steinerClear" class="btn">Clear</button>
@@ -107,9 +108,16 @@
       <section id="viewGraphle" class="view hidden" role="tabpanel" aria-labelledby="tabGraphle">
         <div class="puzzle-heading"><h2>Graphle</h2><button id="graphleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="graphleHelpBox">How to play</button></div>
         <div id="graphleHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Rebuild the hidden graph.</b> Tap two dots to toggle a link, then Guess. You have six tries.</p>
+          <p class="help-copy"><b>Rebuild the hidden graph.</b> Tap two dots to toggle a link. The second dot stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
           <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
-          <p class="property-copy"><b>E</b> edges · <b>χ</b> fewest colours · <b>△</b> triangles · <b>Cyc</b> cycles · <b>Diam</b> longest shortest path. Arrows show whether the answer is higher or lower.</p>
+          <p class="property-copy">Each guess is scored on five numbers. An arrow means the hidden graph's value is higher&nbsp;↑ or lower&nbsp;↓ than yours.</p>
+          <dl class="metric-list">
+            <dt>E</dt><dd><b>Edges.</b> How many links you have drawn. Six dots allow 15 links in all, so this alone narrows things down fast — settle it first.</dd>
+            <dt>χ</dt><dd><b>Chromatic number.</b> The fewest colours needed to paint the six dots so that no link joins two of the same colour. 1 means no links at all, 2 means the dots split into two sides with every link crossing between them, and 3 or more means there is an odd-length ring somewhere.</dd>
+            <dt>△</dt><dd><b>Triangles.</b> How many sets of three dots are all linked to each other. Adding one link to a dot with <i>k</i> shared neighbours creates <i>k</i> triangles at once, so this number climbs quickly in a busy graph.</dd>
+            <dt>Cyc</dt><dd><b>Cycles.</b> How many distinct closed loops of three or more dots exist, counting a loop once however you walk it. Every triangle is also a cycle, so Cyc is never below △; a big gap between them means long loops rather than tight clumps.</dd>
+            <dt>Diam</dt><dd><b>Diameter.</b> Take the two dots that are furthest apart and count the links on the shortest route between them. Small means tightly knit, large means strung out, and ∞ means some dot cannot be reached at all.</dd>
+          </dl>
         </div>
         <div id="graphleMeta" class="meta"></div>
         <svg id="graphleSvg" viewBox="0 0 340 340" role="group" aria-label="Graphle board"></svg>
@@ -127,9 +135,16 @@
       <section id="viewTreedle" class="view hidden" role="tabpanel" aria-labelledby="tabTreedle">
         <div class="puzzle-heading"><h2>Treedle</h2><button id="treedleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="treedleHelpBox">How to play</button></div>
         <div id="treedleHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Rebuild the hidden tree.</b> Join all eight dots with seven links and no loops, then Guess. You have six tries.</p>
+          <p class="help-copy"><b>Rebuild the hidden tree.</b> Join all eight dots with seven links and no loops. Tap two dots to toggle a link; the second stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
           <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
-          <p class="property-copy"><b>Leaf</b> end dots · <b>Diam</b> longest path · <b>Δ</b> busiest dot · <b>W</b> total pairwise distance · <b>α</b> largest unlinked set. Arrows show whether the answer is higher or lower.</p>
+          <p class="property-copy">Every answer is a tree: eight dots, seven links, no loops. Each guess is scored on five numbers, and an arrow means the hidden tree's value is higher&nbsp;↑ or lower&nbsp;↓ than yours.</p>
+          <dl class="metric-list">
+            <dt>Leaf</dt><dd><b>Leaves.</b> How many dots have exactly one link — the loose ends. Two leaves means a single line of dots; seven means a star with one dot in the middle.</dd>
+            <dt>Diam</dt><dd><b>Diameter.</b> The number of links on the longest route between any two dots. A line of eight scores 7, a star scores 2. Read together with Leaf it says a lot about the shape.</dd>
+            <dt>Δ</dt><dd><b>Busiest dot.</b> The largest number of links meeting at any one dot. 2 means no dot ever branches, so the tree is a plain line; a high value means one hub carries most of it.</dd>
+            <dt>W</dt><dd><b>Total distance.</b> Add up the number of links between every pair of dots — 28 pairs in all. A star keeps everything close and scores low (49); a straight line scores the most (84). It is the most sensitive of the five, so use it to tell near-misses apart.</dd>
+            <dt>α</dt><dd><b>Largest unlinked set.</b> The biggest group of dots you can pick with no link between any two of them. A star scores 7 (every outer dot), a line scores 4 (every other dot). High means one hub, low means the links are spread evenly.</dd>
+          </dl>
         </div>
         <div id="treedleMeta" class="meta"></div>
         <svg id="treedleSvg" viewBox="0 0 340 340" role="group" aria-label="Treedle board"></svg>
@@ -197,6 +212,15 @@
       </div>
     </footer>
   </div>
+  <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
+    <h3 id="shareTitle">Copied to clipboard</h3>
+    <pre id="shareBody" tabindex="0"></pre>
+    <div class="row">
+      <button id="shareCopy" class="btn">Copy again</button>
+      <button id="shareSend" class="btn hidden">Share…</button>
+      <button id="shareDone" class="btn primary" autofocus>Done</button>
+    </div>
+  </dialog>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
