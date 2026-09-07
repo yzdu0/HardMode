@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hard Mode — Daily</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<script>try{var __t=localStorage.getItem("hm-theme");if(__t==="dark"||__t==="minimal")document.body.setAttribute("data-theme",__t);}catch(e){}</script>
+  <div class="app">
+    <header>
+      <h1>HARD MODE</h1>
+      <div class="sub"><span id="streakLabel"></span></div>
+      <div class="daterow" id="daterow">
+        <button id="prevDay" class="btn small" aria-label="Previous day">←</button>
+        <button id="dateBtn" class="datebtn" title="Open archive">📅 <span id="dateLabel"></span></button>
+        <button id="nextDay" class="btn small" aria-label="Next day">→</button>
+      </div>
+      <div id="archive" class="archive hidden">
+        <div class="archive-head">
+          <strong>Archive</strong>
+          <input type="date" id="archiveDate" />
+        </div>
+        <div id="archiveList" class="archive-list"></div>
+      </div>
+      <nav class="tabs">
+        <button id="tabSteiner" class="tab active">1 · Steiner</button>
+        <button id="tabColor" class="tab">2 · Colouring</button>
+        <button id="tabEditor" class="tab">✎ Editor</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- STEINER -->
+      <section id="viewSteiner" class="view">
+        <p class="rules"><b>Spread the moss.</b> Tap / drag to grow roots and connect every seed <b>●</b>. <span class="legend-inline"><span class="k k-term">●</span> seed <span class="k k-wall">■</span> rock <span class="k k-bonus">+</span> spore free <span class="k k-pen">!</span> thorn +3 <span class="k k-portal">A</span> mycelium portal</span></p>
+        <button id="steinerTutBtn" class="linkbtn">★ New here? Play the guided tutorial</button>
+        <div id="steinerTutBox" class="tutbox hidden">
+          <div class="tuthead"><strong>Steiner tutorial · connect 3 seeds</strong><button id="steinerTutBack" class="btn small">← Daily</button></div>
+          <p class="tutintro">A fixed board that teaches every mechanic. Solve it, then take on the dailies.</p>
+          <ol>
+            <li><b>Goal.</b> Link all 3 seeds (●) with moss. Drag across squares to grow; drag over moss to erase. Costs: moss 1, spore + free, thorn ! 3, portal ends 1 each, seeds free. Press Check — you pass when every seed is joined into one network.</li>
+            <li><b>Rock.</b> Black squares block growth. A rock column splits this board in two, so route around it — over the top or under the bottom.</li>
+            <li><b>Thorns.</b> The straight road along the top runs through a thorn (!): 3 for a single square. Detour one square around it instead.</li>
+            <li><b>Spores.</b> The + squares are free. Bend a route through them whenever it's cheap.</li>
+            <li><b>Portals.</b> The two A squares are one mycelium portal: grow onto <b>both</b> and west and east connect underground for just 2 total, skipping the whole middle. That shortcut is the key move on this board.</li>
+            <li><b>Sharing.</b> Never build one road per seed pair. Share trunk routes between all three seeds — the junctions where routes meet are called Steiner points, and sharing is what makes a network short.</li>
+          </ol>
+          <p class="tutpar">Par on this board: <b><span id="steinerTutPar"></span></b> — the exact optimum, found by exhaustive search. Match it for a perfect game.</p>
+        </div>
+        <div id="steinerMeta" class="meta"></div>
+        <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b> · par <b id="steinerCustomPar"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
+        <div id="steinerGrid" class="grid" aria-label="Steiner grid"></div>
+        <div class="row">
+          <button id="steinerClear" class="btn">Clear</button>
+          <button id="steinerCheck" class="btn primary">Check</button>
+          <button id="steinerShare" class="btn">Share</button>
+        </div>
+        <div id="steinerMsg" class="msg"></div>
+        <details class="how">
+          <summary>How scoring works</summary>
+          <p>Each moss cell costs 1. Spore clearings (+) are free ground — route through them when it's cheap. Thorns (!) cost 3. Mycelium portals cost 1 each — take <b>both</b> ends of a pair and they connect underground, even across the map. Seeds are free. Shortest living network wins. Par is the exact optimum, computed by exhaustive search.</p>
+        </details>
+      </section>
+
+      <!-- COLORING -->
+      <section id="viewColor" class="view hidden">
+        <p class="rules"><b>Colour every dot</b> so neighbours differ. Use as few colours as you can.</p>
+        <button id="colorTutBtn" class="linkbtn">★ New here? Play the guided tutorial</button>
+        <div id="colorTutBox" class="tutbox hidden">
+          <div class="tuthead"><strong>Colouring tutorial · paint 5 nodes</strong><button id="colorTutBack" class="btn small">← Daily</button></div>
+          <p class="tutintro">A fixed board that teaches the whole game.</p>
+          <ol>
+            <li><b>Paint.</b> Pick a colour chip, then tap a node. Tap a node with its own colour to erase. Start by painting all 5 nodes anything valid.</li>
+            <li><b>Rule.</b> Neighbours must differ: a red edge means its two ends clash. Everything painted plus no red edges is solved — press Check.</li>
+            <li><b>Lower bound.</b> Nodes 1, 2 and 3 are all joined to each other — a triangle. Three mutually adjacent nodes need three different colours, so this board needs at least 3. That trick generalises: a clique of k mutually adjacent nodes always needs k colours, which tells you your target before you start.</li>
+            <li><b>Optimality.</b> You start with 3 chips: solve the board and your score equals the clique bound, which <b>proves</b> you can't do better — ★★★. (Use + colour first if you want an easy valid solution, then squeeze down.)</li>
+            <li><b>Forcing.</b> A node touching all-but-one colour has only one option left — like unit propagation in SAT solvers. Paint forced nodes first and let the constraints cascade; save guesses for last.</li>
+            <li><b>Impossibility.</b> Try it: drop to 2 chips with − colour and press Check. A triangle can't fit in 2 colours (pigeonhole principle) — feeling that impossibility is exactly what ★★★ certifies you escaped.</li>
+          </ol>
+        </div>
+        <div id="colorMeta" class="meta"></div>
+        <div id="colorCustomBar" class="custombar hidden"><span>Custom: <b id="colorCustomName"></b> · χ <b id="colorCustomChi"></b></span><button id="colorCustomBack" class="btn small">← Editor</button></div>
+        <button id="hintBtn" class="linkbtn hidden">💡 Stuck? How to solve this type</button>
+        <div id="kindBox" class="kindbox hidden"><strong id="kindTitle"></strong><span id="kindBody"></span></div>
+        <div id="palette" class="palette"></div>
+        <div class="row small" id="colorCountRow">
+          <button id="fewerColors" class="btn">− colour</button>
+          <button id="moreColors" class="btn">+ colour</button>
+        </div>
+        <svg id="graphSvg" viewBox="0 0 340 340" aria-label="Graph to colour"></svg>
+        <div class="row">
+          <button id="colorClear" class="btn">Clear</button>
+          <button id="colorCheck" class="btn primary">Check</button>
+          <button id="colorShare" class="btn">Share</button>
+        </div>
+        <div id="colorMsg" class="msg"></div>
+        <details class="how">
+          <summary>How scoring works</summary>
+          <p>Pick a colour, then tap a vertex to paint it. Tap again with the same colour to erase. A solution is valid when every vertex is coloured and no edge joins two equal colours. Score = number of distinct colours used. Match the hidden optimum for ★★★. Dailies come from real applications: <b>maps</b> (neighbouring districts differ — the four-colour theorem says no map needs 5), <b>timetables</b> (exams sharing students can't share a slot, laid out in time order), and <b>SAT reductions</b> (a 3-SAT clause compiled into gadgets — colouring the graph solves the formula), plus classic wheels, rings and propagation chains, and Sudoku (every row, column and box is a clique — givens arrive locked, plus a few extra rivalry links).</p>
+        </details>
+      </section>
+
+      <!-- EDITOR -->
+      <section id="viewEditor" class="view hidden">
+        <p class="rules"><b>Build levels.</b> Paint a board, playtest it with true par / χ, keep it, share it with a link.</p>
+        <div class="row small">
+          <button id="edTypeSteiner" class="btn">Steiner board</button>
+          <button id="edTypeColor" class="btn">Graph board</button>
+        </div>
+        <div id="edSteinerWrap">
+          <div id="edSteinerTools" class="tools"></div>
+          <div id="edSteinerGrid" class="grid" aria-label="Steiner editor grid"></div>
+          <div id="edSteinerMeta" class="meta"></div>
+          <div class="row">
+            <button id="edSteinerPlay" class="btn primary">Playtest</button>
+            <button id="edSteinerSave" class="btn">Save</button>
+          </div>
+          <div class="row">
+            <button id="edSteinerClear" class="btn">Clear</button>
+            <button id="edSteinerLink" class="btn">Copy link</button>
+          </div>
+          <div id="edSteinerMsg" class="msg"></div>
+          <div id="edSteinerLib" class="lib"></div>
+        </div>
+        <div id="edColorWrap" class="hidden">
+          <div class="row small">
+            <button id="edNMinus" class="btn">− node</button>
+            <button id="edNPlus" class="btn">+ node</button>
+          </div>
+          <div id="edColorTools" class="tools"></div>
+          <svg id="editorSvg" viewBox="0 0 340 340" aria-label="Graph editor"></svg>
+          <div id="edColorMeta" class="meta"></div>
+          <div class="row">
+            <button id="edColorPlay" class="btn primary">Playtest</button>
+            <button id="edColorSave" class="btn">Save</button>
+          </div>
+          <div class="row">
+            <button id="edColorClear" class="btn">Clear</button>
+            <button id="edColorLink" class="btn">Copy link</button>
+          </div>
+          <div id="edColorMsg" class="msg"></div>
+          <div id="edColorLib" class="lib"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <p>Two puzzles a day. Same boards for everyone. Progress saves on this device.</p>
+      <div class="themerow">Theme:
+        <button id="themeLight" class="tbtn">☀️ Light</button>
+        <button id="themeDark" class="tbtn">🌙 Dark</button>
+        <button id="themeMinimal" class="tbtn">▫️ Minimal</button>
+      </div>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
