@@ -14,7 +14,6 @@
     <header class="site-header">
       <div class="brand-row">
         <div>
-          <p class="eyebrow">Daily graph puzzles</p>
           <h1>NP-Hard <span>mode</span></h1>
         </div>
         <div class="streak-pill"><span id="streakLabel"></span></div>
@@ -35,37 +34,24 @@
         <div id="archiveList" class="archive-list"></div>
       </div>
       <nav class="tabs" role="tablist" aria-label="Puzzles">
-        <button id="tabSteiner" class="tab active" role="tab" aria-selected="true" aria-controls="viewSteiner"><span>01</span>Steiner</button>
-        <button id="tabColor" class="tab" role="tab" aria-selected="false" aria-controls="viewColor"><span>02</span>Colouring</button>
-        <button id="tabGraphle" class="tab" role="tab" aria-selected="false" aria-controls="viewGraphle"><span>03</span>Graphle</button>
-        <button id="tabTreedle" class="tab" role="tab" aria-selected="false" aria-controls="viewTreedle"><span>04</span>Treedle</button>
+        <button id="tabSteiner" class="tab active" role="tab" aria-selected="true" aria-controls="viewSteiner">Steiner</button>
+        <button id="tabColor" class="tab" role="tab" aria-selected="false" aria-controls="viewColor">Colouring</button>
+        <button id="tabGraphle" class="tab" role="tab" aria-selected="false" aria-controls="viewGraphle">Graphle</button>
+        <button id="tabTreedle" class="tab" role="tab" aria-selected="false" aria-controls="viewTreedle">Treedle</button>
       </nav>
-      <button id="tabEditor" class="editor-link">Build a puzzle <span aria-hidden="true">↗</span></button>
     </header>
 
     <main>
-      <aside id="welcomeCard" class="welcome-card hidden" aria-label="Welcome to NP-Hard mode">
-        <div class="welcome-copy">
-          <p class="puzzle-number">Your first minute</p>
-          <h2>Start with Steiner.</h2>
-          <p>Connect the seeds, keep the route short, then press Check. Every move saves automatically.</p>
-        </div>
-        <div class="welcome-steps" aria-label="Three quick steps">
-          <span><b>1</b> Tap or drag</span><span><b>2</b> Join every seed</span><span><b>3</b> Match par</span>
-        </div>
-        <button id="welcomeDismiss" class="welcome-dismiss">Start puzzle</button>
-      </aside>
-
       <!-- STEINER -->
       <section id="viewSteiner" class="view" role="tabpanel" aria-labelledby="tabSteiner">
         <div class="puzzle-heading">
-          <div><p class="puzzle-number">Puzzle 01</p><h2>Steiner</h2></div>
+          <h2>Steiner</h2>
           <button id="steinerTutBtn" class="learn-btn">How to play</button>
         </div>
-        <p class="rules"><b>Connect every seed.</b> Tap or drag through empty cells to grow one continuous network.</p>
-        <div class="legend-inline" aria-label="Board legend"><span><i class="k k-term">●</i> seed</span><span><i class="k k-wall">■</i> rock</span><span><i class="k k-bonus">+</i> free</span><span><i class="k k-pen">!</i> +3</span><span><i class="k k-portal">A</i> portal</span></div>
         <div id="steinerTutBox" class="tutbox hidden">
-          <div class="tuthead"><div><p class="puzzle-number">Practice board</p><strong>Connect three seeds</strong></div><button id="steinerTutBack" class="btn small">Back to daily</button></div>
+          <div class="tuthead"><strong>Practice: connect three seeds</strong><button id="steinerTutBack" class="btn small">Back to daily</button></div>
+          <p class="help-copy">Tap or drag through empty cells to grow one connected network.</p>
+          <div class="legend-inline" aria-label="Board legend"><span><i class="k k-term">●</i> seed</span><span><i class="k k-wall">■</i> rock</span><span><i class="k k-bonus">+</i> free</span><span><i class="k k-pen">!</i> cost 3</span><span><i class="k k-portal">A</i> portal</span></div>
           <div class="tutorial-steps">
             <p><b>Grow.</b> Tap or drag over pale cells. Drag over your route to erase it.</p>
             <p><b>Read the board.</b> Rocks block you, + cells are free, ! cells cost 3, and matching letters connect.</p>
@@ -82,21 +68,17 @@
           <button id="steinerShare" class="btn">Share</button>
         </div>
         <div id="steinerMsg" class="msg" role="status" aria-live="polite"></div>
-        <details class="how">
-          <summary>How scoring works</summary>
-          <p>Each moss cell costs 1. Spore clearings (+) are free ground — route through them when it's cheap. Thorns (!) cost 3. Mycelium portals cost 1 each — take <b>both</b> ends of a pair and they connect underground, even across the map. Seeds are free. Shortest living network wins. Par is the exact optimum, computed by exhaustive search.</p>
-        </details>
       </section>
 
       <!-- COLORING -->
       <section id="viewColor" class="view hidden" role="tabpanel" aria-labelledby="tabColor">
         <div class="puzzle-heading">
-          <div><p class="puzzle-number">Puzzle 02</p><h2>Colouring</h2></div>
+          <h2>Colouring</h2>
           <button id="colorTutBtn" class="learn-btn">How to play</button>
         </div>
-        <p class="rules"><b>Colour every dot.</b> Dots joined by a line must use different colours.</p>
         <div id="colorTutBox" class="tutbox hidden">
-          <div class="tuthead"><div><p class="puzzle-number">Practice board</p><strong>Colour five dots</strong></div><button id="colorTutBack" class="btn small">Back to daily</button></div>
+          <div class="tuthead"><strong>Practice: colour five dots</strong><button id="colorTutBack" class="btn small">Back to daily</button></div>
+          <p class="help-copy">Colour every dot so neighbours joined by a line use different colours.</p>
           <div class="tutorial-steps">
             <p><b>Pick a colour</b>, then tap a dot. Tap it again with the same colour to erase.</p>
             <p><b>Watch the lines.</b> Red means two neighbours clash.</p>
@@ -119,17 +101,16 @@
           <button id="colorShare" class="btn">Share</button>
         </div>
         <div id="colorMsg" class="msg" role="status" aria-live="polite"></div>
-        <details class="how">
-          <summary>How scoring works</summary>
-          <p>Pick a colour, then tap a vertex to paint it. Tap again with the same colour to erase. A solution is valid when every vertex is coloured and no edge joins two equal colours. Score = number of distinct colours used. Match the hidden optimum for ★★★. Dailies come from real applications: <b>maps</b> (neighbouring districts differ — the four-colour theorem says no map needs 5), <b>timetables</b> (exams sharing students can't share a slot, laid out in time order), and <b>SAT reductions</b> (a 3-SAT clause compiled into gadgets — colouring the graph solves the formula), plus classic wheels, rings and propagation chains, and Sudoku (every row, column and box is a clique — givens arrive locked, plus a few extra rivalry links).</p>
-        </details>
       </section>
 
       <!-- GRAPHLE -->
       <section id="viewGraphle" class="view hidden" role="tabpanel" aria-labelledby="tabGraphle">
-        <div class="puzzle-heading"><div><p class="puzzle-number">Puzzle 03</p><h2>Graphle</h2></div><span class="try-badge">6 tries</span></div>
-        <p class="rules"><b>Rebuild the hidden graph.</b> Tap two dots to add a link, then compare five properties.</p>
-        <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
+        <div class="puzzle-heading"><h2>Graphle</h2><button id="graphleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="graphleHelpBox">How to play</button></div>
+        <div id="graphleHelpBox" class="tutbox hidden">
+          <p class="help-copy"><b>Rebuild the hidden graph.</b> Tap two dots to toggle a link, then Guess. You have six tries.</p>
+          <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
+          <p class="property-copy"><b>E</b> edges · <b>χ</b> fewest colours · <b>△</b> triangles · <b>Cyc</b> cycles · <b>Diam</b> longest shortest path. Arrows show whether the answer is higher or lower.</p>
+        </div>
         <div id="graphleMeta" class="meta"></div>
         <svg id="graphleSvg" viewBox="0 0 340 340" role="group" aria-label="Graphle board"></svg>
         <div id="graphleDraft" class="meta"></div>
@@ -140,17 +121,16 @@
         </div>
         <div id="graphleHist" class="ghist"></div>
         <div id="graphleMsg" class="msg" role="status" aria-live="polite"></div>
-        <details class="how">
-          <summary>Properties explained</summary>
-          <p><b>E</b> edges · <b>χ</b> chromatic number (fewest colours with neighbours differing) · <b>△</b> triangles (3 mutually linked dots) · <b>Cyc</b> simple cycles of length ≥ 3 (rotations and reversals count once) · <b>Diam</b> longest shortest-path (∞ if disconnected). Yellow means off by exactly one; ↑/↓ means the answer is higher/lower than your guess; ∞ matches only exactly.</p>
-        </details>
       </section>
 
       <!-- TREEDLE -->
       <section id="viewTreedle" class="view hidden" role="tabpanel" aria-labelledby="tabTreedle">
-        <div class="puzzle-heading"><div><p class="puzzle-number">Puzzle 04</p><h2>Treedle</h2></div><span class="try-badge">6 tries</span></div>
-        <p class="rules"><b>Rebuild the hidden tree.</b> Join all eight dots with exactly seven links and no loops.</p>
-        <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
+        <div class="puzzle-heading"><h2>Treedle</h2><button id="treedleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="treedleHelpBox">How to play</button></div>
+        <div id="treedleHelpBox" class="tutbox hidden">
+          <p class="help-copy"><b>Rebuild the hidden tree.</b> Join all eight dots with seven links and no loops, then Guess. You have six tries.</p>
+          <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
+          <p class="property-copy"><b>Leaf</b> end dots · <b>Diam</b> longest path · <b>Δ</b> busiest dot · <b>W</b> total pairwise distance · <b>α</b> largest unlinked set. Arrows show whether the answer is higher or lower.</p>
+        </div>
         <div id="treedleMeta" class="meta"></div>
         <svg id="treedleSvg" viewBox="0 0 340 340" role="group" aria-label="Treedle board"></svg>
         <div id="treedleDraft" class="meta"></div>
@@ -161,16 +141,11 @@
         </div>
         <div id="treedleHist" class="ghist"></div>
         <div id="treedleMsg" class="msg" role="status" aria-live="polite"></div>
-        <details class="how">
-          <summary>Properties explained</summary>
-          <p><b>Leaf</b> leaves, i.e. dots with exactly one link · <b>Diam</b> longest shortest-path (∞ if disconnected) · <b>Δ</b> max degree, the busiest dot · <b>W</b> Wiener index, the sum of all pairwise distances (∞ if disconnected) · <b>α</b> independence number, the largest set of dots with no links between them. Yellow means off by exactly one; ↑/↓ means the answer is higher/lower than your guess; ∞ matches only exactly. Note: a tree on 8 dots always has exactly 7 edges, and 7 edges plus connected guarantees a tree.</p>
-        </details>
       </section>
 
       <!-- EDITOR -->
       <section id="viewEditor" class="view hidden">
-        <div class="puzzle-heading"><div><p class="puzzle-number">Workshop</p><h2>Build a puzzle</h2></div></div>
-        <p class="rules">Make a Steiner board or colouring graph, then playtest its exact solution.</p>
+        <div class="puzzle-heading"><h2>Build a puzzle</h2></div>
         <div class="row small">
           <button id="edTypeSteiner" class="btn">Steiner board</button>
           <button id="edTypeColor" class="btn">Graph board</button>
@@ -214,7 +189,7 @@
     </main>
 
     <footer>
-      <p><b>NP-Hard mode</b> · Four puzzles a day. Same boards for everyone. Saved on this device.</p>
+      <button id="tabEditor" class="editor-link">Build a puzzle <span aria-hidden="true">↗</span></button>
       <div class="themerow">Theme:
         <button id="themeLight" class="tbtn">☀️ Light</button>
         <button id="themeDark" class="tbtn">🌙 Dark</button>

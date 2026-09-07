@@ -90,7 +90,6 @@
       VIEWS[k][0].setAttribute("aria-selected", String(on));
       VIEWS[k][1].classList.toggle("hidden", !on);
     }
-    if (which !== "steiner") welcomeCard.classList.add("hidden");
   }
   tabS.onclick = () => { if (mode !== "daily") exitToDaily("steiner"); else showView("steiner"); };
   tabC.onclick = () => { if (mode !== "daily") exitToDaily("color"); else showView("color"); };
@@ -145,17 +144,17 @@
   document.getElementById("themeDark").onclick = () => setTheme("dark");
   document.getElementById("themeMinimal").onclick = () => setTheme("minimal");
 
-  // ---------- first-visit orientation ----------
-  const welcomeCard = document.getElementById("welcomeCard");
-  const welcomeDismiss = document.getElementById("welcomeDismiss");
-  let hasSeenWelcome = false;
-  try { hasSeenWelcome = localStorage.getItem("nph-welcome") === "done"; } catch (_) {}
-  if (!hasSeenWelcome) welcomeCard.classList.remove("hidden");
-  welcomeDismiss.onclick = () => {
-    welcomeCard.classList.add("hidden");
-    try { localStorage.setItem("nph-welcome", "done"); } catch (_) {}
-    gridEl?.focus?.();
-  };
+  // ---------- compact inline help ----------
+  function bindHelp(buttonId: string, boxId: string) {
+    const button = document.getElementById(buttonId);
+    const box = document.getElementById(boxId);
+    button.onclick = () => {
+      const open = box.classList.toggle("hidden") === false;
+      button.setAttribute("aria-expanded", String(open));
+    };
+  }
+  bindHelp("graphleHelpBtn", "graphleHelpBox");
+  bindHelp("treedleHelpBtn", "treedleHelpBox");
 
   // ============================================================
   // GAME 1 — STEINER TREE (moss)
@@ -1679,7 +1678,7 @@
       t.style.fill = "#5c6650";
       graphleSvg.appendChild(t);
     }
-    graphleDraft.textContent = "Draft: " + glDraftStats();
+    graphleDraft.textContent = glDraftStats();
     paintGraphleMeta();
   }
   function paintGraphleMeta() {
@@ -2052,7 +2051,7 @@
       t.style.fill = "#5c6650";
       treedleSvg.appendChild(t);
     }
-    treedleDraft.textContent = "Draft: " + trDraftStats();
+    treedleDraft.textContent = trDraftStats();
     paintTreedleMeta();
   }
   function paintTreedleMeta() {

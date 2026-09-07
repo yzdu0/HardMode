@@ -22,14 +22,13 @@ body {
   display: flex;
   justify-content: center;
 }
-.app { width: 100%; max-width: 720px; padding: 28px 24px 48px; }
-.site-header { margin-bottom: 26px; }
-.brand-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
-.eyebrow, .puzzle-number { margin: 0 0 5px; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.app { width: 100%; max-width: 720px; padding: 22px 24px 40px; }
+.site-header { margin-bottom: 14px; }
+.brand-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 header h1 { margin: 0; font-size: clamp(32px, 7vw, 50px); letter-spacing: -.055em; line-height: .96; }
 header h1 span { color: var(--muted); font-weight: 500; }
 .streak-pill { min-height: 38px; display: flex; align-items: center; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
-.daily-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+.daily-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: stretch; margin-bottom: 8px; }
 .daterow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 6px; align-items: center; margin: 0; }
 .icon-btn { min-width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--fg); font-size: 18px; cursor: pointer; }
 .datebtn {
@@ -77,7 +76,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
 .tab {
   border: 1px solid var(--line);
   background: #fff;
-  padding: 11px 8px;
+  padding: 9px 8px;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -87,13 +86,11 @@ header h1 span { color: var(--muted); font-weight: 500; }
   justify-content: center;
   gap: 7px;
 }
-.tab span { font-size: 10px; color: var(--muted); letter-spacing: .08em; }
 .tab.active { background: #eef1ff; color: var(--accent); border-color: #aebcf1; }
-.tab.active span { color: var(--accent); }
-.editor-link { display: block; min-height: 44px; margin: 3px 0 0 auto; padding: 8px 0; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
+.editor-link { display: block; min-height: 40px; margin: 0 auto 4px; padding: 6px 10px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
 .editor-link.active { color: var(--accent); }
 .view.hidden { display: none; }
-.puzzle-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.puzzle-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
 .puzzle-heading h2 { margin: 0; font-size: 28px; line-height: 1; letter-spacing: -.035em; }
 .learn-btn { min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--fg); padding: 0 13px; font-size: 13px; font-weight: 750; cursor: pointer; }
 .rules { margin: 0 0 10px; font-size: 16px; line-height: 1.5; }
@@ -473,31 +470,16 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   outline-offset: 2px;
 }
 .view {
-  padding: 22px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
   box-shadow: 0 18px 46px rgba(25, 30, 45, .06);
 }
-.welcome-card {
-  margin: 0 0 14px;
-  padding: 18px;
-  border-radius: 18px;
-  background: #101114;
-  color: #fff;
-}
-.welcome-card .puzzle-number { color: #9fb1ff; }
-.welcome-copy h2 { margin: 0 0 6px; font-size: 23px; letter-spacing: -.035em; }
-.welcome-copy p:last-child { margin: 0; max-width: 54ch; color: #c7cad2; font-size: 14px; }
-.welcome-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 14px 0; }
-.welcome-steps span { display: flex; align-items: center; gap: 7px; padding: 9px; border: 1px solid #353842; border-radius: 10px; color: #e8e9ed; font-size: 12px; font-weight: 700; }
-.welcome-steps b { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%; background: #3157d5; }
-.welcome-dismiss { min-height: 42px; width: 100%; border: 0; border-radius: 11px; background: #fff; color: #101114; font-weight: 800; cursor: pointer; }
-.try-badge { display: inline-flex; align-items: center; min-height: 36px; padding: 0 11px; border-radius: 999px; background: #f1f2f5; color: var(--muted); font-size: 13px; font-weight: 750; }
 .feedback-key { display: flex; flex-wrap: wrap; gap: 7px 13px; margin: -1px 0 12px; color: var(--muted); font-size: 12px; }
 .feedback-key span { display: inline-flex; align-items: center; gap: 5px; }
 .feedback-key i { width: 10px; height: 10px; border-radius: 3px; }
-.meta { min-height: 22px; margin: 9px 0; color: var(--muted); font-size: 14px; font-weight: 650; }
+.meta { min-height: 22px; margin: 5px 0 8px; color: var(--muted); font-size: 14px; font-weight: 650; }
 .meta b { color: var(--fg); }
 .msg { min-height: 25px; margin-top: 10px; font-size: 14px; }
 .msg.good { padding: 10px 12px; border-radius: 10px; background: #ecf8ef; color: #14652a; }
@@ -528,8 +510,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 }
 .tuthead { align-items: flex-start; margin-bottom: 11px; }
 .tuthead strong { display: block; font-size: 17px; }
-.tuthead .puzzle-number { margin-bottom: 2px; }
 .tuthead .btn.small { min-height: 36px; padding: 7px 10px; }
+.help-copy, .property-copy { margin: 0 0 10px; line-height: 1.5; }
+.property-copy { margin-bottom: 0; color: var(--muted); font-size: 13px; }
 .tutorial-steps { display: grid; gap: 6px; }
 .tutorial-steps p { margin: 0; padding: 9px 10px; border-radius: 9px; background: #fff; }
 .tutpar { color: var(--muted); }
@@ -575,7 +558,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .tool { padding: 7px 10px; font-size: 13px; }
 .custombar { border-radius: 11px; background: #fafbfc; }
 .lib-item { border-radius: 10px; }
-footer { margin-top: 18px; padding: 0 4px; }
+footer { margin-top: 14px; padding: 0 4px; }
 footer p { font-size: 13px; }
 .themerow { font-size: 12px; }
 .tbtn { min-height: 40px; font-size: 12px; }
@@ -603,11 +586,9 @@ body[data-theme="dark"] #treedleSvg,
 body[data-theme="dark"] #editorSvg { background: #11141a; }
 
 @media (max-width: 560px) {
-  .site-header { margin-bottom: 18px; }
-  .view { padding: 16px; border-radius: 15px; }
+  .site-header { margin-bottom: 12px; }
+  .view { padding: 15px; border-radius: 15px; }
   .puzzle-heading h2 { font-size: 25px; }
-  .welcome-steps { grid-template-columns: 1fr; }
-  .welcome-steps span { min-height: 39px; }
   .archive-list { grid-template-columns: repeat(5, 1fr); }
   .row .btn { padding-inline: 7px; }
 }
