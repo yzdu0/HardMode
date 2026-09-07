@@ -1,4 +1,6 @@
 /* NP-Hard mode — deterministic daily graph puzzles. */
+import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
+import { solveSteinerExact } from "./steiner-solver";
 (function () {
   "use strict";
 
@@ -35,10 +37,13 @@
   let activeDate = TODAY_REAL;
   let mode: PuzzleMode = "daily";
   let customSession: CustomSession | null = null;
+  function dailyStoreKey(date: string, game: GameKey) {
+    return "hm-" + date + "-" + game + (game === "steiner" ? "-" + STEINER_REVISION : "");
+  }
   function storeKey(game: GameKey) {
     if (mode === "tutorial") return "hm-tutorial-" + game;
     if (mode === "custom") return "hm-custom-" + (customSession ? customSession.id : "x") + "-" + game;
-    return "hm-" + activeDate + "-" + game;
+    return dailyStoreKey(activeDate, game);
   }
   function shareLabel() {
     if (mode === "tutorial") return "tutorial";
@@ -112,8 +117,10 @@
   const GAMES: GameKey[] = ["steiner", "color", "graphle", "treedle"];
   function isSolvedStore(key, game) {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + key + "-" + game) || "null");
-      return !!(d && d.solved);
+      const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
+      // Keep earned streaks from the original boards without restoring old moves.
+      const legacy = game === "steiner" ? JSON.parse(localStorage.getItem("hm-" + key + "-steiner") || "null") : null;
+      return !!(d?.solved || legacy?.solved);
     } catch (_) { return false; }
   }
   function updateStreak() {
@@ -161,40 +168,8 @@
   // ============================================================
   let GN = 12; // active board size (families vary it)
 
-  // ---- shared steiner construction helpers ----
+  // Shared connectivity check for the custom-level editor.
   function stKey(r, c) { return r + "," + c; }
-  function stPlaceTerms(rr, N, count, minSep, ok = null) {
-    const terms = [];
-    for (let attempt = 0; attempt < 2000 && terms.length < count; attempt++) {
-      const r = randInt(rr, 0, N), c = randInt(rr, 0, N);
-      if (ok && !ok(r, c)) continue;
-      if (terms.some(([tr, tc]) => Math.abs(tr - r) + Math.abs(tc - c) < minSep)) continue;
-      if (terms.some(([tr, tc]) => tr === r && tc === c)) continue;
-      terms.push([r, c]);
-    }
-    return terms.length === count ? terms : null;
-  }
-  function stGrowWalls(rr, N, termSet, target, locked, clump) {
-    const walls = new Set<string>([...locked]);
-    let tries = 0;
-    while (walls.size - locked.size < target && tries++ < 2500) {
-      let r, c;
-      const grown = [...walls].filter((k) => !locked.has(k));
-      if (grown.length && rr() < clump) {
-        const b = grown[randInt(rr, 0, grown.length)].split(",").map(Number);
-        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        const d = dirs[randInt(rr, 0, 4)];
-        r = b[0] + d[0]; c = b[1] + d[1];
-        if (r < 0 || c < 0 || r >= N || c >= N) continue;
-      } else {
-        r = randInt(rr, 0, N); c = randInt(rr, 0, N);
-      }
-      const k = stKey(r, c);
-      if (termSet.has(k) || walls.has(k)) continue;
-      walls.add(k);
-    }
-    return walls;
-  }
   function stBfsSeen(N, terms, walls) {
     const seen = new Set<string>([stKey(terms[0][0], terms[0][1])]);
     const q = [terms[0]];
@@ -214,292 +189,9 @@
     const seen = stBfsSeen(N, terms, walls);
     return terms.every(([r, c]) => seen.has(stKey(r, c)));
   }
-  // Targeted carving that never touches locked walls. Returns true if all
-  // terminals end up connected through free cells.
-  function stCarve(rr, N, terms, walls, locked) {
-    for (let iter = 0; iter < 200; iter++) {
-      const seen = stBfsSeen(N, terms, walls);
-      if (terms.every(([r, c]) => seen.has(stKey(r, c)))) return true;
-      const unseen = terms.filter(([r, c]) => !seen.has(stKey(r, c)));
-      let best = null, bestD = Infinity;
-      walls.forEach((k) => {
-        if (locked.has(k)) return;
-        const [r, c] = k.split(",").map(Number);
-        const adj = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => seen.has(stKey(r + dr, c + dc)));
-        if (!adj) return;
-        let d = Infinity;
-        for (const [tr, tc] of unseen) d = Math.min(d, Math.abs(tr - r) + Math.abs(tc - c));
-        if (d < bestD) { bestD = d; best = k; }
-      });
-      if (!best) return false;
-      walls.delete(best);
-    }
-    return stFreeConnected(N, terms, walls);
-  }
-  function stClaim(rr, N, termSet, walls, special, ok = null) {
-    for (let t = 0; t < 500; t++) {
-      const r = randInt(rr, 0, N), c = randInt(rr, 0, N);
-      const k = stKey(r, c);
-      if (!termSet.has(k) && !walls.has(k) && !special.has(k) && (!ok || ok(r, c))) return [r, c];
-    }
-    return null;
-  }
-  function stScatterSpecials(rr, N, termSet, walls, special, nBonus, nPen, nPortals) {
-    const take = (n, type, pid = null) => {
-      const cells = [];
-      for (let i = 0; i < n; i++) {
-        const cell = stClaim(rr, N, termSet, walls, special, null);
-        if (!cell) break;
-        special.set(stKey(cell[0], cell[1]), pid ? { type, pid } : { type });
-        cells.push(cell);
-      }
-      return cells;
-    };
-    take(nBonus, "bonus");
-    take(nPen, "penalty");
-    const portalPairs: Record<string, Point[]> = {};
-    const ids = ["A", "B"];
-    for (let i = 0; i < Math.min(nPortals, 2); i++) {
-      const cells = take(2, "portal", ids[i]);
-      if (cells.length === 2) portalPairs[ids[i]] = cells;
-    }
-    return portalPairs;
-  }
-
-  // ---- intentional steiner families (unique looks, unique difficulties) ----
-  // classic: scattered blobs, 7 terminals — the all-rounder
-  function famClassic(rr) {
-    const N = 12;
-    const terms = stPlaceTerms(rr, N, 7, 5);
-    if (!terms) return null;
-    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set<string>();
-    const walls = stGrowWalls(rr, N, termSet, 34, locked, 0.65);
-    if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map<string, any>();
-    const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 6, 6, 2);
-    return { N, terms, termSet, walls, special, portalPairs, kind: "classic" };
-  }
-  // open field: only 3-4 terminals far apart, almost no walls — maximum
-  // choice, the optimum hides among many similar networks
-  function famOpen(rr) {
-    const N = 13;
-    const terms = stPlaceTerms(rr, N, 3 + Math.floor(rr() * 2), 6);
-    if (!terms) return null;
-    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set<string>();
-    const walls = stGrowWalls(rr, N, termSet, 12, locked, 0.2);
-    if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map<string, any>();
-    const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 6, 6, 1 + Math.floor(rr() * 2));
-    return { N, terms, termSet, walls, special, portalPairs, kind: "open field" };
-  }
-  // chambers: locked rock bars with seeded door gaps — room-to-room routing
-  function famChambers(rr) {
-    const N = 12;
-    const locked = new Set<string>();
-    for (const bc of [4, 8]) {
-      const g1 = 1 + Math.floor(rr() * 10);
-      let g2 = 1 + Math.floor(rr() * 10);
-      if (g2 === g1) g2 = (g2 % 10) + 1;
-      for (let r = 1; r <= 10; r++) {
-        if (r === g1 || r === g2) continue;
-        locked.add(stKey(r, bc));
-      }
-    }
-    const notBar = (r, c) => !locked.has(stKey(r, c));
-    const terms = stPlaceTerms(rr, N, 5 + Math.floor(rr() * 2), 4, notBar);
-    if (!terms) return null;
-    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
-    const walls = stGrowWalls(rr, N, termSet, 10, locked, 0.3);
-    if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map<string, any>();
-    const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 4, 4, 2);
-    return { N, terms, termSet, walls, special, portalPairs, kind: "chambers" };
-  }
-  // the divide: near-solid locked band with one door; portals are the highway
-  function famSplit(rr) {
-    const N = 12;
-    const locked = new Set<string>();
-    const doorR = Math.floor(rr() * N);
-    for (let r = 0; r < N; r++) for (const c of [5, 6]) {
-      if (r === doorR) continue; // the door spans both columns
-      locked.add(stKey(r, c));
-    }
-    const free = (r, c) => !locked.has(stKey(r, c));
-    const left = stPlaceTerms(rr, N, 3, 4, (r, c) => c <= 4 && free(r, c));
-    const right = stPlaceTerms(rr, N, 3, 4, (r, c) => c >= 7 && free(r, c));
-    if (!left || !right) return null;
-    const terms = left.concat(right);
-    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
-    const walls = stGrowWalls(rr, N, termSet, 8, locked, 0.3);
-    if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map<string, any>();
-    const take = (n, type) => {
-      for (let i = 0; i < n; i++) {
-        const cell = stClaim(rr, N, termSet, walls, special, null);
-        if (cell) special.set(stKey(cell[0], cell[1]), { type });
-      }
-    };
-    take(4, "bonus"); take(4, "penalty");
-    // portals always bridge the divide, serving the rows far from the door
-    // (where the trek to the door hurts most)
-    const portalPairs: Record<string, Point[]> = {};
-    const ids = ["A", "B"];
-    for (const pid of ids) {
-      const far = (side) => (r, c) => side(r, c) && Math.abs(r - doorR) >= 3;
-      const a = stClaim(rr, N, termSet, walls, special, far((r, c) => c <= 4))
-        || stClaim(rr, N, termSet, walls, special, (r, c) => c <= 4);
-      const b = stClaim(rr, N, termSet, walls, special, far((r, c) => c >= 7))
-        || stClaim(rr, N, termSet, walls, special, (r, c) => c >= 7);
-      if (a && b) {
-        special.set(stKey(a[0], a[1]), { type: "portal", pid });
-        special.set(stKey(b[0], b[1]), { type: "portal", pid });
-        portalPairs[pid] = [a as Point, b as Point];
-      }
-    }
-    return { N, terms, termSet, walls, special, portalPairs, kind: "the divide" };
-  }
-  // thorn garden: few walls, but the cost landscape bites — 10 spores, 8 thorns
-  function famGarden(rr) {
-    const N = 12;
-    const terms = stPlaceTerms(rr, N, 5, 5);
-    if (!terms) return null;
-    const termSet = new Set<string>(terms.map(([r, c]) => stKey(r, c)));
-    const locked = new Set<string>();
-    const walls = stGrowWalls(rr, N, termSet, 18, locked, 0.6);
-    if (!stCarve(rr, N, terms, walls, locked)) return null;
-    const special = new Map<string, any>();
-    const portalPairs = stScatterSpecials(rr, N, termSet, walls, special, 10, 8, 1);
-    return { N, terms, termSet, walls, special, portalPairs, kind: "thorn garden" };
-  }
   const BONUS_COST = 0, PENALTY_COST = 3, NORMAL_COST = 1;
-
-  // Exact Steiner-tree solver (Dreyfus-Wagner, node-weighted, non-negative
-  // costs). Node costs: terminals 0, spores 0, thorns 3, everything else 1.
-  // Portal pairs are zero-cost edges between their endpoints. Returns the true
-  // minimum network cost, or NaN if the terminals are disconnected.
-  function solveSteinerExact(N, terms, walls, special, portalPairs) {
-    const key = (r, c) => r + "," + c;
-    const idx = new Map<string, number>(), cells: Point[] = [];
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-      const k = key(r, c);
-      if (walls.has(k)) continue;
-      idx.set(k, cells.length); cells.push([r, c]);
-    }
-    const n = cells.length;
-    const tIdx = terms.map(([r, c]) => idx.get(key(r, c)));
-    if (tIdx.some((v) => v === undefined)) return NaN;
-    const isTerm = new Set(tIdx);
-    const cost = new Array(n);
-    for (let i = 0; i < n; i++) {
-      if (isTerm.has(i)) { cost[i] = 0; continue; }
-      const [r, c] = cells[i], sp = special.get(key(r, c));
-      cost[i] = sp && sp.type === "bonus" ? 0 : sp && sp.type === "penalty" ? 3 : 1;
-    }
-    const adj = cells.map(() => []);
-    cells.forEach(([r, c], i) => {
-      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const k = key(r + dr, c + dc);
-        if (idx.has(k)) adj[i].push(idx.get(k));
-      }
-    });
-    for (const pid of Object.keys(portalPairs || {})) {
-      const [a, b] = portalPairs[pid];
-      const ka = key(a[0], a[1]), kb = key(b[0], b[1]);
-      if (idx.has(ka) && idx.has(kb)) {
-        adj[idx.get(ka)].push(idx.get(kb));
-        adj[idx.get(kb)].push(idx.get(ka));
-      }
-    }
-    const K = tIdx.length, FULL = (1 << K) - 1, INF = 1e15;
-    const dp = new Float64Array((FULL + 1) * n).fill(INF);
-    const hd = [], hn = []; // binary heap of (dist, node)
-    function heapPush(d, v) {
-      hd.push(d); hn.push(v);
-      let i = hd.length - 1;
-      while (i > 0) {
-        const p = (i - 1) >> 1;
-        if (hd[p] <= hd[i]) break;
-        const td = hd[p]; hd[p] = hd[i]; hd[i] = td;
-        const tn = hn[p]; hn[p] = hn[i]; hn[i] = tn;
-        i = p;
-      }
-    }
-    function heapPop() {
-      const top = hn[0], ld = hd.pop(), ln = hn.pop();
-      if (hd.length) {
-        hd[0] = ld; hn[0] = ln;
-        let i = 0;
-        for (;;) {
-          const l = 2 * i + 1, r = 2 * i + 2;
-          let m = i;
-          if (l < hd.length && hd[l] < hd[m]) m = l;
-          if (r < hd.length && hd[r] < hd[m]) m = r;
-          if (m === i) break;
-          const td = hd[m]; hd[m] = hd[i]; hd[i] = td;
-          const tn = hn[m]; hn[m] = hn[i]; hn[i] = tn;
-          i = m;
-        }
-      }
-      return top;
-    }
-    function dijkstra(mask) {
-      const base = mask * n;
-      hd.length = 0; hn.length = 0;
-      const done = new Uint8Array(n);
-      for (let v = 0; v < n; v++) if (dp[base + v] < INF) heapPush(dp[base + v], v);
-      while (hd.length) {
-        const u = heapPop();
-        if (done[u]) continue;
-        done[u] = 1;
-        const du = dp[base + u];
-        for (const v of adj[u]) {
-          const nd = du + cost[v];
-          if (nd < dp[base + v]) { dp[base + v] = nd; heapPush(nd, v); }
-        }
-      }
-    }
-    for (let i = 0; i < K; i++) dp[((1 << i) * n) + tIdx[i]] = 0;
-    for (let mask = 1; mask <= FULL; mask++) {
-      if ((mask & (mask - 1)) !== 0) { // join two sub-solutions at each node
-        for (let v = 0; v < n; v++) {
-          let best = INF;
-          for (let s = (mask - 1) & mask; s; s = (s - 1) & mask) {
-            const o = mask ^ s;
-            if (!o || s > o) continue;
-            const cand = dp[s * n + v] + dp[o * n + v] - cost[v];
-            if (cand < best) best = cand;
-          }
-          if (best < dp[mask * n + v]) dp[mask * n + v] = best;
-        }
-      }
-      dijkstra(mask);
-    }
-    let ans = INF;
-    for (let v = 0; v < n; v++) ans = Math.min(ans, dp[FULL * n + v]);
-    return ans >= INF / 2 ? NaN : ans;
-  }
-
-  const STEINER_FAMS = [famClassic, famOpen, famChambers, famSplit, famGarden];
-  function genSteiner(dateKey) {
-    const rng = rngFor(dateKey, "steiner");
-    const startIdx = Math.floor(rng() * STEINER_FAMS.length);
-    for (let t = 0; t < STEINER_FAMS.length; t++) {
-      const fn = STEINER_FAMS[(startIdx + t) % STEINER_FAMS.length];
-      const rr = mulberry32(xmur3(dateKey + "|steiner|" + fn.name)());
-      const b = fn(rr);
-      if (!b) continue;
-      if (!stFreeConnected(b.N, b.terms, b.walls)) continue;
-      const par = solveSteinerExact(b.N, b.terms, b.walls, b.special, b.portalPairs);
-      if (!Number.isFinite(par) || par < 6 || par > 160) continue;
-      return { terms: b.terms, termSet: b.termSet, walls: b.walls, special: b.special, par, portalPairs: b.portalPairs, kind: b.kind, N: b.N };
-    }
-    // last-resort open board (always valid)
-    const terms = [[1, 1], [1, 10], [10, 1], [10, 10]];
-    const walls = new Set<string>(), special = new Map<string, any>(), portalPairs: Record<string, Point[]> = {};
-    const par = solveSteinerExact(12, terms, walls, special, portalPairs);
-    return { terms, termSet: new Set(terms.map(([r, c]) => stKey(r, c))), walls, special, par, portalPairs, kind: "classic", N: 12 };
+  function genSteiner(dateKey: string) {
+    return generateSteiner(dateKey, solveSteinerExact);
   }
 
   // Fixed tutorial boards (same for everyone, forever).
@@ -2183,7 +1875,7 @@
 
   function isSolved(key, game) {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + key + "-" + game) || "null");
+      const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
       return !!(d && d.solved);
     } catch (_) { return false; }
   }
@@ -2232,7 +1924,7 @@
     steinerMsg.textContent = ""; steinerMsg.className = "msg";
     // re-show solved message if applicable
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-steiner") || "null");
+      const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "steiner")) || "null");
       if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
     } catch (_) {}
     // rebuild color
@@ -2282,7 +1974,7 @@
       const okCells = (arr) => Array.isArray(arr) && arr.every((p) => Array.isArray(p) && p.length === 2 && (p[0] | 0) === p[0] && (p[1] | 0) === p[1] && p[0] >= 0 && p[1] >= 0 && p[0] < N && p[1] < N);
       if (!okCells(d.walls || []) || !okCells(d.bonus || []) || !okCells(d.pen || [])) return null;
       const termSet = new Set(terms.map(([r, c]) => r + "," + c));
-      const walls = new Set((d.walls || []).map(([r, c]) => r + "," + c));
+      const walls = new Set<string>((d.walls || []).map(([r, c]) => r + "," + c));
       for (const k of termSet) if (walls.has(k)) return null;
       const special = new Map<string, any>();
       for (const [r, c] of (d.bonus || [])) special.set(r + "," + c, { type: "bonus" });
@@ -2885,7 +2577,7 @@
   rebuildTreedle();
   // re-assert solved banners after load
   try {
-    const d = JSON.parse(localStorage.getItem("hm-" + activeDate + "-steiner") || "null");
+    const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "steiner")) || "null");
     if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
   } catch (_) {}
   buildEdSteiner(); buildEdColor();
