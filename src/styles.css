@@ -1221,3 +1221,88 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
   .archive-list { grid-template-columns: repeat(5, 1fr); }
   .row .btn { padding-inline: 7px; }
 }
+
+/* ---------- Hillclimb ----------
+   One canvas the width of the column, a pad beside a readout, and two lines of
+   chips. Nothing on this page is drawn twice: the map carries the terrain, the
+   readout carries the numbers, and the chips carry the names. */
+.brand-link { color: inherit; text-decoration: none; }
+.brand-link:hover span { color: var(--accent); }
+
+.hcbrief {
+  margin: 0 0 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--tut-line);
+  border-radius: 12px;
+  background: var(--tut);
+}
+.hcbrief p { margin: 0; }
+.hcbrief-line { font-size: 15px; }
+.hcbrief-hint { margin-top: 4px !important; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.hc-done { color: var(--good); font-weight: 700; }
+.hc-lost { color: var(--bad); font-weight: 700; }
+.k-summit { background: var(--surface); box-shadow: inset 0 0 0 1px var(--fg); color: var(--fg); }
+.k-reached { background: rgba(47, 125, 50, .38); }
+.k-missed { background: rgba(214, 69, 69, .42); }
+
+/* How far up the ladder you are, at a glance: filled rungs climbed, a hollow
+   rung struck off, the rest still out there. */
+.hcbrief-count { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.hcpip { width: 9px; height: 9px; border-radius: 3px; border: 1px solid var(--muted); }
+.hcpip.on { background: var(--good); border-color: var(--good); }
+.hcpip.lost { border-color: var(--bad); border-style: dashed; }
+.hcchoice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.hcchoice .btn { flex: 1 1 auto; }
+
+/* The map is an object on the page, not a panel: a thin surround and the
+   corner radius the boards use, so it sits in the same family as the grids. */
+.hcmap-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--raised); line-height: 0; }
+#hcMap { display: block; width: 100%; image-rendering: pixelated; }
+
+/* Pad on the left, numbers on the right; on a phone the pad drops under them
+   where a thumb can reach it. */
+.hcbay { display: grid; grid-template-columns: 168px 1fr; gap: 14px; align-items: start; margin-top: 12px; }
+.hcpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.hcpad-btn {
+  aspect-ratio: 1;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hcpad-btn:hover:not(:disabled) { border-color: var(--hover-line); }
+.hcpad-btn:active:not(:disabled) { transform: translateY(1px); }
+.hcpad-btn:disabled { cursor: not-allowed; opacity: .45; }
+.hcpad-centre { border-radius: 12px; background: var(--raised); }
+
+.hcread { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; align-content: start; font-size: 13.5px; }
+.hcread dt { color: var(--muted); font-weight: 650; }
+.hcread dd { margin: 0; font-weight: 750; }
+
+.hcnotes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.hcnotes-head { margin-right: 4px; color: var(--muted); font-size: 12px; font-weight: 750; }
+.hcnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  opacity: .5;
+}
+.hcnote i { width: 11px; height: 11px; border-radius: 3px; opacity: .55; }
+.hcnote.on { color: var(--fg); border-color: var(--hover-line); opacity: 1; }
+.hcnote.on i { opacity: 1; }
+
+@media (max-width: 520px) {
+  .hcbay { grid-template-columns: 1fr; }
+  .hcpad { max-width: 260px; margin: 0 auto; order: 2; }
+  .hcread { order: 1; }
+}

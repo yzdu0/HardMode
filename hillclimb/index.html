@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Hillclimb: a new planet every day. You are dropped blind with twenty-eight moves — climb as high as you can, work the ladder of landmarks, and decide when to bank." />
+<meta name="theme-color" content="#f5f6f8" />
+<title>Hillclimb — NP-HardMode</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+<link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+<link rel="manifest" href="../site.webmanifest" />
+<link rel="stylesheet" href="/src/styles.css" />
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7982911345645846"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+<script>try{var __t=localStorage.getItem("hm-theme");if(["dark","minimal","moss","terminal"].indexOf(__t)>=0)document.body.setAttribute("data-theme",__t);}catch(e){}</script>
+  <div class="app">
+    <header class="site-header">
+      <div class="brand-row">
+        <div>
+          <h1><a class="brand-link" href="../"><span>NP-</span>HardMode</a></h1>
+        </div>
+        <div class="streak-pill"><span id="hcMovesPill">28 moves left</span></div>
+      </div>
+      <div class="daily-bar">
+        <div class="daterow">
+          <button id="hcPrevDay" class="icon-btn" aria-label="Previous day">←</button>
+          <button id="hcDateBtn" class="datebtn" title="Jump to today"><span id="hcDateLabel"></span></button>
+          <button id="hcNextDay" class="icon-btn" aria-label="Next day">→</button>
+        </div>
+        <div class="today-progress"><span>Highest</span><strong id="hcBestPill">0 m</strong></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="view" aria-label="Hillclimb">
+        <div class="puzzle-heading">
+          <h2>Hillclimb</h2>
+          <button id="hcHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="hcHelpBox">How to play</button>
+        </div>
+        <div id="hcHelpBox" class="tutbox hidden">
+          <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, five squares each — then the whole world is revealed and you find out what you walked past.</p>
+          <div class="tutorial-steps">
+            <p><b>Move</b> five squares at a time with the pad, the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals. East and west wrap right the way round; the top and bottom edges are the poles and you cannot step past them. You have a boat, so open water costs a move like anything else.</p>
+            <p><b>Climb.</b> Your score is the highest ground you stand on, measured against the true summit of the planet — which you will not be shown until the end.</p>
+            <p><b>Work the ladder.</b> The day names one landmark to reach &mdash; an archipelago, an inland sea, a great desert. Step onto it, or right beside it, and it is yours. Then you choose: <b>bank</b> what you have and spend the rest of the budget climbing, or <b>press on</b> to the next landmark, which is worth more than the last. Press on and fail to arrive before the moves run out, and the one you were standing on is struck off &mdash; one rung down, never the whole ladder.</p>
+            <p><b>Keep field notes.</b> Every biome you set foot in is recorded. The day's full list is shown from the start, so you know what exists — but not where.</p>
+            <p><b>The world is not random.</b> It is built the way a planet is: mountains, then sea level, then ocean currents, then the winds that carry rain off the sea and drop it on the first high ground they meet. So rainforest sits on the equator, deserts sit about a quarter of the way to the pole and in the dry lee of every range, cold forest sits below the tundra, and ice sits on both poles. Read the latitude down the side of the map and you can guess what is over the horizon before you spend a move on it.</p>
+          </div>
+          <p class="tutpar">Stop early if you like — an unspent move is worth nothing, but neither is walking into the sea.</p>
+        </div>
+
+        <div id="hcBrief" class="hcbrief"></div>
+        <div class="hcmap-wrap">
+          <canvas id="hcMap" role="img" aria-label="World map"></canvas>
+        </div>
+        <div id="hcKey" class="mapkey hidden" aria-label="Map key"></div>
+
+        <div class="hcbay">
+          <div id="hcPad" class="hcpad" aria-label="Move"></div>
+          <dl id="hcRead" class="hcread"></dl>
+        </div>
+
+        <div class="row">
+          <button id="hcStop" class="btn">Stop here</button>
+          <button id="hcRestart" class="btn hidden">Play again</button>
+          <button id="hcShare" class="btn primary">Share</button>
+        </div>
+        <div id="hcMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="hcNotes" class="hcnotes" aria-label="Field notes"></div>
+        <div id="hcResults" class="results hidden" aria-live="polite">
+          <strong class="results-head"></strong>
+          <div class="results-bars"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-links">
+        <a class="editor-link" href="../">The daily graph puzzles <span aria-hidden="true">↗</span></a>
+        <a class="editor-link" href="https://docs.google.com/forms/d/e/1FAIpQLSc85g3I8F2oC6lUgh9V1qy-wA5UyYpBTa-cXq0bXSWPcfEZkQ/viewform" target="_blank" rel="noopener noreferrer">Send feedback <span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="themerow">Theme:
+        <button id="themeLight" class="tbtn">☀️ Light</button>
+        <button id="themeDark" class="tbtn">🌙 Dark</button>
+        <button id="themeMinimal" class="tbtn">▫️ Minimal</button>
+        <button id="themeMoss" class="tbtn">🌿 Moss</button>
+        <button id="themeTerminal" class="tbtn">▮ Terminal</button>
+      </div>
+      <details class="privacy">
+        <summary>Privacy</summary>
+        <p>Your run, your theme and where you have been are kept in this browser and are sent nowhere.</p>
+        <p>Finishing a day sends one line &mdash; the date, the game, and your grade &mdash; so the day&rsquo;s results can be counted. It carries a random id for this browser, only so that one result is counted once. There is no account, no name and no email.</p>
+      </details>
+    </footer>
+  </div>
+  <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
+    <h3 id="shareTitle">Copied to clipboard</h3>
+    <pre id="shareBody" tabindex="0"></pre>
+    <div class="row">
+      <button id="shareCopy" class="btn">Copy again</button>
+      <button id="shareSend" class="btn hidden">Share…</button>
+      <button id="shareDone" class="btn primary" autofocus>Done</button>
+    </div>
+  </dialog>
+  <script type="module" src="/src/hillclimb.ts"></script>
+</body>
+</html>
