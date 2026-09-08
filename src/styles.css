@@ -876,8 +876,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 /* The road you lay, drawn over whatever it crosses — exactly as the map draws
    the ground its towns walk over. */
 .cell.bonus, .cell.path { color: var(--on-road); }
-/* Road over highland is inset a little, so the ground keeps a frame around it.
-   What a square costs to cross is the one thing a road must not hide. */
+/* Road covers its square outright, except over highland, where it narrows and
+   the ground keeps a frame around it. What a square costs to cross is the one
+   thing a road must not hide. */
 .cell.penalty.path::before { inset: 3px; }
 .cell.bonus::before,
 .cell.path::before {
@@ -887,7 +888,6 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   z-index: -1;
   border-radius: inherit;
   background: var(--road);
-  opacity: 0.9;
 }
 
 /* ---------- Facility map ----------
