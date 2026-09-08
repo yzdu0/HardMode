@@ -40,8 +40,8 @@
   --water: #5fa5db;
   --grout: #a9bb98;
   --seam: #9333ea;
-  --on-road: #313b44;
-  --road: #c3cdd6;
+  --on-road: #eef2f6;
+  --road: #4b5460;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
@@ -596,8 +596,8 @@ body[data-theme="moss"] {
   --water: #86b3c6;
   --grout: #b3c3a1;
   --seam: #8a3fc0;
-  --on-road: #2c3730;
-  --road: #c5cfc6;
+  --on-road: #eef3ec;
+  --road: #4a5348;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
