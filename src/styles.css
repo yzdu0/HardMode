@@ -34,22 +34,13 @@
   --warn-line: #c5a63a;
 
   /* Steiner board */
-  --cell-bg: #f1f2f5;
-  --cell-fg: #9398a2;
-  --cell-wall: #17181b;
-  --cell-path: #9fb1ff;
-  --cell-path-fg: #193180;
-  --cell-seed: #3157d5;
-  --cell-seed-fg: #fff;
-  --cell-bonus: #fff8d8;
-  --cell-bonus-line: #c5a63a;
-  --cell-bonus-fg: #806a19;
-  --cell-thorn: #fff0f0;
-  --cell-thorn-line: #e8adb0;
-  --cell-thorn-fg: #a94149;
-  --cell-portal: #e8f8fb;
-  --cell-portal-line: #82cbd6;
-  --cell-portal-fg: #257481;
+  /* Steiner reads the same world as the map: blocked ground is water, the route
+     you lay is a road, and what costs three to cross is highland either way.
+     Its water is deeper than the map's, because there it is a wall. */
+  --water: #5fa5db;
+  --grout: #a9bb98;
+  --cell-portal: #d3f0f6;
+  --cell-portal-fg: #1d6b78;
 
   /* Facility map. Bright water, sandy shores, and a warm track for the ground
      towns actually walk over. */
@@ -60,8 +51,7 @@
   --land-fg: #8a9c6b;
   --marsh: #a8ceb8;
   --highland: #c2ac80;
-  --track: #f4bf62;
-  --track-fg: #6d4a14;
+  --track: #ee9f22;
   --town: #26313f;
   --town-fg: #fff;
   --depot: #3157d5;
@@ -284,13 +274,17 @@ header h1 span { color: var(--muted); font-weight: 500; }
 .kindbox strong { display: block; margin-bottom: 2px; }
 
 /* ---------- Steiner / minimalist pastel ---------- */
+/* The board is a map, so the gaps between cells are grid lines drawn on it,
+   not the page showing through. They stay visible because Steiner is scored by
+   the square: you have to be able to see where one ends. */
 .grid {
   display: grid;
-  gap: 4px;
+  gap: 1px;
   user-select: none;
   touch-action: none;
-  background: transparent;
-  padding: 0;
+  background: var(--grout);
+  padding: 1px;
+  border-radius: 7px;
   box-shadow: none;
 }
 /* A wrapping board is a cylinder: rails down both sides mark where the row's
@@ -298,7 +292,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
 .grid.wraps {
   border-left: 3px dashed #7fb069;
   border-right: 3px dashed #7fb069;
-  padding: 0 5px;
+  padding: 1px 5px;
   margin: 18px -8px 0;
   position: relative;
 }
@@ -340,24 +334,8 @@ body[data-theme="minimal"] .grid.wraps::after { color: #111; }
   padding: 0;
 }
 /* all squares — no circles anywhere on the grid */
-.cell.free { background: #eef1e8; color: #8a9384; }
-.cell.wall { background: #111; border-color: #111; color: #111; cursor: not-allowed; }
-.cell.path { background: #b9dfb0; border-color: #b9dfb0; color: #2f4a2c; box-shadow: none; }
-.cell.term {
-  background: #7fb069;
-  border: 1px solid #7fb069;
-  border-radius: 6px;
-  color: #fff;
-  box-shadow: none;
-}
-.cell.term.connected { background: #7fb069; border-color: #7fb069; color: #fff; }
-.cell.term.unconnected { background: #7fb069; }
-.cell.bonus { border: 1px dashed #b6a94a; color: #8a8030; background: #faf3d3; }
-.cell.bonus.path { background: #cfe6c5; border: 1px solid #cfe6c5; color: #2f4a2c; }
-.cell.penalty { border: 1px solid #d9a5a5; color: #b07171; background: #f9e3e3; }
-.cell.penalty.path { background: #eec2c2; border-color: #eec2c2; color: #6e3a3a; }
-.cell.portal { border: 1px solid #9fd3de; color: #4e8a96; background: #e2f3f6; }
-.cell.portal.path { background: #b5dfe8; border-color: #b5dfe8; color: #264e55; box-shadow: none; }
+.cell.wall { cursor: not-allowed; }
+.cell.term { border-radius: 6px; box-shadow: none; }
 
 /* ---------- Colouring / modern light ---------- */
 .palette { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
@@ -540,22 +518,10 @@ body[data-theme="dark"] {
   --warn-fg: #e6d59c;
   --warn-line: #c5a63a;
 
-  --cell-bg: #222836;
-  --cell-fg: #767f92;
-  --cell-wall: #04050a;
-  --cell-path: #4a63b8;
-  --cell-path-fg: #e7eaf2;
-  --cell-seed: #7d9bff;
-  --cell-seed-fg: #0b0d13;
-  --cell-bonus: #2f2a12;
-  --cell-bonus-line: #8a7524;
-  --cell-bonus-fg: #e0cd7d;
-  --cell-thorn: #33191b;
-  --cell-thorn-line: #7d4145;
-  --cell-thorn-fg: #f0a0a4;
-  --cell-portal: #10303a;
-  --cell-portal-line: #2f6f80;
-  --cell-portal-fg: #86d3e4;
+  --water: #1c4a7d;
+  --grout: #0c1017;
+  --cell-portal: #123a47;
+  --cell-portal-fg: #8fdcec;
 
     --sea: #12294a;
   --sea-deep: #0a1a2e;
@@ -564,8 +530,7 @@ body[data-theme="dark"] {
   --land-fg: #7c8d6b;
   --marsh: #1b3d39;
   --highland: #4b4028;
-  --track: #4e4523;
-  --track-fg: #ecd79b;
+  --track: #cf8f1d;
   --town: #dfe5f0;
   --town-fg: #0b0d13;
   --depot: #7d9bff;
@@ -625,22 +590,10 @@ body[data-theme="moss"] {
   --warn-fg: #6a5714;
   --warn-line: #bda43c;
 
-  --cell-bg: #e8eeda;
-  --cell-fg: #8d9b81;
-  --cell-wall: #24301a;
-  --cell-path: #a7cd7c;
-  --cell-path-fg: #22400f;
-  --cell-seed: #4a7a2f;
-  --cell-seed-fg: #fdfdf6;
-  --cell-bonus: #fbf3d5;
-  --cell-bonus-line: #bda43c;
-  --cell-bonus-fg: #6a5714;
-  --cell-thorn: #fbe6e0;
-  --cell-thorn-line: #d8a08e;
-  --cell-thorn-fg: #97402c;
-  --cell-portal: #ddf0ee;
-  --cell-portal-line: #7fbdb6;
-  --cell-portal-fg: #26635c;
+  --water: #86b3c6;
+  --grout: #b3c3a1;
+  --cell-portal: #cfeae7;
+  --cell-portal-fg: #1f5a53;
 
     --sea: #d7e7ee;
   --sea-deep: #c1d9e3;
@@ -649,8 +602,7 @@ body[data-theme="moss"] {
   --land-fg: #99a887;
   --marsh: #a9c9b6;
   --highland: #c5b287;
-  --track: #cfe2a0;
-  --track-fg: #3d5c22;
+  --track: #c8931f;
   --town: #24301a;
   --town-fg: #fdfdf6;
   --depot: #4a7a2f;
@@ -701,21 +653,9 @@ body[data-theme="terminal"] {
   --warn-fg: #e8dd8a;
   --warn-line: #b8a72e;
 
-  --cell-bg: #10241b;
-  --cell-fg: #3f7d60;
-  --cell-wall: #000;
-  --cell-path: #1c7d55;
-  --cell-path-fg: #b6ffdb;
-  --cell-seed: #27e58c;
-  --cell-seed-fg: #030806;
-  --cell-bonus: #23200a;
-  --cell-bonus-line: #b8a72e;
-  --cell-bonus-fg: #e8dd8a;
-  --cell-thorn: #2a0f0f;
-  --cell-thorn-line: #8a3b3b;
-  --cell-thorn-fg: #ff9d9d;
-  --cell-portal: #0a2430;
-  --cell-portal-line: #2b7f96;
+  --water: #02110c;
+  --grout: #020705;
+  --cell-portal: #06333f;
   --cell-portal-fg: #7fd8ee;
 
     --sea: #061511;
@@ -725,8 +665,7 @@ body[data-theme="terminal"] {
   --land-fg: #3a7359;
   --marsh: #1a4632;
   --highland: #2a5f45;
-  --track: #1c7d55;
-  --track-fg: #b6ffdb;
+  --track: #2fd489;
   --town: #8bf5bd;
   --town-fg: #030806;
   --depot: #27e58c;
@@ -771,14 +710,17 @@ body[data-theme="minimal"] {
   --land-fg: #aeaeae;
   --marsh: #d2d2d2;
   --highland: #bcbcbc;
-  --track: #6d6d6d;
-  --track-fg: #fff;
+  --track: #3d3d3d;
   --town: #111;
   --town-fg: #fff;
   --depot: #111;
   --depot-fg: #fff;
   --stranded: #111;
   --stranded-fg: #fff;
+  --water: #111;
+  --grout: #111;
+  --cell-portal: #fff;
+  --cell-portal-fg: #111;
 
   background: #fff;
   color: var(--fg);
@@ -786,20 +728,7 @@ body[data-theme="minimal"] {
 body[data-theme="minimal"] .app *,
 body[data-theme="minimal"] .sharebox,
 body[data-theme="minimal"] .sharebox * { border-radius: 0 !important; box-shadow: none !important; filter: none !important; }
-body[data-theme="minimal"] .grid { gap: 1px; background: #111; padding: 0; border: 1px solid #111; }
-body[data-theme="minimal"] .cell { border-color: transparent; }
-body[data-theme="minimal"] .cell.free { background: #fff; color: #fff; }
-body[data-theme="minimal"] .cell.wall { background: #111; border-color: #111; color: #111; }
-body[data-theme="minimal"] .cell.term,
-body[data-theme="minimal"] .cell.term.connected,
-body[data-theme="minimal"] .cell.term.unconnected { background: #111; border-color: #111; color: #fff; }
-body[data-theme="minimal"] .cell.path { background: #999; border-color: #999; color: #fff; }
-body[data-theme="minimal"] .cell.bonus,
-body[data-theme="minimal"] .cell.penalty,
-body[data-theme="minimal"] .cell.portal { background: #fff; border-color: transparent; color: #111; }
-body[data-theme="minimal"] .cell.bonus.path,
-body[data-theme="minimal"] .cell.penalty.path,
-body[data-theme="minimal"] .cell.portal.path { background: #999; border-color: #999; color: #111; }
+
 body[data-theme="minimal"] .tab,
 body[data-theme="minimal"] .btn,
 body[data-theme="minimal"] .datebtn,
@@ -919,18 +848,26 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .tab.done::after { content: "✓"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--good); color: var(--on-good); font-size: 10px; }
 
 /* puzzle boards */
-.grid { gap: 3px; }
-.cell { border-radius: 4px; background: var(--cell-bg); color: var(--cell-fg); }
-.cell.free { background: var(--cell-bg); color: var(--cell-fg); }
-.cell.wall { border-color: var(--cell-wall); background: var(--cell-wall); color: var(--cell-wall); }
-.cell.path { border-color: var(--cell-path); background: var(--cell-path); color: var(--cell-path-fg); }
-.cell.term, .cell.term.connected, .cell.term.unconnected { border-color: var(--cell-seed); background: var(--cell-seed); color: var(--cell-seed-fg); }
-.cell.bonus { border-color: var(--cell-bonus-line); background: var(--cell-bonus); color: var(--cell-bonus-fg); }
-.cell.bonus.path { border-color: var(--cell-path); background: var(--cell-path); color: var(--cell-path-fg); }
-.cell.penalty { border-color: var(--cell-thorn-line); background: var(--cell-thorn); color: var(--cell-thorn-fg); }
-.cell.penalty.path { border-color: #dba0a4; background: #eac0c2; color: #733238; }
-.cell.portal { border-color: var(--cell-portal-line); background: var(--cell-portal); color: var(--cell-portal-fg); }
-.cell.portal.path { border-color: #87b9dd; background: #b9daf2; color: #174969; }
+/* The cell paints its own stacking context so a route can be laid over the
+   ground without burying the mark that says what that ground is. */
+.cell { position: relative; z-index: 0; border-radius: 2px; border-color: transparent; background: var(--land); color: var(--land-fg); }
+.cell.free { background: var(--land); color: var(--land-fg); }
+.cell.wall { background: var(--water); color: var(--water); }
+.cell.term, .cell.term.connected, .cell.term.unconnected { background: var(--town); color: var(--town-fg); }
+.cell.bonus { background: var(--coast); color: var(--fg); }
+.cell.penalty { background: var(--highland); color: var(--fg); }
+.cell.portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
+/* The road you lay, drawn over whatever it crosses — exactly as the map draws
+   the ground its towns walk over. */
+.cell.path::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--track);
+  opacity: 0.9;
+}
 
 /* ---------- Facility map ----------
    The board is an ocean plate with the land drawn on it, so the grid keeps a
@@ -970,7 +907,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   inset: 0;
   border-radius: inherit;
   background: var(--track);
-  opacity: 0.68;
+  opacity: 0.88;
 }
 .map .cell.town { background: var(--town); color: var(--town-fg); }
 .map .cell.town.stranded { background: var(--stranded); color: var(--stranded-fg); }
@@ -989,8 +926,79 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   font-size: calc(100cqi / var(--map-n, 12) * 0.46);
 }
 /* The same idea in the depot's own colour: what would be walked, not what is. */
-.map .cell.aim-track::before { background: var(--depot); opacity: 0.5; }
+.map .cell.aim-track::before { background: var(--depot); opacity: 0.62; }
 .map .cell.claimed { box-shadow: inset 0 0 0 2px var(--depot); }
+/* ---------- Facility biomes ----------
+   The same rules in a different world. A biome repaints the ground under the
+   board; Terminal and Minimal sit it out, because a monochrome board is the
+   whole point of those two. */
+body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="desert"] {
+  --sea: #a9714b;            /* canyon */
+  --sea-deep: #8a5637;
+  --land: #f2e2b0;
+  --coast: #f9efd0;
+  --marsh: #e6c98b;          /* soft sand */
+  --highland: #cb9560;       /* escarpment */
+  --track: #b4531c;
+}
+body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="snow"] {
+  --sea: #6d93b3;            /* open water */
+  --sea-deep: #55779a;
+  --land: #f5f8fb;
+  --coast: #e9f0f6;
+  --marsh: #d8e3ed;          /* deep snow */
+  --highland: #b3cfe4;       /* glacier */
+  --track: #dd6f2a;
+}
+/* Some days the drought or the freeze breaks and the middle grade comes up
+   green — scrub in the desert, thaw on the ice. */
+body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="desert"][data-green="1"] {
+  --marsh: #b9c477;
+  --coast: #f4eec4;
+}
+body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="snow"][data-green="1"] {
+  --marsh: #b7cfae;
+  --coast: #eaf1e6;
+}
+body[data-theme="dark"] [data-biome="desert"][data-green="1"] { --marsh: #3f4a22; }
+body[data-theme="dark"] [data-biome="snow"][data-green="1"] { --marsh: #2f4436; }
+body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="volcanic"] {
+  --sea: #d4491c;            /* lava */
+  --sea-deep: #a63410;
+  --land: #cbc5bd;
+  --coast: #ddd8d1;
+  --marsh: #a9a199;          /* ash field */
+  --highland: #8b8078;       /* lava rock */
+  --track: #efc21f;
+}
+body[data-theme="dark"] [data-biome="desert"] {
+  --sea: #1a0f06;
+  --sea-deep: #0e0803;
+  --land: #3b3019;
+  --coast: #473a21;
+  --marsh: #544428;
+  --highland: #66502c;
+  --track: #d99a2e;
+}
+body[data-theme="dark"] [data-biome="snow"] {
+  --sea: #16324a;
+  --sea-deep: #0e2334;
+  --land: #2b3742;
+  --coast: #35424e;
+  --marsh: #3e4c59;
+  --highland: #4d6478;
+  --track: #e0822f;
+}
+body[data-theme="dark"] [data-biome="volcanic"] {
+  --sea: #8e2f10;
+  --sea-deep: #5e1d08;
+  --land: #2e2b28;
+  --coast: #383430;
+  --marsh: #423d38;
+  --highland: #514a44;
+  --track: #e8bb2a;
+}
+
 /* A key that is always on screen. The board carries five kinds of ground and
    two kinds of marker, and none of that should need the help panel opening. */
 .mapkey {
@@ -1021,11 +1029,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   font-size: 13px;
   font-weight: 600;
 }
-/* Map legend keys are colour chips rather than glyphs, since most of the map
-   has no symbol on it at all. */
-.legend-inline i.k-sea, .legend-inline i.k-land, .legend-inline i.k-marsh,
-.legend-inline i.k-highland, .legend-inline i.k-track,
-.legend-inline i.k-town, .legend-inline i.k-depot {
+/* Legend keys are colour chips rather than bare glyphs, since most of a map
+   has no symbol on it at all. Both boards draw from the same set. */
+.legend-inline i {
   display: inline-grid;
   place-items: center;
   width: 17px;
@@ -1035,14 +1041,18 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   font-weight: 800;
 }
 .k-sea { background: var(--sea); }
+.k-road { background: var(--coast); color: var(--fg); }
+.k-water { background: var(--water); }
+.k-ferry { background: var(--cell-portal); color: var(--cell-portal-fg); }
 .k-land { background: var(--land); }
 .k-marsh { background: var(--marsh); }
-.k-highland { background: var(--highland); }
+.k-highland { background: var(--highland); color: var(--fg); }
 .k-track { background: var(--track); }
 .k-town { background: var(--town); color: var(--town-fg); }
 .k-depot { background: var(--depot); color: var(--depot-fg); }
 body[data-theme="minimal"] .grid.map { gap: 1px; padding: 0; border: 1px solid #111; border-radius: 0; background: #111; }
-body[data-theme="minimal"] .legend-inline i.k-sea,
+body[data-theme="minimal"] .legend-inline i.k-road,
+body[data-theme="minimal"] .legend-inline i.k-ferry,
 body[data-theme="minimal"] .mapkey i.k-sea { box-shadow: inset 0 0 0 1px #111; }
 #graphSvg, #graphleSvg, #editorSvg {
   border-color: var(--line);

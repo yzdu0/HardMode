@@ -52,16 +52,16 @@
           <button id="steinerTutBtn" class="learn-btn">How to play</button>
         </div>
         <div id="steinerTutBox" class="tutbox hidden">
-          <div class="tuthead"><strong>Practice: connect three seeds</strong><button id="steinerTutBack" class="btn small">Back to daily</button></div>
-          <p class="help-copy">Tap or drag through empty cells to grow one connected network.</p>
-          <div class="legend-inline" aria-label="Board legend"><span><i class="k k-term">●</i> seed</span><span><i class="k k-wall">■</i> rock</span><span><i class="k k-bonus">+</i> free</span><span><i class="k k-pen">!</i> cost 3</span><span><i class="k k-portal">A</i> portal</span></div>
+          <div class="tuthead"><strong>Practice: link three towns</strong><button id="steinerTutBack" class="btn small">Back to daily</button></div>
+          <p class="help-copy">Tap or drag across open land to lay one connected network of road.</p>
+          <div class="legend-inline" aria-label="Board legend"><span><i class="k-town">&#9679;</i> town</span><span><i class="k-water"></i> water</span><span><i class="k-land"></i> open land</span><span><i class="k-road">+</i> road, free</span><span><i class="k-highland"></i> highland &times;3</span><span><i class="k-ferry">A</i> ferry</span></div>
           <div class="tutorial-steps">
-            <p><b>Grow.</b> Tap or drag over pale cells. Drag over your route to erase it.</p>
-            <p><b>Read the board.</b> Rocks block you, + cells are free, ! cells cost 3, and matching letters connect.</p>
-            <p><b>Share routes.</b> Branch from one short trunk instead of drawing separate paths.</p>
-            <p><b>Wrap.</b> Dashed sides join left and right in the same row. Dashed top and bottom edges also join the same column. Rocks still block routes.</p>
+            <p><b>Build.</b> Tap or drag over open land. Drag back along your road to pull it up again.</p>
+            <p><b>Read the map.</b> Water blocks you. Open land costs 1 a square, + squares are road already laid and cost nothing, the brown squares are highland and cost 3, and two squares marked with the same letter are the ends of a ferry.</p>
+            <p><b>Share the route.</b> Branch off one short trunk rather than running a separate road out to each town.</p>
+            <p><b>Wrap.</b> Dashed sides join left and right in the same row. Dashed top and bottom edges also join the same column. Water still blocks the crossing.</p>
           </div>
-          <p class="tutpar">Connect all seeds first. Check to reveal the target and an optional optimal route.</p>
+          <p class="tutpar">Link every town first. Check to reveal the target and, if you want it, the best route.</p>
         </div>
         <div id="steinerMeta" class="meta"></div>
         <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
@@ -176,11 +176,11 @@
       <section id="viewFacility" class="view hidden" role="tabpanel" aria-labelledby="tabFacility">
         <div class="puzzle-heading"><h2>Facility</h2><button id="facilityHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="facilityHelpBox">How to play</button></div>
         <div id="facilityHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Site the depots.</b> A fixed number of depots go anywhere on the land. Every town then walks to its nearest one, and your score is the total of those walks &mdash; the lower the better.</p>
+          <p class="help-copy"><b>Site the depots.</b> A fixed number of depots go anywhere on the walkable ground &mdash; an island world, a desert, a snowfield, or a plain of lava. Every town then walks to its nearest one, and your score is the total of those walks &mdash; the lower the better.</p>
           <div class="tutorial-steps">
             <p><b>Place and move.</b> Tap land to drop a depot, tap it again to lift it. Drag a depot to slide it somewhere else &mdash; useful once they are all out.</p>
-            <p><b>Only land counts.</b> Nobody swims. A depot across a channel is no use however near it looks, so an island with people on it always needs its own depot.</p>
-            <p><b>Ground costs.</b> A step over plain land counts 1, over marsh 2, over highland 3, and a step between two grades costs the rougher of the two. A ridge is not a wall, but going round one is often cheaper than going over it.</p>
+            <p><b>Some ground cannot be crossed.</b> Sea, canyon, lava &mdash; whichever world the day drew, nobody gets over it. A depot on the far side of one is no use however near it looks, so any patch of ground with people on it always needs its own depot.</p>
+            <p><b>The rest costs.</b> A step over plain ground counts 1, over the middle grade 2, over the roughest 3, and a step between two grades costs the rougher of the two. A ridge is not a wall, but going round one is often cheaper than going over it. The key under the map names all three for the world you are in.</p>
             <p><b>Read the map.</b> Each town shows how far it currently walks &mdash; a town with no route at all shows &mdash;. The amber shading is the ground those walks actually cross, so the amber on the board <i>is</i> your score.</p>
             <p><b>Try before you place.</b> Hover any land cell and the map shows which towns would switch to a depot there, the routes they would take, and what the total would become.</p>
             <p><b>Greed is not enough.</b> Placing each depot where it helps most right now is almost never the best answer &mdash; every board here beats that. Try pulling one depot off the crowd to cover the far towns and see what the total does.</p>
@@ -189,15 +189,7 @@
         </div>
         <div id="facilityMeta" class="meta"></div>
         <div id="facilityGrid" class="grid map" role="grid" aria-label="Island map"></div>
-        <div class="mapkey" aria-label="Map key">
-          <span><i class="k-sea"></i> sea</span>
-          <span><i class="k-land"></i> plain</span>
-          <span><i class="k-marsh"></i> marsh &times;2</span>
-          <span><i class="k-highland"></i> highland &times;3</span>
-          <span><i class="k-town">3</i> town</span>
-          <span><i class="k-depot">&#9670;</i> depot</span>
-          <span><i class="k-track"></i> walked</span>
-        </div>
+        <div id="facilityKey" class="mapkey" aria-label="Map key"></div>
         <div id="facilityAim" class="aimline" hidden></div>
         <div class="row">
           <button id="facilityClear" class="btn">Clear</button>

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   generateFacility, fallbackFacility, bestPlacement, greedyPlacement, evaluate, optimalSites,
   distanceFrom, descend, routeCells, islands, stepCost,
-  FACILITY_FAMILIES, FACILITY_MIN_GAP, MAROONED, PLAIN, MARSH, HIGHLAND, minTarget,
+  FACILITY_FAMILIES, FACILITY_MIN_GAP, MAROONED, PLAIN, MARSH, HIGHLAND, minTarget, BIOMES,
 } from '../src/facility-levels.ts';
 import type { FacilityBoard } from '../src/facility-levels.ts';
 
@@ -106,8 +106,11 @@ test('rough ground is priced, and a route will pay to go round it', () => {
 test('generated boards are playable and correctly scored', () => {
   for (const day of days(45)) {
     const b = generateFacility(day);
-    const water = (b.N * b.N - b.land.size) / (b.N * b.N);
-    assert.ok(water >= 0.5 && water <= 0.8, `${day}: ${(water * 100).toFixed(0)}% water`);
+    // A desert is mostly walkable by design, so the band follows the biome.
+    const blocked = (b.N * b.N - b.land.size) / (b.N * b.N);
+    assert.ok(blocked >= 0.06 && blocked <= 0.85, `${day}: ${(blocked * 100).toFixed(0)}% impassable`);
+    assert.ok(b.biome.wet < 0.5 ? blocked < 0.45 : blocked > 0.2,
+      `${day}: a ${b.biome.id} world is ${(blocked * 100).toFixed(0)}% impassable`);
     assert.ok(b.slots >= 3 && b.slots <= 5, `${day}: ${b.slots} depots`);
     assert.ok(b.towns.length > b.slots, `${day}: ${b.towns.length} towns for ${b.slots} depots`);
     // A world, not a diagram: the map has to be big enough to have an inside.
@@ -159,10 +162,26 @@ test('boards are stable for a date and differ between dates', () => {
   }
 });
 
-test('every map family turns up, and each keeps its own character', () => {
-  const kinds = new Set(days(150).map(d => generateFacility(d).kind));
-  assert.equal(kinds.size, FACILITY_FAMILIES.length, [...kinds].join(', '));
+test('every family and every biome turns up, in combination', () => {
+  const boards = days(220).map(d => generateFacility(d));
+  const families = new Set(boards.map(b => b.kind.split(' ').pop()));
+  const biomes = new Set(boards.map(b => b.biome.id));
+  assert.equal(families.size, FACILITY_FAMILIES.length, [...families].join(', '));
+  assert.equal(biomes.size, BIOMES.length, [...biomes].join(', '));
   assert.ok(FACILITY_FAMILIES.length >= 9, `${FACILITY_FAMILIES.length} families`);
+  // Enough pairings that two consecutive weeks never look like the same world.
+  assert.ok(new Set(boards.map(b => b.kind)).size >= 20, 'too few worlds');
+});
+
+test('a biome names every kind of ground it puts on the board', () => {
+  for (const biome of BIOMES) {
+    for (const word of [biome.blocked, biome.ground, biome.soft, biome.hard]) {
+      assert.ok(word && word.length > 2, `${biome.id}: unnamed ground`);
+    }
+    assert.ok(biome.wet > 0 && biome.wet <= 1, `${biome.id}: odd wetness`);
+    assert.ok(biome.cap > 0 && biome.cap < 0.7, `${biome.id}: odd relief cap`);
+  }
+  assert.equal(new Set(BIOMES.map(b => b.id)).size, BIOMES.length, 'duplicate biome');
 });
 
 test('routes are real walks from each town to its nearest depot', () => {
@@ -198,8 +217,8 @@ test('terrain sits on the land and never takes it over', () => {
       assert.ok(cost === MARSH || cost === HIGHLAND, `${day}: odd terrain cost ${cost}`);
       assert.ok(!b.townSet.has(cell), `${day}: a town is standing in the rough`);
     }
-    assert.ok(b.rough.size <= b.land.size * 0.45,
-      `${day}: ${Math.round((b.rough.size / b.land.size) * 100)}% of the land is rough`);
+    assert.ok(b.rough.size <= b.land.size * (b.biome.cap + 0.09),
+      `${day}: ${Math.round((b.rough.size / b.land.size) * 100)}% of a ${b.biome.id} world is rough`);
   }
 });
 

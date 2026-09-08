@@ -10,6 +10,54 @@
 
 export type Cell = [number, number];
 
+export interface Biome {
+  id: string;
+  name: string;
+  weight: number;    // how often the world turns out to be this one
+  wet: number;       // scales the family's share of impassable ground
+  relief: number;    // scales how much rough ground it wears
+  cap: number;       // most of the walkable ground that may be rough
+  blocked: string;   // what cannot be crossed here
+  ground: string;    // what plain, one-a-step ground is
+  soft: string;      // the ground that costs two
+  hard: string;      // the ground that costs three
+  // Some days the cold or the drought breaks: the middle grade comes up green
+  // instead, as thaw or as oasis scrub. Nothing else about the board changes.
+  greenChance: number;
+  greenSoft: string;
+}
+
+/** What the ground of one board is called, once the biome has had its say. */
+export interface Terrain { blocked: string; ground: string; soft: string; hard: string }
+
+// Same rules, different world. A dry biome trades water for terrain: there is
+// little to walk round, so the cost of the ground becomes the whole puzzle.
+// Temperate is the world these puzzles live in; the rest are weather.
+export const BIOMES: Biome[] = [
+  { id: 'temperate', name: '', weight: 66, wet: 1, relief: 1, cap: 0.36,
+    blocked: 'sea', ground: 'plain', soft: 'marsh', hard: 'highland',
+    greenChance: 0, greenSoft: 'marsh' },
+  { id: 'desert', name: 'desert', weight: 11, wet: 0.36, relief: 2, cap: 0.54,
+    blocked: 'canyon', ground: 'sand', soft: 'soft sand', hard: 'escarpment',
+    greenChance: 0.34, greenSoft: 'scrubland' },
+  { id: 'snow', name: 'snow', weight: 17, wet: 0.86, relief: 1.4, cap: 0.44,
+    blocked: 'open water', ground: 'snow', soft: 'deep snow', hard: 'glacier',
+    greenChance: 0.34, greenSoft: 'thawed scrub' },
+  { id: 'volcanic', name: 'volcanic', weight: 6, wet: 0.62, relief: 1.7, cap: 0.5,
+    blocked: 'lava', ground: 'ash', soft: 'ash field', hard: 'lava rock',
+    greenChance: 0, greenSoft: 'ash field' },
+];
+
+function pickBiome(roll: number): Biome {
+  const total = BIOMES.reduce((a, b) => a + b.weight, 0);
+  let seen = 0;
+  for (const biome of BIOMES) {
+    seen += biome.weight;
+    if (roll * total < seen) return biome;
+  }
+  return BIOMES[0];
+}
+
 export interface FacilityBoard {
   N: number;
   land: Set<string>;      // every walkable cell; everything else is sea
@@ -17,13 +65,16 @@ export interface FacilityBoard {
   towns: Cell[];
   townSet: Set<string>;
   slots: number;          // depots you may place
-  kind: string;           // the map family, shown on the board
+  biome: Biome;           // what the ground is made of here
+  verdant: boolean;       // whether this one came up green
+  terrain: Terrain;       // what to call each grade of it
+  kind: string;           // the world, shown on the board
   target: number;         // exact minimum total travel
   greedy: number;         // what dropping depots one at a time scores
 }
 
 // Bumped whenever the level pool changes, so saved runs never mix generations.
-export const FACILITY_REVISION = 'relief-1';
+export const FACILITY_REVISION = 'biomes-2';
 
 // What it costs to cross a step of ground. Marsh and highland are the only two
 // grades: enough to bend a route without needing a key to read the map.
@@ -382,15 +433,19 @@ function bog(land: Set<string>, rough: Map<string, number>, N: number, rnd: () =
   }
 }
 
-// Terrain is a feature of the map, not the map itself: past about a third of
-// the land it stops reading as marsh and hills and just becomes the ground.
-const RELIEF_CAP = 0.36;
-
-function roughen(land: Set<string>, N: number, rnd: () => number, relief: [number, number]) {
+// Terrain is a feature of the map, not the map itself: past the biome's own
+// share of the land it stops reading as terrain and just becomes the ground.
+function roughen(
+  land: Set<string>, N: number, rnd: () => number, relief: [number, number], biome: Biome, verdant: boolean,
+) {
   const rough = new Map<string, number>();
-  const u = unit(N), cap = land.size * RELIEF_CAP;
+  const u = unit(N) * biome.relief, cap = land.size * biome.cap;
   for (let i = 0, n = Math.round(relief[0] * u); i < n && rough.size < cap; i++) ridge(land, rough, N, rnd);
-  for (let i = 0, n = Math.round(relief[1] * u); i < n && rough.size < cap; i++) bog(land, rough, N, rnd);
+  // A family of bare ridges carries no soft ground at all, so a green day on
+  // one would promise scrub the board does not have. When the thaw comes, it
+  // brings its own.
+  const bogs = Math.round(Math.max(relief[1], verdant ? 2 : 0) * u);
+  for (let i = 0; i < bogs && rough.size < cap; i++) bog(land, rough, N, rnd);
   return rough;
 }
 
@@ -610,12 +665,15 @@ export function generateFacility(dateKey: string): FacilityBoard {
   // attempts it takes to find a board on it worth playing.
   const chooser = random(`${FACILITY_REVISION}|family|${dateKey}`);
   const painter = FACILITY_FAMILIES[Math.floor(chooser() * FACILITY_FAMILIES.length)];
+  const biome = pickBiome(chooser());
+  const thaw = chooser() < biome.greenChance;
   let fallback: FacilityBoard | null = null;
 
   for (let attempt = 0; attempt < 220; attempt++) {
     const rnd = random(`${FACILITY_REVISION}|${dateKey}|${attempt}`);
     const { land, kind, water, relief } = painter(rnd, N);
-    fitWater(land, N, rnd, water[0], water[1]);
+    // A desert is the same coastline with most of the water taken out of it.
+    fitWater(land, N, rnd, Math.max(0.06, water[0] * biome.wet), Math.min(0.85, water[1] * biome.wet));
     const groups = islands(N, land).filter(g => g.length >= 2);
     if (!groups.length || groups[0].length < N) continue;
     if (!wellSpread(N, land)) continue;
@@ -635,11 +693,17 @@ export function generateFacility(dateKey: string): FacilityBoard {
     if (townKeys.length < townCount) continue;
     const towns = townKeys.map(parse);
 
-    const rough = roughen(land, N, rnd, relief);
+    const rough = roughen(land, N, rnd, relief, biome, thaw);
+    // Only claim a green day if the ground actually came up green.
+    const verdant = thaw && [...rough.values()].includes(MARSH);
+    const terrain: Terrain = {
+      blocked: biome.blocked, ground: biome.ground, hard: biome.hard,
+      soft: verdant ? biome.greenSoft : biome.soft,
+    };
     // Settlements stand on ordinary ground: a town in a marsh only makes its
     // own first step expensive, which reads as a bug rather than as terrain.
     for (const k of townKeys) rough.delete(k);
-    if (rough.size > land.size * 0.45) continue;      // a safety net on the cap above
+    if (rough.size > land.size * (biome.cap + 0.09)) continue;   // a safety net on the cap above
 
     const { sites, dist } = reachTable(N, land, rough, towns);
     if (sites.length < slots) continue;
@@ -648,7 +712,8 @@ export function generateFacility(dateKey: string): FacilityBoard {
     const greedy = greedyPlacement(dist, slots).cost;
 
     const board: FacilityBoard = {
-      N, land, rough, towns, townSet: new Set(townKeys), slots, kind,
+      N, land, rough, towns, townSet: new Set(townKeys), slots, biome, verdant, terrain,
+      kind: biome.name ? `${biome.name} ${kind}` : kind,
       target: exact.cost, greedy,
     };
     if (exact.cost < minTarget(N)) continue;
@@ -676,7 +741,8 @@ export function fallbackFacility(): FacilityBoard {
   const { sites, dist } = reachTable(N, land, rough, towns);
   const exact = bestPlacement(dist, slots);
   return {
-    N, land, rough, towns, townSet, slots, kind: 'channel',
+    N, land, rough, towns, townSet, slots, biome: BIOMES[0], verdant: false,
+    terrain: { blocked: 'sea', ground: 'plain', soft: 'marsh', hard: 'highland' }, kind: 'channel',
     target: exact.cost, greedy: greedyPlacement(dist, slots).cost,
   };
 }

@@ -380,11 +380,13 @@ import { solveSteinerExact } from "./steiner-solver";
       const sp = S.special.get(k);
       let cls = "cell ", txt = "";
       if (S.termSet.has(k)) { cls += "term"; txt = "●"; }
-      else if (S.walls.has(k)) { cls += "wall"; txt = "■"; }
+      else if (S.walls.has(k)) cls += "wall";
       else {
         cls += "free";
+        // Highland carries no mark: its colour says what it costs, and a board
+        // of symbols reads as clutter rather than as ground.
         if (sp && sp.type === "bonus") { cls += " bonus"; txt = "+"; }
-        if (sp && sp.type === "penalty") { cls += " penalty"; txt = "!"; }
+        if (sp && sp.type === "penalty") cls += " penalty";
         if (sp && sp.type === "portal") { cls += " portal"; txt = sp.pid; }
       }
       d.className = cls;
@@ -392,9 +394,9 @@ import { solveSteinerExact } from "./steiner-solver";
       d.dataset.r = String(r); d.dataset.c = String(c);
       d.setAttribute("role", "gridcell");
       d.tabIndex = r === 0 && c === 0 ? 0 : -1;
-      const cellKind = S.termSet.has(k) ? "seed" : S.walls.has(k) ? "rock" :
-        sp?.type === "bonus" ? "free spore" : sp?.type === "penalty" ? "thorn, cost three" :
-        sp?.type === "portal" ? "portal " + sp.pid : "empty cell";
+      const cellKind = S.termSet.has(k) ? "town" : S.walls.has(k) ? "water" :
+        sp?.type === "bonus" ? "road, free to build" : sp?.type === "penalty" ? "highland, costs three" :
+        sp?.type === "portal" ? "ferry " + sp.pid : "open land";
       const seam = (S.wrap && (c === 0 || c === GN - 1)) || (S.wrapVertical && (r === 0 || r === GN - 1)) ? ", on the wrapping edge" : "";
       d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind + seam);
       gridEl.appendChild(d);
@@ -526,7 +528,7 @@ import { solveSteinerExact } from "./steiner-solver";
       let verdict;
       if (cost <= S.target) verdict = "Perfect — matches the exact optimum! 🌟";
       else if (cost <= S.target + 2) verdict = "Close to optimal.";
-      else verdict = "Valid, but the optimum is lower — look for shared paths, spores and portals.";
+      else verdict = "Valid, but the optimum is lower — look for shared trunks, free road and ferries.";
       steinerMsg.textContent = "Solved! Cost " + cost + " (target " + S.target + ") — " + verdict;
       steinerMsg.className = "msg good";
       saveSteiner(true);
@@ -535,7 +537,7 @@ import { solveSteinerExact } from "./steiner-solver";
       return true;
     } else {
       if (verbose) {
-        steinerMsg.textContent = "Not yet — " + conn.reachedCount + "/" + S.terms.length + " seeds linked. Cost so far: " + cost + ".";
+        steinerMsg.textContent = "Not yet — " + conn.reachedCount + "/" + S.terms.length + " towns linked. Cost so far: " + cost + ".";
         steinerMsg.className = "msg bad";
       }
       return false;
@@ -1472,6 +1474,7 @@ import { solveSteinerExact } from "./steiner-solver";
   const facilityMsg = document.getElementById("facilityMsg");
   const facilityReveal = document.getElementById("facilityReveal") as HTMLButtonElement;
   const facilityAim = document.getElementById("facilityAim");
+  const facilityKey = document.getElementById("facilityKey");
   const fCells = new Map<string, HTMLElement>();
   const fSel = new Set<string>();
   let facilityChecked = false, showingBest = false;
@@ -1499,7 +1502,25 @@ import { solveSteinerExact } from "./steiner-solver";
     }
   }
 
+  // The key names the ground of whichever world the day drew, so "marsh ×2"
+  // reads as "soft sand ×2" in a desert and "deep snow ×2" on the ice.
+  function buildKey() {
+    viewF.dataset.biome = F.biome.id;
+    viewF.dataset.green = F.verdant ? "1" : "";
+    // Only the grades this board actually carries: a key naming ground that is
+    // nowhere on the map has the player hunting for something that is not there.
+    const b = F.terrain, grades = new Set(F.rough.values());
+    facilityKey.innerHTML = ([
+      ...(F.land.size < F.N * F.N ? [["k-sea", "", b.blocked]] : []),
+      ["k-land", "", b.ground],
+      ...(grades.has(MARSH) ? [["k-marsh", "", b.soft + " ×2"]] : []),
+      ...(grades.has(HIGHLAND) ? [["k-highland", "", b.hard + " ×3"]] : []),
+      ["k-town", "3", "town"], ["k-depot", "◆", "depot"], ["k-track", "", "walked"],
+    ] as [string, string, string][])
+      .map(([cls, glyph, label]) => "<span><i class='" + cls + "'>" + glyph + "</i> " + label + "</span>").join("");
+  }
   function buildMap() {
+    buildKey();
     facilityGrid.innerHTML = "";
     fCells.clear();
     readMap();
@@ -1556,11 +1577,11 @@ import { solveSteinerExact } from "./steiner-solver";
         glyph = "◆";
         label = where + "depot";
       } else if (sea) {
-        label = where + "sea";
+        label = where + F.terrain.blocked;
       } else {
         const going = F.rough.get(k);
-        label = where + (going === HIGHLAND ? "highland, three to cross"
-          : going === MARSH ? "marsh, two to cross" : "plain land") +
+        label = where + (going === HIGHLAND ? F.terrain.hard + ", three to cross"
+          : going === MARSH ? F.terrain.soft + ", two to cross" : F.terrain.ground) +
           (track.has(k) ? ", on a walked route" : "");
       }
       el.textContent = glyph;
@@ -1962,8 +1983,8 @@ import { solveSteinerExact } from "./steiner-solver";
   const edSteinerTools = document.getElementById("edSteinerTools");
   const edSteinerLib = document.getElementById("edSteinerLib");
   const ED_TOOLS = [
-    ["term", "● seed"], ["wall", "■ rock"], ["bonus", "+ spore"], ["pen", "! thorn"],
-    ["portalA", "A portal"], ["portalB", "B portal"], ["erase", "⌫ erase"],
+    ["term", "● town"], ["wall", "≈ water"], ["bonus", "+ road"], ["pen", "▲ highland"],
+    ["portalA", "A ferry"], ["portalB", "B ferry"], ["erase", "⌫ erase"],
   ];
   let edTool = "term";
   const edTerms = [];
@@ -2003,10 +2024,10 @@ import { solveSteinerExact } from "./steiner-solver";
     if (edTool === "term") {
       if (ti >= 0) { edTerms.splice(ti, 1); paintEdSteiner(); return; }
       if (edWalls.has(k) || edSpecial.has(k)) { edMsg("Erase this square first.", false); return; }
-      if (edTerms.length >= 12) { edMsg("12 seeds max.", false); return; }
+      if (edTerms.length >= 12) { edMsg("12 towns max.", false); return; }
       edTerms.push([r, c]); paintEdSteiner(); return;
     }
-    if (ti >= 0) { edMsg("Erase the seed first.", false); return; }
+    if (ti >= 0) { edMsg("Erase the town first.", false); return; }
     if (edTool === "wall") {
       edSpecial.delete(k); edWalls.add(k); paintEdSteiner(); return;
     }
@@ -2015,7 +2036,7 @@ import { solveSteinerExact } from "./steiner-solver";
     if (type === "portal") {
       let count = 0;
       edSpecial.forEach((v, kk) => { if (v.type === "portal" && v.pid === pid && kk !== k) count++; });
-      if (count >= 2) { edMsg("Only 2 ends per portal.", false); return; }
+      if (count >= 2) { edMsg("Only 2 ends per ferry.", false); return; }
     }
     edWalls.delete(k);
     edSpecial.set(k, pid ? { type, pid } : { type });
@@ -2028,11 +2049,11 @@ import { solveSteinerExact } from "./steiner-solver";
       const sp = edSpecial.get(k);
       let cls = "cell ", txt = "";
       if (isTerm) { cls += "term"; txt = "●"; }
-      else if (edWalls.has(k)) { cls += "wall"; txt = "■"; }
+      else if (edWalls.has(k)) cls += "wall";
       else {
         cls += "free";
         if (sp && sp.type === "bonus") { cls += " bonus"; txt = "+"; }
-        if (sp && sp.type === "penalty") { cls += " penalty"; txt = "!"; }
+        if (sp && sp.type === "penalty") cls += " penalty";
         if (sp && sp.type === "portal") { cls += " portal"; txt = sp.pid; }
       }
       el.className = cls;
@@ -2041,12 +2062,12 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   function edSteinerStats() {
     const d = edSteinerData();
-    let s = "Seeds <b>" + d.terms.length + "</b> · rock " + d.walls.size;
+    let s = "Towns <b>" + d.terms.length + "</b> · water " + d.walls.size;
     if (d.terms.length >= 2 && stFreeConnected(d.N, d.terms, d.walls)) {
       const target = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
       s += Number.isFinite(target) ? " · target <b>" + target + "</b> (exact)" : " · unsolvable shape";
-    } else if (d.terms.length >= 2) s += " · seeds not all linked";
-    else s += " · place at least 2 seeds";
+    } else if (d.terms.length >= 2) s += " · towns not all linked";
+    else s += " · place at least 2 towns";
     edSteinerMeta.innerHTML = s;
   }
   function buildEdSteiner() {
