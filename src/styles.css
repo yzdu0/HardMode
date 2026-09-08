@@ -58,8 +58,8 @@
   --land: #d8ecaf;
   --coast: #f1e5b8;
   --land-fg: #8a9c6b;
-  --marsh: #bcd9a8;
-  --highland: #cbbb92;
+  --marsh: #a8ceb8;
+  --highland: #c2ac80;
   --track: #f4bf62;
   --track-fg: #6d4a14;
   --town: #26313f;
@@ -562,8 +562,8 @@ body[data-theme="dark"] {
   --land: #2c3f23;
   --coast: #414527;
   --land-fg: #7c8d6b;
-  --marsh: #1f3a2c;
-  --highland: #46442c;
+  --marsh: #1b3d39;
+  --highland: #4b4028;
   --track: #4e4523;
   --track-fg: #ecd79b;
   --town: #dfe5f0;
@@ -647,8 +647,8 @@ body[data-theme="moss"] {
   --land: #e2edcb;
   --coast: #f0efcf;
   --land-fg: #99a887;
-  --marsh: #bcd3a2;
-  --highland: #cdc79c;
+  --marsh: #a9c9b6;
+  --highland: #c5b287;
   --track: #cfe2a0;
   --track-fg: #3d5c22;
   --town: #24301a;
