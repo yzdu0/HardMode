@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nphard",
+  "compatibility_date": "2026-09-07",
+
+  // This is a static site: there is no Worker script and nothing runs on the
+  // server, so `assets` is the whole deployment. Without this file wrangler
+  // treats the first deploy as an unconfigured project, runs its setup wizard,
+  // and tries to wire @cloudflare/vite-plugin into vite.config.ts — which is
+  // for Workers that execute code, and which this project does not need.
+  "assets": {
+    "directory": "./dist",
+
+    // Not "single-page-application". Assets are built with a relative base
+    // (vite.config.ts) so the same output also works from a subpath on GitHub
+    // Pages. Serving index.html for an unknown path would then resolve
+    // ./assets/... against that path and hand back a blank page; a plain 404 is
+    // the honest answer for a site with exactly one route.
+    "not_found_handling": "none"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
