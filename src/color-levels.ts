@@ -68,6 +68,43 @@ export function chromaticNumber(n: number, edges: number[][]) {
   return n;
 }
 
+// How many genuinely different ways there are to colour the graph with exactly
+// k colours. Two colourings that put the same dots together are one answer
+// however the colours are shuffled, so what is really counted is partitions of
+// the dots into exactly k non-empty independent sets.
+//
+// Walking the "restricted growth" canonical form does that for free: dots are
+// visited in a fixed order, and a dot may only open colour c once colours
+// 0..c-1 are all in use. Every partition is then reached by exactly one path.
+export const COUNT_CAP = 100000;
+export function countColourings(n: number, edges: number[][], k: number, cap = COUNT_CAP) {
+  if (k < 1 || k > n) return { count: 0, capped: false };
+  const adj = neighbours(n, edges);
+  // Busiest dots first: the branches that cannot work die sooner that way.
+  const order = [...Array(n).keys()].sort((a, b) => adj[b].length - adj[a].length || a - b);
+  const paint = new Array(n).fill(-1);
+  let count = 0, capped = false;
+  const step = (i: number, used: number) => {
+    if (i === n) {
+      if (used === k && ++count >= cap) capped = true;
+      return;
+    }
+    // Even one fresh colour per remaining dot could not reach k.
+    if (used + (n - i) < k) return;
+    const v = order[i];
+    const top = Math.min(used, k - 1);
+    for (let c = 0; c <= top; c++) {
+      if (adj[v].some(w => paint[w] === c)) continue;
+      paint[v] = c;
+      step(i + 1, c === used ? used + 1 : used);
+      paint[v] = -1;
+      if (capped) return;
+    }
+  };
+  step(0, 0);
+  return { count, capped };
+}
+
 // Two vertices drawn closer than this overlap once the renderer inflates them.
 const CLEAR = 2 * EDGE_R + 14;
 function spacedOut(pos: Point[]) {

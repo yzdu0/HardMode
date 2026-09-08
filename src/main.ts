@@ -1,6 +1,6 @@
 /* NP-Hard mode — deterministic daily graph puzzles. */
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
-import { generateColorGraph, chromaticNumber, isConnected, shuffled, COLOR_REVISION } from "./color-levels";
+import { generateColorGraph, chromaticNumber, isConnected, shuffled, countColourings, COUNT_CAP, COLOR_REVISION } from "./color-levels";
 import {
   graphleSize, graphlePairs, GRAPHLE_REVISION, TREEDLE_PAIRS, graphleEdges, treedleEdges, graphleProps, treedleProps,
   generateGraphleTarget, generateTreedleTarget, GUESS_REVISION,
@@ -149,6 +149,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   bindHelp("graphleHelpBtn", "graphleHelpBox");
   bindHelp("treedleHelpBtn", "treedleHelpBox");
+  bindHelp("tallyHintBtn", "tallyHintBox");
 
   // ============================================================
   // GAME 1 — STEINER TREE (moss)
@@ -770,6 +771,70 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     litEdges();
   }
+  // ---------- bonus: count the distinct colourings ----------
+  // Counting them is harder than finding one — this is the #P-hard sibling of
+  // the puzzle above, so it stays a bonus and never blocks the daily win.
+  const tallyBox = document.getElementById("colorTally");
+  const tallyK = document.getElementById("colorTallyK");
+  const tallyInput = document.getElementById("colorTallyInput") as HTMLInputElement;
+  const tallyMsg = document.getElementById("colorTallyMsg");
+  let tallySolved: number[] = [];   // palette sizes already counted correctly
+  let tallyTries = 0;
+  const tallyTruth = new Map<number, { count: number; capped: boolean }>();
+  function trueTally(k: number) {
+    if (!tallyTruth.has(k)) tallyTruth.set(k, countColourings(CN, G.edges, k));
+    return tallyTruth.get(k)!;
+  }
+  function resetTally() {
+    tallyTruth.clear();
+    tallySolved = [];
+    tallyTries = 0;
+    tallyInput.value = "";
+    tallyMsg.textContent = ""; tallyMsg.className = "msg";
+  }
+  function refreshTally() {
+    // Sudoku's 36 dots put the answer far beyond anything worth guessing.
+    tallyBox.classList.toggle("hidden", G.kind === "sudoku");
+    tallyK.textContent = String(numColors);
+    if (tallySolved.includes(numColors)) {
+      tallyMsg.textContent = "Counted: " + trueTally(numColors).count.toLocaleString() + " ✓";
+      tallyMsg.className = "msg good";
+    }
+  }
+  function checkTally() {
+    const guess = Number(tallyInput.value);
+    if (tallyInput.value.trim() === "" || !Number.isInteger(guess) || guess < 0) {
+      tallyMsg.textContent = "Enter a whole number.";
+      tallyMsg.className = "msg bad";
+      return;
+    }
+    const truth = trueTally(numColors);
+    if (truth.capped && guess < COUNT_CAP) {
+      tallyMsg.textContent = "Higher — there are more than " + COUNT_CAP.toLocaleString()
+        + " with " + numColors + " colours. Try fewer colours.";
+      tallyMsg.className = "msg bad";
+      return;
+    }
+    tallyTries++;
+    if (guess === truth.count) {
+      if (!tallySolved.includes(numColors)) tallySolved.push(numColors);
+      tallyMsg.textContent = "Exactly " + truth.count.toLocaleString() + " — right in "
+        + tallyTries + (tallyTries === 1 ? " try" : " tries") + ". 🔢";
+      tallyMsg.className = "msg good";
+      saveColor(false); updateStreak(); renderArchive();
+      return;
+    }
+    const near = truth.count > 0 && Math.abs(guess - truth.count) <= Math.max(2, truth.count * 0.05);
+    tallyMsg.textContent = (guess > truth.count ? "Too high — there are fewer." : "Too low — there are more.")
+      + (near ? " Close, though." : tallyTries >= 3 ? " This one is meant to be hard — the tips below give a method." : "");
+    tallyMsg.className = "msg bad";
+    saveColor(false);
+  }
+  tallyInput.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); checkTally(); }
+  });
+  document.getElementById("colorTallyCheck").onclick = () => checkTally();
+
   function colorStats() {
     const used = new Set(coloring.filter((c) => c !== -1));
     const uncolored = coloring.filter((c) => c === -1).length;
@@ -786,11 +851,16 @@ import { solveSteinerExact } from "./steiner-solver";
       " · " + (CN - st.uncolored) + "/" + CN + " painted" +
       (st.bad ? " · <b>" + st.bad + " conflict" + (st.bad === 1 ? "" : "s") + "</b>" : "") +
       (G.kind ? " · <span style='color:#6b7561'>" + G.kind + "</span>" : "");
+    refreshTally();
     updateHintUI();
   }
+  const clearTallyVerdict = () => {
+    if (!tallySolved.includes(numColors)) { tallyMsg.textContent = ""; tallyMsg.className = "msg"; }
+  };
   document.getElementById("fewerColors").onclick = () => {
     if (numColors > 2) {
       numColors--;
+      clearTallyVerdict();
       if (activeColor >= numColors) activeColor = numColors - 1;
       for (let i = 0; i < CN; i++) {
         if (coloring[i] >= numColors && !(G.locked && G.locked[i] >= 0)) coloring[i] = -1;
@@ -799,7 +869,7 @@ import { solveSteinerExact } from "./steiner-solver";
     }
   };
   document.getElementById("moreColors").onclick = () => {
-    if (numColors < 6) { numColors++; saveColor(false); refreshColor(); }
+    if (numColors < 6) { numColors++; clearTallyVerdict(); saveColor(false); refreshColor(); }
   };
   document.getElementById("colorClear").onclick = () => {
     for (let i = 0; i < CN; i++) if (!(G.locked && G.locked[i] >= 0)) coloring[i] = -1;
@@ -826,7 +896,10 @@ import { solveSteinerExact } from "./steiner-solver";
   function saveColor(solved) {
     try {
       const prev = JSON.parse(localStorage.getItem(storeKey("color")) || "{}");
-      localStorage.setItem(storeKey("color"), JSON.stringify({ coloring, numColors, activeColor, solved: solved || prev.solved || false }));
+      localStorage.setItem(storeKey("color"), JSON.stringify({
+        coloring, numColors, activeColor, tallySolved, tallyTries,
+        solved: solved || prev.solved || false,
+      }));
     } catch (_) {}
   }
   function loadColor() {
@@ -838,6 +911,8 @@ import { solveSteinerExact } from "./steiner-solver";
         else if (d.numColors) numColors = Math.min(6, Math.max(2, d.numColors));
         else numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : openingColors(G);
         if (typeof d.activeColor === "number") activeColor = Math.min(numColors - 1, Math.max(0, d.activeColor));
+        if (Array.isArray(d.tallySolved)) tallySolved = d.tallySolved.filter((k) => Number.isInteger(k));
+        if (Number.isInteger(d.tallyTries)) tallyTries = d.tallyTries;
         if (d.solved) checkColor(false);
       } else {
         numColors = (mode === "tutorial" && G.kind === "tutorial") ? 3 : openingColors(G);
@@ -849,7 +924,11 @@ import { solveSteinerExact } from "./steiner-solver";
   document.getElementById("colorShare").onclick = () => {
     const st = colorStats();
     const ok = st.uncolored === 0 && st.bad === 0;
-    shareText("NP-Hard mode " + shareLabel() + "\nColouring 🎨: " + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + "\n" + location.href);
+    const bonus = tallySolved.length
+      ? "\nCount 🔢: ✅ " + tallySolved.sort((a, z) => a - z).map((k) => k + "-colour").join(", ")
+      : "";
+    shareText("NP-Hard mode " + shareLabel() + "\nColouring 🎨: "
+      + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + bonus + "\n" + location.href);
   };
 
   // ---------- share sheet ----------
@@ -1578,6 +1657,7 @@ import { solveSteinerExact } from "./steiner-solver";
     G = genGraph(activeDate);
     CN = G.n;
     resetColoring();
+    resetTally();
     loadColor(); refreshColor();
     colorMsg.textContent = ""; colorMsg.className = "msg";
     try {
@@ -2121,6 +2201,7 @@ import { solveSteinerExact } from "./steiner-solver";
       G = { edges: d.edges, chi: d.chi, pos: d.pos, n: d.n, kind: "custom", labels: null, locked: null };
       CN = G.n;
       resetColoring();
+      resetTally();
       loadColor(); refreshColor();
       colorMsg.textContent = ""; colorMsg.className = "msg";
       try {
@@ -2183,6 +2264,7 @@ import { solveSteinerExact } from "./steiner-solver";
       G = tutorialGraph();
       CN = G.n;
       resetColoring();
+      resetTally();
       loadColor(); refreshColor();
       colorMsg.textContent = ""; colorMsg.className = "msg";
       try {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'vite';
 import {
-  generateColorGraph, chromaticNumber, isConnected, COLOR_FAMILIES,
+  generateColorGraph, chromaticNumber, isConnected, countColourings, COLOR_FAMILIES,
 } from '../src/color-levels.ts';
 import type { ColorGraph } from '../src/color-levels.ts';
 
@@ -30,6 +30,67 @@ function canColorWith(g: ColorGraph, k: number) {
   };
   return step(0);
 }
+
+// Independent count: every assignment, keeping proper ones that use exactly k
+// colours, then dividing out the k! ways of renaming the colours.
+function bruteCount(n: number, edges: number[][], k: number) {
+  const factorial = (m: number): number => (m <= 1 ? 1 : m * factorial(m - 1));
+  const paint = new Array(n).fill(0);
+  let total = 0;
+  const step = (i: number) => {
+    if (i === n) {
+      if (new Set(paint).size !== k) return;
+      if (edges.some(([u, v]) => paint[u] === paint[v])) return;
+      total++;
+      return;
+    }
+    for (let c = 0; c < k; c++) { paint[i] = c; step(i + 1); }
+  };
+  step(0);
+  return total / factorial(k);
+}
+
+test('the colouring count agrees with brute force and ignores colour swaps', () => {
+  // Brute force costs k^n, so keep the graphs small and lean on volume instead.
+  for (let seed = 1; seed <= 80; seed++) {
+    const n = 4 + (seed % 3);
+    let state = seed;
+    const roll = () => { state = Math.imul(state, 1664525) + 1013904223; return (state >>> 16) % 100; };
+    const edges: number[][] = [];
+    for (let u = 0; u < n; u++) for (let v = u + 1; v < n; v++) if (roll() < 40) edges.push([u, v]);
+    for (let k = 1; k <= n; k++) {
+      assert.equal(countColourings(n, edges, k).count, bruteCount(n, edges, k),
+        'seed ' + seed + ' with ' + k + ' colours');
+    }
+  }
+  // Hand-worked shapes.
+  const k4 = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+  assert.equal(countColourings(4, k4, 4).count, 1, 'K4 has one 4-colouring up to swaps');
+  assert.equal(countColourings(4, k4, 3).count, 0, 'K4 cannot be 3-coloured');
+  assert.equal(countColourings(5, [], 1).count, 1, 'five loose dots, all one colour');
+  assert.equal(countColourings(3, [[0, 1], [1, 2]], 2).count, 1, 'a path splits one way');
+  // Below the chromatic number there is nothing to count.
+  assert.equal(countColourings(3, [[0, 1], [1, 2], [0, 2]], 2).count, 0);
+});
+
+test('every daily graph has a countable bonus answer', () => {
+  let biggest = 0, slowest = 0;
+  for (let day = 0; day < 90; day++) {
+    const date = new Date(Date.UTC(2026, 8, 8 - day)).toISOString().slice(0, 10);
+    const g = generateColorGraph(date, stubSudoku);
+    if (g.kind === 'sudoku') continue;   // 36 dots: the answer is not worth guessing
+    const start = performance.now();
+    const { count, capped } = countColourings(g.n, g.edges, g.chi);
+    slowest = Math.max(slowest, performance.now() - start);
+    // The palette opens at chi, so this is the number players actually face.
+    assert(!capped, date + ' overruns the counting cap at its opening palette');
+    assert(count > 0, date + ' claims an optimum it cannot achieve');
+    biggest = Math.max(biggest, count);
+  }
+  assert(slowest < 250, 'slowest count took ' + Math.round(slowest) + 'ms');
+  console.log('Bonus count: largest daily answer ' + biggest
+    + ', slowest ' + Math.round(slowest) + ' ms');
+});
 
 test('the chromatic number agrees with brute-force search on small graphs', () => {
   for (let seed = 0; seed < 200; seed++) {
