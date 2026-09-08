@@ -31,20 +31,20 @@
 
   // Daily result stats.
   //
-  // This binding has no database_id, and on the 2026-09-08 deploy that was not
-  // enough: wrangler can provision a database itself, but when the build token
-  // lacks D1 permission it treats that as a permission-denied error, silently
-  // skips provisioning and deploys anyway. The result is a green build and a
-  // Worker with no STATS binding, which is why /api/stats still answers
-  // {"enabled": false}.
+  // The id is pinned deliberately. Wrangler can provision a database from the
+  // name alone, but when the build token lacks D1 permission it reads that as
+  // permission denied, silently skips provisioning and deploys anyway — which
+  // is a green build and a Worker with no STATS binding, and /api/stats
+  // answering {"enabled": false}. With a real id there is nothing left to
+  // provision, so the build token's D1 permissions stop mattering.
   //
-  // To switch the stats on, create the database once and pin its id here:
-  //   npx wrangler d1 create hardmode-stats
-  // or Cloudflare dashboard -> Storage & Databases -> D1 -> Create, then add
-  //   "database_id": "<the id it shows>"
-  // to the binding below. With a real id there is nothing to provision, so the
-  // build token's D1 permissions stop mattering.
+  // `npx wrangler d1 list` prints the id if this ever needs re-pinning; the
+  // database itself is created once, by hand, and never by a deploy.
   "d1_databases": [
-    { "binding": "STATS", "database_name": "hardmode-stats" }
+    {
+      "binding": "STATS",
+      "database_name": "hardmode-stats",
+      "database_id": "96573f70-a72a-4ac9-baba-2f604c474c04"
+    }
   ]
 }
