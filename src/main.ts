@@ -5,7 +5,7 @@ import { generateColorGraph, chromaticNumber, isConnected, shuffled, countColour
 // is still read here, because the keys of days already won on it have to keep
 // resolving for the streak — and because the game may yet come back.
 import { graphleSize, graphlePairs, GRAPHLE_REVISION, graphleEdges, graphleProps, generateGraphleTarget, GUESS_REVISION } from "./guess-levels";
-import { generateFacility, evaluate, routeCells, descend, distanceFrom, optimalSites, MAROONED, FACILITY_REVISION } from "./facility-levels";
+import { generateFacility, evaluate, routeCells, descend, distanceFrom, optimalSites, MAROONED, MARSH, HIGHLAND, FACILITY_REVISION } from "./facility-levels";
 import { solveSteinerExact } from "./steiner-solver";
 (function () {
   "use strict";
@@ -1533,6 +1533,9 @@ import { solveSteinerExact } from "./steiner-solver";
       if (sea) cls += fDeep.has(k) ? " sea deep" : " sea";
       else if (!town && !depot) {
         cls += fCoast.has(k) ? " land coast" : " land";
+        const going = F.rough.get(k);
+        if (going === HIGHLAND) cls += " highland";
+        else if (going === MARSH) cls += " marsh";
         if (track.has(k)) cls += " track";
       }
       if (town) cls += " town" + (shown.size && walk.get(k) >= MAROONED ? " stranded" : "");
@@ -1555,7 +1558,10 @@ import { solveSteinerExact } from "./steiner-solver";
       } else if (sea) {
         label = where + "sea";
       } else {
-        label = where + "land" + (track.has(k) ? ", on a walked route" : "");
+        const going = F.rough.get(k);
+        label = where + (going === HIGHLAND ? "highland, three to cross"
+          : going === MARSH ? "marsh, two to cross" : "plain land") +
+          (track.has(k) ? ", on a walked route" : "");
       }
       el.textContent = glyph;
       el.setAttribute("aria-label", label);
@@ -1607,7 +1613,7 @@ import { solveSteinerExact } from "./steiner-solver";
     fAimKey = k;
     if (showingBest || !F.land.has(k)) { fAimKey = null; return; }
     const now = evaluate(F, fSel);
-    const field = distanceFrom(F.N, F.land, [k]);
+    const field = distanceFrom(F.N, F.land, F.rough, [k]);
     const standing = fSel.has(k);
     const mark = (cell: string, cls: string) => {
       const el = fCells.get(cell);
@@ -1623,7 +1629,7 @@ import { solveSteinerExact } from "./steiner-solver";
       if (!(reach < now.per[i] || (standing && reach === now.per[i]))) return;
       taken++;
       mark(tk, "claimed");
-      for (const step of descend(F.N, field, tk)) if (step !== k) mark(step, "aim-track");
+      for (const step of descend(F.N, F.rough, field, tk)) if (step !== k) mark(step, "aim-track");
     });
     mark(k, "aim");
     const towns = taken + (taken === 1 ? " town" : " towns");

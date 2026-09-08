@@ -58,6 +58,8 @@
   --land: #d8ecaf;
   --coast: #f1e5b8;
   --land-fg: #8a9c6b;
+  --marsh: #bcd9a8;
+  --highland: #cbbb92;
   --track: #f4bf62;
   --track-fg: #6d4a14;
   --town: #26313f;
@@ -560,6 +562,8 @@ body[data-theme="dark"] {
   --land: #2c3f23;
   --coast: #414527;
   --land-fg: #7c8d6b;
+  --marsh: #1f3a2c;
+  --highland: #46442c;
   --track: #4e4523;
   --track-fg: #ecd79b;
   --town: #dfe5f0;
@@ -643,6 +647,8 @@ body[data-theme="moss"] {
   --land: #e2edcb;
   --coast: #f0efcf;
   --land-fg: #99a887;
+  --marsh: #bcd3a2;
+  --highland: #cdc79c;
   --track: #cfe2a0;
   --track-fg: #3d5c22;
   --town: #24301a;
@@ -717,6 +723,8 @@ body[data-theme="terminal"] {
   --land: #0f2a1e;
   --coast: #143a28;
   --land-fg: #3a7359;
+  --marsh: #1a4632;
+  --highland: #2a5f45;
   --track: #1c7d55;
   --track-fg: #b6ffdb;
   --town: #8bf5bd;
@@ -761,7 +769,9 @@ body[data-theme="minimal"] {
   --land: #e3e3e3;
   --coast: #efefef;
   --land-fg: #aeaeae;
-  --track: #999;
+  --marsh: #d2d2d2;
+  --highland: #bcbcbc;
+  --track: #6d6d6d;
   --track-fg: #fff;
   --town: #111;
   --town-fg: #fff;
@@ -935,7 +945,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
      size and every screen. */
   container-type: inline-size;
 }
-.map .cell { border-radius: 2px; border-color: transparent; font-size: calc(100cqi / var(--map-n, 12) * 0.46); }
+.map .cell { position: relative; border-radius: 2px; border-color: transparent; font-size: calc(100cqi / var(--map-n, 12) * 0.46); }
 /* Narrower than this the digits are below reading size. The routes on the map
    and the running total say the same thing, so the towns simply go quiet. */
 @container (max-width: 470px) {
@@ -946,8 +956,22 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .map .cell.sea.deep { background: var(--sea-deep); color: var(--sea-deep); }
 .map .cell.land { background: var(--land); color: var(--land-fg); }
 .map .cell.land.coast { background: var(--coast); }
-/* Ground a town walks over on its way to a depot: the score made visible. */
-.map .cell.track { background: var(--track); color: var(--track-fg); }
+/* Rough going. Marsh costs two to cross and highland three, so a route will
+   often pay to walk round them; the colours say which is which without a key. */
+.map .cell.land.marsh, .map .cell.land.marsh.coast { background: var(--marsh); }
+.map .cell.land.highland, .map .cell.land.highland.coast { background: var(--highland); }
+/* Ground a town walks over on its way to a depot: the score made visible.
+   Laid over the terrain rather than replacing it, so a route crossing a marsh
+   still shows the marsh it is crossing. */
+.map .cell.track::before,
+.map .cell.aim-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--track);
+  opacity: 0.68;
+}
 .map .cell.town { background: var(--town); color: var(--town-fg); }
 .map .cell.town.stranded { background: var(--stranded); color: var(--stranded-fg); }
 .map .cell.depot { background: var(--depot); color: var(--depot-fg); }
@@ -964,10 +988,31 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   opacity: 0.55;
   font-size: calc(100cqi / var(--map-n, 12) * 0.46);
 }
-/* Tinted over the terrain rather than replacing it, so the coast still shows
-   through the routes a proposed depot would pull towards it. */
-.map .cell.aim-track { box-shadow: inset 0 0 0 99px color-mix(in srgb, var(--depot) 42%, transparent); }
+/* The same idea in the depot's own colour: what would be walked, not what is. */
+.map .cell.aim-track::before { background: var(--depot); opacity: 0.5; }
 .map .cell.claimed { box-shadow: inset 0 0 0 2px var(--depot); }
+/* A key that is always on screen. The board carries five kinds of ground and
+   two kinds of marker, and none of that should need the help panel opening. */
+.mapkey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mapkey span { display: inline-flex; align-items: center; gap: 5px; }
+.mapkey i {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+}
 /* What that depot would be worth, in words, directly under the map. */
 .aimline {
   margin-top: 8px;
@@ -978,7 +1023,8 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 }
 /* Map legend keys are colour chips rather than glyphs, since most of the map
    has no symbol on it at all. */
-.legend-inline i.k-sea, .legend-inline i.k-land, .legend-inline i.k-track,
+.legend-inline i.k-sea, .legend-inline i.k-land, .legend-inline i.k-marsh,
+.legend-inline i.k-highland, .legend-inline i.k-track,
 .legend-inline i.k-town, .legend-inline i.k-depot {
   display: inline-grid;
   place-items: center;
@@ -990,11 +1036,14 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 }
 .k-sea { background: var(--sea); }
 .k-land { background: var(--land); }
+.k-marsh { background: var(--marsh); }
+.k-highland { background: var(--highland); }
 .k-track { background: var(--track); }
 .k-town { background: var(--town); color: var(--town-fg); }
 .k-depot { background: var(--depot); color: var(--depot-fg); }
 body[data-theme="minimal"] .grid.map { gap: 1px; padding: 0; border: 1px solid #111; border-radius: 0; background: #111; }
-body[data-theme="minimal"] .legend-inline i.k-sea { box-shadow: inset 0 0 0 1px #111; }
+body[data-theme="minimal"] .legend-inline i.k-sea,
+body[data-theme="minimal"] .mapkey i.k-sea { box-shadow: inset 0 0 0 1px #111; }
 #graphSvg, #graphleSvg, #editorSvg {
   border-color: var(--line);
   border-radius: 14px;

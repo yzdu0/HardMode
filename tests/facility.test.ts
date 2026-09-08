@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateFacility, fallbackFacility, bestPlacement, greedyPlacement, evaluate, optimalSites,
-  distanceFrom, routeCells, islands, FACILITY_FAMILIES, FACILITY_MIN_GAP, MAROONED,
+  distanceFrom, descend, routeCells, islands, stepCost,
+  FACILITY_FAMILIES, FACILITY_MIN_GAP, MAROONED, PLAIN, MARSH, HIGHLAND, minTarget,
 } from '../src/facility-levels.ts';
 import type { FacilityBoard } from '../src/facility-levels.ts';
 
@@ -70,9 +71,36 @@ test('distanceFrom walks only over land', () => {
   // Two land strips either side of a full-height channel: nothing crosses.
   const land = new Set<string>();
   for (let r = 0; r < 5; r++) for (const c of [0, 1, 3, 4]) land.add(key([r, c]));
-  const field = distanceFrom(5, land, ['0,0']);
+  const field = distanceFrom(5, land, new Map(), ['0,0']);
   assert.equal(field.get('4,1'), 5);
   assert.equal(field.has('0,3'), false, 'the far bank is unreachable');
+});
+
+test('rough ground is priced, and a route will pay to go round it', () => {
+  // A 3-wide strip. The middle column is highland all the way down except at
+  // the very bottom, so the cheap way from top to bottom is the long way.
+  const land = new Set<string>();
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 3; c++) land.add(key([r, c]));
+  const rough = new Map<string, number>();
+  for (let r = 0; r < 5; r++) rough.set(key([r, 1]), HIGHLAND);
+
+  const plain = distanceFrom(6, land, new Map(), ['0,0']);
+  assert.equal(plain.get('0,2'), 2, 'on flat ground the direct crossing is two steps');
+
+  const hilly = distanceFrom(6, land, rough, ['0,0']);
+  // Straight across pays 3 onto the highland and 3 off it again.
+  assert.equal(hilly.get('0,2'), 6);
+  // The walk itself must cost exactly what the field says it does.
+  const steps = descend(6, rough, distanceFrom(6, land, rough, ['0,2']), '0,0');
+  let paid = 0, at = '0,0';
+  for (const step of steps) { paid += stepCost(rough, at, step); at = step; }
+  assert.equal(paid, hilly.get('0,2'), 'the drawn route and the score must agree');
+
+  // Marsh is the cheaper grade, so the same crossing costs less through bog.
+  const boggy = new Map<string, number>();
+  for (let r = 0; r < 5; r++) boggy.set(key([r, 1]), MARSH);
+  assert.equal(distanceFrom(6, land, boggy, ['0,0']).get('0,2'), 4);
+  assert.equal(stepCost(new Map(), '0,0', '0,1'), PLAIN);
 });
 
 test('generated boards are playable and correctly scored', () => {
@@ -83,8 +111,8 @@ test('generated boards are playable and correctly scored', () => {
     assert.ok(b.slots >= 3 && b.slots <= 5, `${day}: ${b.slots} depots`);
     assert.ok(b.towns.length > b.slots, `${day}: ${b.towns.length} towns for ${b.slots} depots`);
     // A world, not a diagram: the map has to be big enough to have an inside.
-    assert.ok(b.N >= 20, `${day}: ${b.N}x${b.N} board`);
-    assert.ok(b.target >= b.N * 0.9, `${day}: target ${b.target} on a ${b.N} board`);
+    assert.ok(b.N >= 28, `${day}: ${b.N}x${b.N} board`);
+    assert.ok(b.target >= minTarget(b.N), `${day}: target ${b.target} on a ${b.N} board`);
     for (const t of b.towns) assert.ok(b.land.has(key(t)), `${day}: a town is in the sea`);
     assert.equal(new Set(b.towns.map(key)).size, b.towns.length, `${day}: duplicate towns`);
 
@@ -111,7 +139,7 @@ test('no placement anywhere on the board beats the target', () => {
     const b = generateFacility(day);
     const sites = [...b.land];
     const dist = b.towns.map(t => {
-      const field = distanceFrom(b.N, b.land, [key(t)]);
+      const field = distanceFrom(b.N, b.land, b.rough, [key(t)]);
       return sites.map(s => field.has(s) ? field.get(s)! : MAROONED);
     });
     assert.equal(bestPlacement(dist, b.slots).cost, b.target, day);
@@ -132,8 +160,9 @@ test('boards are stable for a date and differ between dates', () => {
 });
 
 test('every map family turns up, and each keeps its own character', () => {
-  const kinds = new Set(days(120).map(d => generateFacility(d).kind));
+  const kinds = new Set(days(150).map(d => generateFacility(d).kind));
   assert.equal(kinds.size, FACILITY_FAMILIES.length, [...kinds].join(', '));
+  assert.ok(FACILITY_FAMILIES.length >= 9, `${FACILITY_FAMILIES.length} families`);
 });
 
 test('routes are real walks from each town to its nearest depot', () => {
@@ -142,9 +171,35 @@ test('routes are real walks from each town to its nearest depot', () => {
     const placed = optimalSites(b);
     const on = routeCells(b, placed);
     for (const cell of on) assert.ok(b.land.has(cell), `${day}: a route crosses water`);
-    // Every step walked is a step paid for, and the town itself is not a step.
-    const paid = evaluate(b, placed).total;
-    assert.ok(on.size <= paid, `${day}: ${on.size} route cells for ${paid} travel`);
+
+    // What is drawn has to be what is charged: each town's own route, walked
+    // step by step, must add up to exactly the distance it is scored on.
+    const scored = evaluate(b, placed);
+    const field = distanceFrom(b.N, b.land, b.rough, placed);
+    b.towns.forEach((town, i) => {
+      const steps = descend(b.N, b.rough, field, key(town));
+      let paid = 0, at = key(town);
+      for (const step of steps) {
+        assert.ok(on.has(step), `${day}: a step of the route is not shaded`);
+        paid += stepCost(b.rough, at, step);
+        at = step;
+      }
+      assert.equal(paid, scored.per[i], `${day}: town ${i} walks ${paid}, scored ${scored.per[i]}`);
+      assert.ok(!steps.length || placed.includes(at), `${day}: town ${i} ends nowhere`);
+    });
+  }
+});
+
+test('terrain sits on the land and never takes it over', () => {
+  for (const day of days(40)) {
+    const b = generateFacility(day);
+    for (const [cell, cost] of b.rough) {
+      assert.ok(b.land.has(cell), `${day}: rough ground at sea`);
+      assert.ok(cost === MARSH || cost === HIGHLAND, `${day}: odd terrain cost ${cost}`);
+      assert.ok(!b.townSet.has(cell), `${day}: a town is standing in the rough`);
+    }
+    assert.ok(b.rough.size <= b.land.size * 0.45,
+      `${day}: ${Math.round((b.rough.size / b.land.size) * 100)}% of the land is rough`);
   }
 });
 

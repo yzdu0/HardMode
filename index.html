@@ -177,11 +177,11 @@
         <div class="puzzle-heading"><h2>Facility</h2><button id="facilityHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="facilityHelpBox">How to play</button></div>
         <div id="facilityHelpBox" class="tutbox hidden">
           <p class="help-copy"><b>Site the depots.</b> A fixed number of depots go anywhere on the land. Every town then walks to its nearest one, and your score is the total of those walks &mdash; the lower the better.</p>
-          <div class="legend-inline" aria-label="Map legend"><span><i class="k k-sea"></i> sea</span><span><i class="k k-land"></i> land</span><span><i class="k k-town">3</i> town</span><span><i class="k k-depot">&#9670;</i> depot</span><span><i class="k k-track"></i> walked</span></div>
           <div class="tutorial-steps">
             <p><b>Place and move.</b> Tap land to drop a depot, tap it again to lift it. Drag a depot to slide it somewhere else &mdash; useful once they are all out.</p>
             <p><b>Only land counts.</b> Nobody swims. A depot across a channel is no use however near it looks, so an island with people on it always needs its own depot.</p>
-            <p><b>Read the numbers.</b> Each town shows how far it currently walks; a town with no route at all shows &mdash;. The tracks they take are shaded as you go.</p>
+            <p><b>Ground costs.</b> A step over plain land counts 1, over marsh 2, over highland 3, and a step between two grades costs the rougher of the two. A ridge is not a wall, but going round one is often cheaper than going over it.</p>
+            <p><b>Read the map.</b> Each town shows how far it currently walks &mdash; a town with no route at all shows &mdash;. The amber shading is the ground those walks actually cross, so the amber on the board <i>is</i> your score.</p>
             <p><b>Try before you place.</b> Hover any land cell and the map shows which towns would switch to a depot there, the routes they would take, and what the total would become.</p>
             <p><b>Greed is not enough.</b> Placing each depot where it helps most right now is almost never the best answer &mdash; every board here beats that. Try pulling one depot off the crowd to cover the far towns and see what the total does.</p>
           </div>
@@ -189,6 +189,15 @@
         </div>
         <div id="facilityMeta" class="meta"></div>
         <div id="facilityGrid" class="grid map" role="grid" aria-label="Island map"></div>
+        <div class="mapkey" aria-label="Map key">
+          <span><i class="k-sea"></i> sea</span>
+          <span><i class="k-land"></i> plain</span>
+          <span><i class="k-marsh"></i> marsh &times;2</span>
+          <span><i class="k-highland"></i> highland &times;3</span>
+          <span><i class="k-town">3</i> town</span>
+          <span><i class="k-depot">&#9670;</i> depot</span>
+          <span><i class="k-track"></i> walked</span>
+        </div>
         <div id="facilityAim" class="aimline" hidden></div>
         <div class="row">
           <button id="facilityClear" class="btn">Clear</button>

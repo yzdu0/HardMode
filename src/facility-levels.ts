@@ -13,6 +13,7 @@ export type Cell = [number, number];
 export interface FacilityBoard {
   N: number;
   land: Set<string>;      // every walkable cell; everything else is sea
+  rough: Map<string, number>;  // land that costs more than plain ground to cross
   towns: Cell[];
   townSet: Set<string>;
   slots: number;          // depots you may place
@@ -22,15 +23,20 @@ export interface FacilityBoard {
 }
 
 // Bumped whenever the level pool changes, so saved runs never mix generations.
-export const FACILITY_REVISION = 'launch-1';
+export const FACILITY_REVISION = 'relief-1';
+
+// What it costs to cross a step of ground. Marsh and highland are the only two
+// grades: enough to bend a route without needing a key to read the map.
+export const PLAIN = 1, MARSH = 2, HIGHLAND = 3;
 
 // A town cut off from every depot scores this rather than infinity, so totals
-// stay comparable while still being far worse than any journey on the board.
-export const MAROONED = 999;
+// stay comparable while still being far worse than any journey on the board —
+// which, on rough ground, can run to several hundred.
+export const MAROONED = 9999;
 
 // A world rather than a diagram: at this size an island has an interior, a
 // channel has a length, and where exactly a depot sits starts to matter.
-const N_DEFAULT = 24;
+const N_DEFAULT = 28;
 const key = ([r, c]: Cell): string => `${r},${c}`;
 const parse = (k: string): Cell => { const i = k.indexOf(','); return [+k.slice(0, i), +k.slice(i + 1)]; };
 const inside = (N: number, r: number, c: number) => r >= 0 && c >= 0 && r < N && c < N;
@@ -57,16 +63,38 @@ function neighbours(N: number, k: string): string[] {
   return out;
 }
 
-/** Breadth-first walk over land from any number of starting cells at once. */
-export function distanceFrom(N: number, land: Set<string>, sources: Iterable<string>): Map<string, number> {
+// Crossing between two cells costs whatever the rougher of the two costs, so a
+// step is priced the same in both directions and a depot on a town is still 0.
+export const stepCost = (rough: Map<string, number>, a: string, b: string) =>
+  Math.max(rough.get(a) ?? PLAIN, rough.get(b) ?? PLAIN);
+
+/**
+ * Cheapest walk over land from any number of starting cells at once.
+ *
+ * Steps cost 1, 2 or 3, so a row of buckets ordered by distance is already a
+ * priority queue: the next cell to settle is simply the next bucket with
+ * anything in it, and no comparison is ever made.
+ */
+export function distanceFrom(
+  N: number, land: Set<string>, rough: Map<string, number>, sources: Iterable<string>,
+): Map<string, number> {
   const dist = new Map<string, number>();
-  const queue: string[] = [];
-  for (const s of sources) if (land.has(s) && !dist.has(s)) { dist.set(s, 0); queue.push(s); }
-  for (let i = 0; i < queue.length; i++) {
-    const here = queue[i], d = dist.get(here)! + 1;
-    for (const next of neighbours(N, here)) {
-      if (!land.has(next) || dist.has(next)) continue;
-      dist.set(next, d); queue.push(next);
+  const buckets: string[][] = [];
+  const offer = (k: string, d: number) => {
+    const seen = dist.get(k);
+    if (seen !== undefined && seen <= d) return;
+    dist.set(k, d);
+    (buckets[d] ||= []).push(k);
+  };
+  for (const s of sources) if (land.has(s)) offer(s, 0);
+  for (let d = 0; d < buckets.length; d++) {
+    const here = buckets[d];
+    if (!here) continue;
+    for (const k of here) {
+      if (dist.get(k) !== d) continue;              // a cheaper way here turned up later
+      for (const next of neighbours(N, k)) {
+        if (land.has(next)) offer(next, d + stepCost(rough, k, next));
+      }
     }
   }
   return dist;
@@ -74,32 +102,39 @@ export function distanceFrom(N: number, land: Set<string>, sources: Iterable<str
 
 /** Score a placement: how far each town walks, and whether it gets there. */
 export function evaluate(board: FacilityBoard, placed: Iterable<string>) {
-  const field = distanceFrom(board.N, board.land, placed);
+  const field = distanceFrom(board.N, board.land, board.rough, placed);
   const per = board.towns.map(t => field.has(key(t)) ? field.get(key(t))! : MAROONED);
   return { per, field, total: per.reduce((a, b) => a + b, 0), served: per.map(d => d < MAROONED) };
 }
 
 /** Walk one cell down a distance field to its source, listing the steps taken. */
-export function descend(N: number, field: Map<string, number>, from: string): string[] {
+export function descend(
+  N: number, rough: Map<string, number>, field: Map<string, number>, from: string,
+): string[] {
   const steps: string[] = [];
   let here = from, left = field.get(from);
   while (left !== undefined && left > 0) {
-    // Any strictly closer neighbour lies on some shortest route, so the first
-    // one found is as good a way home as another.
-    const next = neighbours(N, here).find(nk => field.get(nk) === left! - 1);
+    // A neighbour whose own distance plus the step onto it accounts for the
+    // whole of what is left lies on a cheapest route; the first found will do.
+    const next = neighbours(N, here).find(nk => {
+      const d = field.get(nk);
+      return d !== undefined && d + stepCost(rough, here, nk) === left;
+    });
     if (next === undefined) break;
     steps.push(next);
     here = next;
-    left--;
+    left = field.get(next);
   }
   return steps;
 }
 
 /** The cells each town actually walks over, for drawing the routes it pays for. */
 export function routeCells(board: FacilityBoard, placed: Iterable<string>): Set<string> {
-  const field = distanceFrom(board.N, board.land, placed);
+  const field = distanceFrom(board.N, board.land, board.rough, placed);
   const on = new Set<string>();
-  for (const town of board.towns) for (const cell of descend(board.N, field, key(town))) on.add(cell);
+  for (const town of board.towns) {
+    for (const cell of descend(board.N, board.rough, field, key(town))) on.add(cell);
+  }
   return on;
 }
 
@@ -121,7 +156,9 @@ function blob(land: Set<string>, N: number, cr: number, cc: number, radius: numb
 
 // Each family also says how much of its board should end up as sea: an
 // archipelago that fills in until it is half land is just a continent.
-type Painted = { land: Set<string>; kind: string; water: [number, number] };
+// `relief` is [ridges, bogs]: how many highland spines and marshes the family
+// wears, before scaling for the size of the board.
+type Painted = { land: Set<string>; kind: string; water: [number, number]; relief: [number, number] };
 type Painter = (rnd: () => number, N: number) => Painted;
 
 // Sizes below are given in twelfths of the board, so a family keeps its
@@ -135,7 +172,7 @@ const paintArchipelago: Painter = (rnd, N) => {
   for (let i = 0; i < isles; i++) {
     blob(land, N, 1 + rnd() * (N - 2), 1 + rnd() * (N - 2), (1.1 + rnd() * 1.3) * u, rnd);
   }
-  return { land, kind: 'archipelago', water: [0.68, 0.80] };
+  return { land, kind: 'archipelago', water: [0.68, 0.80], relief: [0, 2] };
 };
 
 const paintStrait: Painter = (rnd, N) => {
@@ -155,7 +192,7 @@ const paintStrait: Painter = (rnd, N) => {
   for (let r = 0; r < N; r++) for (let d = -width; d <= width; d++) {
     if (inside(N, r, gate + d) && !(rnd() < 0.16 && d === 0)) land.delete(key([r, gate + d]));
   }
-  return { land, kind: 'twin coasts', water: [0.52, 0.66] };
+  return { land, kind: 'twin coasts', water: [0.52, 0.66], relief: [1, 1] };
 };
 
 const paintFjords: Painter = (rnd, N) => {
@@ -178,7 +215,7 @@ const paintFjords: Painter = (rnd, N) => {
       if (rnd() < 0.4) c += rnd() < 0.5 ? 1 : -1;
     }
   }
-  return { land, kind: 'fjords', water: [0.50, 0.62] };
+  return { land, kind: 'fjords', water: [0.50, 0.62], relief: [2, 0] };
 };
 
 const paintAtoll: Painter = (rnd, N) => {
@@ -198,7 +235,7 @@ const paintAtoll: Painter = (rnd, N) => {
     for (let dr = -bite; dr <= bite; dr++) for (let dc = -bite; dc <= bite; dc++) land.delete(key([gr + dr, gc + dc]));
   }
   if (rnd() < 0.7) blob(land, N, cr, cc, 0.9 * u, rnd);
-  return { land, kind: 'atoll', water: [0.62, 0.78] };
+  return { land, kind: 'atoll', water: [0.62, 0.78], relief: [0, 2] };
 };
 
 const paintDelta: Painter = (rnd, N) => {
@@ -219,7 +256,7 @@ const paintDelta: Painter = (rnd, N) => {
   const [r, c] = carve(0, 2 + Math.floor(rnd() * (N - 4)), Math.floor(N * 0.45), 0.4);
   const arms = 2 + Math.floor(rnd() * 2);
   for (let i = 0; i < arms; i++) carve(r, c + Math.round((i - (arms - 1) / 2) * 2.5 * u), N, 0.25);
-  return { land, kind: 'river delta', water: [0.50, 0.65] };
+  return { land, kind: 'river delta', water: [0.50, 0.65], relief: [0, 3] };
 };
 
 const paintIsthmus: Painter = (rnd, N) => {
@@ -239,11 +276,124 @@ const paintIsthmus: Painter = (rnd, N) => {
     const c = from[1] + (to[1] - from[1]) * t - sway;
     blob(land, N, Math.max(0, Math.min(N - 1, r)), Math.max(0, Math.min(N - 1, c)), (1.0 + rnd() * 0.7) * u, rnd);
   }
-  return { land, kind: 'isthmus', water: [0.66, 0.80] };
+  return { land, kind: 'isthmus', water: [0.66, 0.80], relief: [2, 0] };
 };
 
-export const FACILITY_FAMILIES: Painter[] =
-  [paintArchipelago, paintStrait, paintFjords, paintAtoll, paintDelta, paintIsthmus];
+const paintLakes: Painter = (rnd, N) => {
+  const land = new Set<string>();
+  const u = unit(N), mid = (N - 1) / 2;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (Math.hypot(r - mid, c - mid) <= N * 0.48) land.add(key([r, c]));
+  }
+  // Inland seas cut nothing off, but every route has to decide which way round.
+  for (let i = 0, lakes = 3 + Math.floor(rnd() * 3); i < lakes; i++) {
+    const cr = 2 + rnd() * (N - 4), cc = 2 + rnd() * (N - 4);
+    const R = (1.6 + rnd() * 1.9) * u;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (Math.hypot(r - cr, c - cc) <= R) land.delete(key([r, c]));
+    }
+  }
+  return { land, kind: 'great lakes', water: [0.50, 0.64], relief: [1, 2] };
+};
+
+const paintCapes: Painter = (rnd, N) => {
+  const land = new Set<string>();
+  const u = unit(N), mid = (N - 1) / 2;
+  blob(land, N, mid, mid, N * 0.17, rnd);
+  const arms = 4 + Math.floor(rnd() * 3);
+  const turn = rnd() * Math.PI;
+  for (let i = 0; i < arms; i++) {
+    const a = (2 * Math.PI * i) / arms + turn;
+    // Each headland leaves the middle and wanders; the sea between two of them
+    // is often a shorter way round than the land is.
+    let r = mid, c = mid, drift = 0;
+    for (let step = 0, len = Math.round(N * (0.34 + rnd() * 0.3)); step < len; step++) {
+      drift += (rnd() - 0.5) * 0.25;
+      r += Math.cos(a + drift); c += Math.sin(a + drift);
+      if (!inside(N, Math.round(r), Math.round(c))) break;
+      blob(land, N, r, c, (0.85 + rnd() * 0.5) * u, rnd);
+    }
+  }
+  return { land, kind: 'capes', water: [0.58, 0.72], relief: [2, 1] };
+};
+
+const paintBarrier: Painter = (rnd, N) => {
+  const land = new Set<string>();
+  const u = unit(N);
+  const west = rnd() < 0.5;                       // which side the mainland is on
+  const shore = west ? N * 0.28 : N * 0.72;
+  const swell = 1.2 + rnd() * 1.4, phase = rnd() * Math.PI * 2;
+  for (let r = 0; r < N; r++) {
+    const wave = Math.sin((r / N) * Math.PI * swell + phase) * 2.2 * u;
+    for (let c = 0; c < N; c++) {
+      if (west ? c < shore + wave : c > shore - wave) land.add(key([r, c]));
+    }
+  }
+  // A broken reef offshore, and the lagoon it holds in.
+  const reef = west ? shore + 5 * u : shore - 5 * u;
+  for (let r = 0; r < N; r++) {
+    if (rnd() < 0.2) continue;                    // a gap the sea comes through
+    blob(land, N, r, reef + Math.sin(r / 2.5 + phase) * 1.1 * u, 0.75 * u, rnd);
+  }
+  return { land, kind: 'barrier coast', water: [0.55, 0.68], relief: [0, 2] };
+};
+
+export const FACILITY_FAMILIES: Painter[] = [
+  paintArchipelago, paintStrait, paintFjords, paintAtoll, paintDelta, paintIsthmus,
+  paintLakes, paintCapes, paintBarrier,
+];
+
+// ---------- relief ----------
+// Terrain is laid on afterwards, over whatever coastline the family drew: a
+// spine of highland that a route would rather go round, and marshes on the low
+// wet ground near the water.
+
+function ridge(land: Set<string>, rough: Map<string, number>, N: number, rnd: () => number) {
+  const cells = [...land];
+  if (!cells.length) return;
+  let [r, c] = parse(cells[Math.floor(rnd() * cells.length)]);
+  let a = rnd() * Math.PI * 2;
+  const thick = rnd() < 0.4 ? 1 : 0;
+  for (let step = 0, len = Math.round(N * (0.3 + rnd() * 0.4)); step < len; step++) {
+    a += (rnd() - 0.5) * 0.5;
+    r += Math.cos(a); c += Math.sin(a);
+    for (let dr = -thick; dr <= thick; dr++) for (let dc = -thick; dc <= thick; dc++) {
+      const k = key([Math.round(r) + dr, Math.round(c) + dc]);
+      if (land.has(k)) rough.set(k, HIGHLAND);
+    }
+  }
+}
+
+function bog(land: Set<string>, rough: Map<string, number>, N: number, rnd: () => number) {
+  // Marsh wants a shoreline, so start from land that has water within a step.
+  const shore = [...land].filter(k => neighbours(N, k).some(nk => !land.has(nk)) ||
+    neighbours(N, k).length < 4);
+  const seed = (shore.length ? shore : [...land])[Math.floor(rnd() * (shore.length || land.size))];
+  if (!seed) return;
+  const [cr, cc] = parse(seed);
+  const R = (0.9 + rnd() * 1.1) * unit(N);
+  for (let r = Math.round(cr - R) - 1; r <= cr + R + 1; r++) {
+    for (let c = Math.round(cc - R) - 1; c <= cc + R + 1; c++) {
+      const k = key([r, c]);
+      if (!land.has(k) || rough.has(k)) continue;
+      const d = Math.hypot(r - cr, c - cc);
+      if (d <= R - 0.4 || (d <= R + 0.6 && rnd() < 0.5)) rough.set(k, MARSH);
+    }
+  }
+}
+
+// Terrain is a feature of the map, not the map itself: past about a third of
+// the land it stops reading as marsh and hills and just becomes the ground.
+const RELIEF_CAP = 0.36;
+
+function roughen(land: Set<string>, N: number, rnd: () => number, relief: [number, number]) {
+  const rough = new Map<string, number>();
+  const u = unit(N), cap = land.size * RELIEF_CAP;
+  for (let i = 0, n = Math.round(relief[0] * u); i < n && rough.size < cap; i++) ridge(land, rough, N, rnd);
+  for (let i = 0, n = Math.round(relief[1] * u); i < n && rough.size < cap; i++) bog(land, rough, N, rnd);
+  return rough;
+}
+
 
 // Sample a few candidates and keep the best: cheaper than sorting, and the
 // randomness keeps coastlines from turning out identically smooth every time.
@@ -436,8 +586,8 @@ export function greedyPlacement(dist: number[][], k: number): { cost: number; si
 }
 
 // Every land cell some town can actually reach, with the walk from each town.
-function reachTable(N: number, land: Set<string>, towns: Cell[]) {
-  const fields = towns.map(t => distanceFrom(N, land, [key(t)]));
+function reachTable(N: number, land: Set<string>, rough: Map<string, number>, towns: Cell[]) {
+  const fields = towns.map(t => distanceFrom(N, land, rough, [key(t)]));
   const sites = [...land].filter(k => fields.some(f => f.has(k)));
   const dist = fields.map(f => sites.map(s => f.has(s) ? f.get(s)! : MAROONED));
   return { sites, dist };
@@ -445,14 +595,14 @@ function reachTable(N: number, land: Set<string>, towns: Cell[]) {
 
 /** How many depots the exact answer really uses — the rest are spares. */
 export function optimalSites(board: FacilityBoard): string[] {
-  const { sites, dist } = reachTable(board.N, board.land, board.towns);
+  const { sites, dist } = reachTable(board.N, board.land, board.rough, board.towns);
   return bestPlacement(dist, board.slots).sites.map(i => sites[i]);
 }
 
 // A level is only worth playing if dropping depots one at a time gets it wrong.
 export const FACILITY_MIN_GAP = 2;
 // Distances grow with the board, so what counts as a substantial answer does too.
-const minTarget = (N: number) => Math.round(N * 0.9);
+export const minTarget = (N: number) => Math.round(N * 0.9);
 
 export function generateFacility(dateKey: string): FacilityBoard {
   const N = N_DEFAULT;
@@ -464,7 +614,7 @@ export function generateFacility(dateKey: string): FacilityBoard {
 
   for (let attempt = 0; attempt < 220; attempt++) {
     const rnd = random(`${FACILITY_REVISION}|${dateKey}|${attempt}`);
-    const { land, kind, water } = painter(rnd, N);
+    const { land, kind, water, relief } = painter(rnd, N);
     fitWater(land, N, rnd, water[0], water[1]);
     const groups = islands(N, land).filter(g => g.length >= 2);
     if (!groups.length || groups[0].length < N) continue;
@@ -485,14 +635,20 @@ export function generateFacility(dateKey: string): FacilityBoard {
     if (townKeys.length < townCount) continue;
     const towns = townKeys.map(parse);
 
-    const { sites, dist } = reachTable(N, land, towns);
+    const rough = roughen(land, N, rnd, relief);
+    // Settlements stand on ordinary ground: a town in a marsh only makes its
+    // own first step expensive, which reads as a bug rather than as terrain.
+    for (const k of townKeys) rough.delete(k);
+    if (rough.size > land.size * 0.45) continue;      // a safety net on the cap above
+
+    const { sites, dist } = reachTable(N, land, rough, towns);
     if (sites.length < slots) continue;
     const exact = bestPlacement(dist, slots);
     if (!Number.isFinite(exact.cost) || exact.cost >= MAROONED) continue;
     const greedy = greedyPlacement(dist, slots).cost;
 
     const board: FacilityBoard = {
-      N, land, towns, townSet: new Set(townKeys), slots, kind,
+      N, land, rough, towns, townSet: new Set(townKeys), slots, kind,
       target: exact.cost, greedy,
     };
     if (exact.cost < minTarget(N)) continue;
@@ -515,11 +671,12 @@ export function fallbackFacility(): FacilityBoard {
   }
   const towns: Cell[] = [[2, 2], [9, 3], [2, 9], [9, 9], [5, 7]];
   const townSet = new Set(towns.map(key));
+  const rough = new Map<string, number>();
   const slots = 2;
-  const { sites, dist } = reachTable(N, land, towns);
+  const { sites, dist } = reachTable(N, land, rough, towns);
   const exact = bestPlacement(dist, slots);
   return {
-    N, land, towns, townSet, slots, kind: 'channel',
+    N, land, rough, towns, townSet, slots, kind: 'channel',
     target: exact.cost, greedy: greedyPlacement(dist, slots).cost,
   };
 }
