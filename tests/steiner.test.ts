@@ -157,6 +157,22 @@ function assertChallenge(b: SteinerBoard) {
   assert.equal(typeof b.wrap, 'boolean');
   if (b.wrap) assert(seamIsLive(b), 'a wrapping board needs at least one open seam row');
   assert.equal(b.target, solveSteinerExact(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical));
+  const answer = new Set<string>();
+  assert.equal(b.target, solveSteinerExact(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical, answer));
+  const graph = boardGraph(b);
+  let answerCost = 0;
+  for (const cell of answer) {
+    assert(!b.walls.has(cell));
+    const index = graph.cells.findIndex(p => p.join(',') === cell);
+    assert(index >= 0, 'answer stays inside the board');
+    answerCost += graph.costs[index];
+  }
+  assert.equal(answerCost, b.target, 'revealed route has exactly the optimal cost');
+  const seen = new Set([graph.terminals[0]]), queue = [graph.terminals[0]];
+  for (const u of queue) for (const v of graph.adjacent[u]) {
+    if (answer.has(graph.cells[v].join(',')) && !seen.has(v)) { seen.add(v); queue.push(v); }
+  }
+  assert(graph.terminals.every(t => seen.has(t)), 'revealed route connects every seed');
   assert(naiveGap(b) >= STEINER_MIN_GAP, 'every board must meet its difficulty threshold');
 }
 

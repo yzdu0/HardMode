@@ -3,7 +3,8 @@
 // Portal pairs are zero-cost edges between their endpoints, and a wrapping
 // board joins each row's two ends the same way. Returns the true minimum
 // network cost, or NaN if the terminals are disconnected.
-export function solveSteinerExact(N: number, terms: number[][], walls: Set<string>, special: Map<string, { type: string }>, portalPairs: Record<string, number[][]>, wrap?: boolean, wrapVertical?: boolean) {
+export function solveSteinerExact(N: number, terms: number[][], walls: Set<string>, special: Map<string, { type: string }>, portalPairs: Record<string, number[][]>, wrap?: boolean, wrapVertical?: boolean, solution?: Set<string>) {
+  solution?.clear();
   const key = (r, c) => r + "," + c;
   const idx = new Map<string, number>(), cells: [number, number][] = [];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -49,6 +50,9 @@ export function solveSteinerExact(N: number, terms: number[][], walls: Set<strin
   }
   const K = tIdx.length, FULL = (1 << K) - 1, INF = 1e15;
   const dp = new Float64Array((FULL + 1) * n).fill(INF);
+  // Only allocate reconstruction state when the player requests the answer.
+  // Positive = previous vertex + 1; negative = terminal subset at a merge.
+  const trace = solution ? new Int32Array(dp.length) : null;
   const hd: number[] = [], hn: number[] = []; // binary heap of (dist, node)
   function heapPush(d: number, v: number) {
     hd.push(d); hn.push(v);
@@ -91,7 +95,11 @@ export function solveSteinerExact(N: number, terms: number[][], walls: Set<strin
       const du = dp[base + u];
       for (const v of adj[u]) {
         const nd = du + cost[v];
-        if (nd < dp[base + v] && nd <= ceiling) { dp[base + v] = nd; heapPush(nd, v); }
+        if (nd < dp[base + v] && nd <= ceiling) {
+          dp[base + v] = nd;
+          if (trace) trace[base + v] = u + 1;
+          heapPush(nd, v);
+        }
       }
     }
   }
@@ -133,21 +141,37 @@ export function solveSteinerExact(N: number, terms: number[][], walls: Set<strin
     if ((mask & (mask - 1)) !== 0) { // join two sub-solutions at each node
       const low = mask & -mask, rest = mask ^ low;
       for (let v = 0; v < n; v++) {
-        let best = INF;
+        let best = INF, split = 0;
         for (let s = rest;; s = (s - 1) & rest) { // each split seen once
           const o = mask ^ (s | low);
           if (o) {
             const cand = dp[(s | low) * n + v] + dp[o * n + v] - cost[v];
-            if (cand < best) best = cand;
+            if (cand < best) { best = cand; split = s | low; }
           }
           if (!s) break;
         }
-        if (best < dp[mask * n + v] && best <= ceiling) dp[mask * n + v] = best;
+        if (best < dp[mask * n + v] && best <= ceiling) {
+          dp[mask * n + v] = best;
+          if (trace) trace[mask * n + v] = -split;
+        }
       }
     }
     dijkstra(mask, ceiling);
   }
-  let ans = INF;
-  for (let v = 0; v < n; v++) ans = Math.min(ans, dp[FULL * n + v]);
+  let ans = INF, root = -1;
+  for (let v = 0; v < n; v++) if (dp[FULL * n + v] < ans) { ans = dp[FULL * n + v]; root = v; }
+  if (trace && ans < INF / 2) {
+    const stack = [[FULL, root]], seen = new Set<number>();
+    while (stack.length) {
+      const [mask, v] = stack.pop()!;
+      const state = mask * n + v;
+      if (seen.has(state)) continue;
+      seen.add(state);
+      solution!.add(key(cells[v][0], cells[v][1]));
+      const step = trace[state];
+      if (step > 0) stack.push([mask, step - 1]);
+      else if (step < 0) stack.push([-step, v], [mask ^ -step, v]);
+    }
+  }
   return ans >= INF / 2 ? NaN : ans;
 }

@@ -4,19 +4,21 @@ export type Edge = [number, number];
 // Bumped whenever the target pool changes, so saved runs never mix generations.
 export const GUESS_REVISION = 'challenge-2';
 
-export const GRAPHLE_N = 6, TREEDLE_N = 8;
+export const GRAPHLE_REVISION = 'challenge-3';
+export const GRAPHLE_N = 8, TREEDLE_N = 8;
 const pairsOf = (n: number) => {
   const pairs: Edge[] = [];
   for (let u = 0; u < n; u++) for (let v = u + 1; v < n; v++) pairs.push([u, v]);
   return pairs;
 };
 // Fixed pair order: these index the bits of every guess and target mask.
-export const GRAPHLE_PAIRS = pairsOf(GRAPHLE_N);
+export const graphlePairs = (n: number) => pairsOf(n);
+export const GRAPHLE_PAIRS = graphlePairs(GRAPHLE_N);
 export const TREEDLE_PAIRS = pairsOf(TREEDLE_N);
 
 const edgesFromMask = (mask: number, pairs: Edge[]) =>
   pairs.filter((_, i) => mask & (1 << i)).map(([u, v]) => [u, v] as Edge);
-export const graphleEdges = (mask: number) => edgesFromMask(mask, GRAPHLE_PAIRS);
+export const graphleEdges = (mask: number, n = GRAPHLE_N) => edgesFromMask(mask, graphlePairs(n));
 export const treedleEdges = (mask: number) => edgesFromMask(mask, TREEDLE_PAIRS);
 
 function neighbours(n: number, edges: number[][]) {
@@ -72,13 +74,13 @@ function countCycles(n: number, edges: number[][]) {
 }
 
 export interface GraphleProps { e: number; chi: number; tri: number; cyc: number; diam: number }
-export function graphleProps(edges: number[][]): GraphleProps {
+export function graphleProps(edges: number[][], n = GRAPHLE_N): GraphleProps {
   return {
     e: edges.length,
-    chi: chromaticNumber(GRAPHLE_N, edges),
-    tri: countTriangles(GRAPHLE_N, edges),
-    cyc: countCycles(GRAPHLE_N, edges),
-    diam: diameter(GRAPHLE_N, edges),
+    chi: chromaticNumber(n, edges),
+    tri: countTriangles(n, edges),
+    cyc: countCycles(n, edges),
+    diam: diameter(n, edges),
   };
 }
 
@@ -140,29 +142,8 @@ export const treedleFingerprint = (p: TreedleProps) => [p.leaf, p.diam, p.maxd, 
 // ---------------------------------------------------------------------------
 // Choosing a target
 //
-// Both games are won by matching five numbers, not the exact wiring, so the
-// real measure of a day's difficulty is how many drawings share the target's
-// five numbers. Left to chance that is far too many: a uniformly random
-// Graphle target is matched by about 750 of the 32768 graphs (one guess in 44
-// wins outright), and a random Treedle target by one tree in 13.
-//
-// Both lists below are derived, not invented — the tests recompute them by
-// exhaustive enumeration and fail if these fall out of step.
-// ---------------------------------------------------------------------------
-
-// Graphle fingerprints matched by between 30 and 240 of the 32768 graphs:
-// tight enough that a guess has to be deliberate, loose enough that the
-// fingerprint is still reachable once the feedback has narrowed it down.
-export const GRAPHLE_BAND: [number, number] = [30, 240];
-export const GRAPHLE_TARGETS = [
-  '10|3|3|24|2', '10|4|5|21|2', '10|4|6|19|3', '10|4|7|22|2', '10|4|7|22|3',
-  '10|3|4|22|2', '11|3|6|36|2', '11|3|6|38|2', '11|4|7|37|2', '11|4|8|30|2',
-  '5|2|0|0|3',
-  '11|4|8|32|2', '11|4|6|39|2', '11|5|10|37|2', '6|3|1|1|2', '7|3|0|3|2',
-  '7|3|1|2|3', '7|3|2|2|2', '7|3|2|3|2', '8|2|0|7|3', '8|3|2|7|2',
-  '8|3|3|4|2', '8|3|3|4|3', '8|4|4|7|2', '9|3|2|12|2', '9|3|2|14|2',
-  '9|3|3|12|3', '9|3|4|11|2', '9|3|4|13|2', '9|4|4|12|2', '9|4|5|8|2',
-];
+// Graphle uses connected 7–8 vertex graphs with multiple interacting cycles.
+// Treedle retains its existing independently versioned target pool.
 
 // Treedle shapes worth using, on two counts. First, at least ten of the other
 // 22 shapes score four tiles or more against them, so a guess comes back
@@ -189,18 +170,27 @@ function random(seed: string): () => number {
   };
 }
 
+export function graphleSize(date: string): 7 | 8 {
+  return random(`${GRAPHLE_REVISION}|size|${date}`)() < 0.5 ? 7 : 8;
+}
+
 export function generateGraphleTarget(date: string): number {
-  const rng = random(`${GUESS_REVISION}|graphle|${date}`);
-  const wanted = new Set(GRAPHLE_TARGETS);
-  let fallback = 0;
+  const n = graphleSize(date), pairs = graphlePairs(n);
+  const rng = random(`${GRAPHLE_REVISION}|graphle|${date}`);
   for (let attempt = 0; attempt < 4000; attempt++) {
-    const mask = Math.floor(rng() * (1 << GRAPHLE_PAIRS.length));
-    const props = graphleProps(graphleEdges(mask));
-    if (props.e < 5 || props.e > 11 || !Number.isFinite(props.diam)) continue;
-    if (wanted.has(graphleFingerprint(props))) return mask;
-    if (!fallback) fallback = mask;
+    const mask = Math.floor(rng() * 2 ** pairs.length);
+    const edges = graphleEdges(mask, n);
+    if (edges.length < n + 2 || edges.length > n + 6) continue;
+    const props = graphleProps(edges, n);
+    if (props.chi >= 3 && props.chi <= 4 && props.tri >= 2 && props.tri <= 9 &&
+        props.cyc >= 6 && props.cyc <= 100 && props.diam >= 2 && props.diam <= 4) return mask;
   }
-  return fallback;
+  // Connected ring with overlapping chords; never fall back to an empty graph.
+  const edges = new Set<string>();
+  const link = (a: number, b: number) => edges.add(Math.min(a, b) + '-' + Math.max(a, b));
+  for (let i = 0; i < n; i++) link(i, (i + 1) % n);
+  link(0, 2); link(2, 4); link(0, 4);
+  return pairs.reduce((mask, [a, b], i) => edges.has(a + '-' + b) ? mask | (1 << i) : mask, 0);
 }
 
 // Uniformly random labelled tree, via its Prüfer sequence.

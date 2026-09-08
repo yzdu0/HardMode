@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { build } from 'vite';
 import {
   GRAPHLE_N, TREEDLE_N, GRAPHLE_PAIRS, TREEDLE_PAIRS,
-  GRAPHLE_BAND, GRAPHLE_TARGETS, TREEDLE_LOOKALIKES, TREEDLE_MAX_CLASS, TREEDLE_TARGETS,
+  graphleSize, graphlePairs, TREEDLE_LOOKALIKES, TREEDLE_MAX_CLASS, TREEDLE_TARGETS,
   graphleEdges, treedleEdges, graphleProps, treedleProps,
   graphleFingerprint, treedleFingerprint,
   generateGraphleTarget, generateTreedleTarget, treeMaskFromPrufer,
@@ -10,16 +11,6 @@ import {
 
 const dates = [...Array(90).keys()].map(day =>
   new Date(Date.UTC(2026, 8, 8 - day)).toISOString().slice(0, 10));
-
-// Every graph on six dots, grouped by the five numbers a guess is scored on.
-function graphleCensus() {
-  const size = new Map<string, number>();
-  for (let mask = 0; mask < (1 << GRAPHLE_PAIRS.length); mask++) {
-    const key = graphleFingerprint(graphleProps(graphleEdges(mask)));
-    size.set(key, (size.get(key) || 0) + 1);
-  }
-  return size;
-}
 
 // Every labelled tree on eight dots, the same way.
 function treedleCensus() {
@@ -35,23 +26,7 @@ function treedleCensus() {
   return { size, total };
 }
 
-let graphleSizes: Map<string, number>;
 let treedle: { size: Map<string, number>; total: number };
-
-test('the Graphle shortlist is exactly the mid-rarity fingerprints', () => {
-  graphleSizes = graphleCensus();
-  const [low, high] = GRAPHLE_BAND;
-  const wanted = new Set<string>();
-  for (let mask = 0; mask < (1 << GRAPHLE_PAIRS.length); mask++) {
-    const props = graphleProps(graphleEdges(mask));
-    if (props.e < 5 || props.e > 11 || !Number.isFinite(props.diam)) continue;
-    const key = graphleFingerprint(props);
-    const size = graphleSizes.get(key)!;
-    if (size >= low && size <= high) wanted.add(key);
-  }
-  assert.deepEqual([...GRAPHLE_TARGETS].sort(), [...wanted].sort(),
-    'GRAPHLE_TARGETS has drifted from the census');
-});
 
 test('the Treedle shortlist is exactly the most confusable shapes', () => {
   treedle = treedleCensus();
@@ -70,28 +45,43 @@ test('the Treedle shortlist is exactly the most confusable shapes', () => {
   assert(!TREEDLE_TARGETS.includes('7|2|7|49|7'), 'the star is too obvious');
 });
 
-test('daily Graphle targets are far harder to hit by luck than chance would give', () => {
-  const winners: number[] = [];
-  const seen = new Set<number>();
+test('Graphle uses only connected, varied 7–8 vertex targets', () => {
+  const seen = new Set<string>(), sizes = new Set<number>();
   for (const date of dates) {
-    const mask = generateGraphleTarget(date);
-    assert.equal(generateGraphleTarget(date), mask, 'same day, same target');
-    seen.add(mask);
-    const props = graphleProps(graphleEdges(mask));
-    assert(props.e >= 5 && props.e <= 11, 'edge count ' + props.e);
-    assert(Number.isFinite(props.diam), 'targets must be connected');
-    const key = graphleFingerprint(props);
-    assert(GRAPHLE_TARGETS.includes(key), date + ' fell back to an unlisted fingerprint ' + key);
-    winners.push(graphleSizes.get(key)!);
+    const n = graphleSize(date), mask = generateGraphleTarget(date);
+    assert(n === 7 || n === 8);
+    assert.equal(generateGraphleTarget(date), mask);
+    const pairs = graphlePairs(n), edges = graphleEdges(mask, n), props = graphleProps(edges, n);
+    assert.equal(pairs.length, n * (n - 1) / 2);
+    assert(mask >= 0 && mask < 2 ** pairs.length);
+    assert.equal(new Set(edges.flat()).size, n, 'every vertex is used');
+    assert(props.e >= n + 2 && props.e <= n + 6);
+    assert(props.diam >= 2 && props.diam <= 4);
+    assert(props.chi >= 3 && props.chi <= 4);
+    assert(props.tri >= 2 && props.tri <= 9);
+    assert(props.cyc >= 6 && props.cyc <= 100);
+    seen.add(n + ':' + mask); sizes.add(n);
   }
-  assert(seen.size >= 80, 'days should not keep repeating the same graph');
-  const worst = Math.max(...winners);
-  assert(worst <= GRAPHLE_BAND[1], 'a day allows ' + worst + ' winning graphs');
-  const mean = winners.reduce((a, z) => a + z, 0) / winners.length;
-  // Uniformly random targets average about 750 winning graphs.
-  assert(mean < 200, 'mean winning graphs per day is ' + mean.toFixed(0));
-  console.log('Graphle: ' + seen.size + ' distinct targets; a guess wins by luck on average 1 day in '
-    + Math.round((1 << GRAPHLE_PAIRS.length) / mean) + ' (was 1 in 44)');
+  assert.equal(seen.size, 90);
+  assert.equal(sizes.size, 2);
+});
+
+test('every 7–8 vertex edge round-trips including the highest mask bit', () => {
+  for (const n of [7, 8]) for (const [i, pair] of graphlePairs(n).entries()) {
+    assert.deepEqual(graphleEdges(1 << i, n), [pair]);
+  }
+});
+
+test('Graphle size and target survive production minification', async () => {
+  const result = await build({ configFile: false, logLevel: 'silent',
+    build: { write: false, minify: true, lib: { entry: 'src/guess-levels.ts', formats: ['es'] } } });
+  const output = (Array.isArray(result) ? result[0] : result).output;
+  const chunk = output.find(item => item.type === 'chunk')!;
+  const compiled = await import('data:text/javascript;base64,' + Buffer.from(chunk.code).toString('base64'));
+  for (const date of dates.slice(0, 10)) {
+    assert.equal(compiled.graphleSize(date), graphleSize(date));
+    assert.equal(compiled.generateGraphleTarget(date), generateGraphleTarget(date));
+  }
 });
 
 test('daily Treedle targets avoid the shapes a single guess gives away', () => {
@@ -132,5 +122,5 @@ test('the five scored numbers match hand-worked shapes', () => {
   assert.equal(t.diam, Infinity); // dots 4-6 are unlinked
   const complete: [number, number][] = GRAPHLE_PAIRS.map(([u, v]) => [u, v] as [number, number]);
   assert.deepEqual(graphleProps(complete),
-    { e: 15, chi: 6, tri: 20, cyc: 197, diam: 1 });
+    { e: 28, chi: 8, tri: 56, cyc: 8018, diam: 1 });
 });

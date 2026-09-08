@@ -2,7 +2,7 @@
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
 import { generateColorGraph, chromaticNumber, isConnected, shuffled, COLOR_REVISION } from "./color-levels";
 import {
-  GRAPHLE_PAIRS, TREEDLE_PAIRS, graphleEdges, treedleEdges, graphleProps, treedleProps,
+  graphleSize, graphlePairs, GRAPHLE_REVISION, TREEDLE_PAIRS, graphleEdges, treedleEdges, graphleProps, treedleProps,
   generateGraphleTarget, generateTreedleTarget, GUESS_REVISION,
 } from "./guess-levels";
 import { solveSteinerExact } from "./steiner-solver";
@@ -43,7 +43,7 @@ import { solveSteinerExact } from "./steiner-solver";
   let mode: PuzzleMode = "daily";
   let customSession: CustomSession | null = null;
   function dailyStoreKey(date: string, game: GameKey) {
-    const revision = game === "steiner" ? STEINER_REVISION : game === "color" ? COLOR_REVISION : GUESS_REVISION;
+    const revision = game === "steiner" ? STEINER_REVISION : game === "color" ? COLOR_REVISION : game === "graphle" ? GRAPHLE_REVISION : GUESS_REVISION;
     return "hm-" + date + "-" + game + "-" + revision;
   }
   function storeKey(game: GameKey) {
@@ -101,8 +101,10 @@ import { solveSteinerExact } from "./steiner-solver";
     try {
       const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
       // Keep earned streaks from the original boards without restoring old moves.
-      const legacySolved = game === "steiner" && ["", "-challenge-1", "-challenge-2", "-challenge-3", "-challenge-4"].some(suffix => {
-        try { return !!JSON.parse(localStorage.getItem("hm-" + key + "-steiner" + suffix) || "null")?.solved; }
+      const oldRevisions = game === "steiner" ? ["", "-challenge-1", "-challenge-2", "-challenge-3", "-challenge-4"]
+        : game === "graphle" ? ["", "-challenge-2"] : [];
+      const legacySolved = oldRevisions.some(suffix => {
+        try { return !!JSON.parse(localStorage.getItem("hm-" + key + "-" + game + suffix) || "null")?.solved; }
         catch (_) { return false; }
       });
       return !!(d?.solved || legacySolved);
@@ -211,6 +213,9 @@ import { solveSteinerExact } from "./steiner-solver";
   const steinerMsg = document.getElementById("steinerMsg");
   gridEl.style.gridTemplateColumns = "repeat(" + GN + ", 1fr)";
   const sel = new Set<string>();
+  let steinerChecked = false, showingOptimal = false;
+  let optimalCells: Set<string> | null = null;
+  const steinerReveal = document.getElementById("steinerReveal") as HTMLButtonElement;
   const cellEls = new Map<string, HTMLElement>();
   const skey = (r, c) => r + "," + c;
 
@@ -292,22 +297,31 @@ import { solveSteinerExact } from "./steiner-solver";
     return { reached, reachedCount: reached.size, allConnected: reached.size === S.terms.length };
   }
   function paintSteiner() {
+    const shown = showingOptimal ? optimalCells! : sel;
+    steinerMsg.hidden = showingOptimal;
+    steinerReveal.hidden = !steinerChecked;
+    steinerReveal.textContent = showingOptimal ? "Back to my route" : "Show optimal answer";
+    steinerReveal.setAttribute("aria-pressed", String(showingOptimal));
+    gridEl.setAttribute("aria-readonly", String(showingOptimal));
+    (document.getElementById("steinerCheck") as HTMLButtonElement).disabled = showingOptimal;
+    (document.getElementById("steinerClear") as HTMLButtonElement).disabled = showingOptimal;
     cellEls.forEach((el, k) => {
-      el.classList.toggle("path", sel.has(k));
-      if (!S.termSet.has(k) && !S.walls.has(k)) el.setAttribute("aria-pressed", String(sel.has(k)));
+      el.classList.toggle("path", shown.has(k) && !S.termSet.has(k));
+      if (!S.termSet.has(k) && !S.walls.has(k)) el.setAttribute("aria-pressed", String(shown.has(k)));
     });
     const conn = steinerConnectivity();
     S.terms.forEach(([r, c]) => {
       const el = cellEls.get(skey(r, c));
       el.classList.remove("connected", "unconnected");
-      el.classList.add(conn.allConnected ? "connected" : "unconnected");
+      el.classList.add(showingOptimal || conn.allConnected ? "connected" : "unconnected");
     });
     const cost = currentCost();
     const status = conn.allConnected ? " · <b>CONNECTED ✓</b>" : " · " + conn.reachedCount + "/" + S.terms.length + " linked";
-    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Cost <b>" + cost + "</b> · Target " + S.target + status + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrapVertical ? " ↔ ↕ wraps" : S.wrap ? " ↔ wraps" : "") + "</span>" : "");
+    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + (showingOptimal ? "Optimal route · Cost <b>" + S.target + "</b>" : "Cost <b>" + cost + "</b>" + (steinerChecked ? " · Target " + S.target : "") + status) + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrapVertical ? " ↔ ↕ wraps" : S.wrap ? " ↔ wraps" : "") + "</span>" : "");
   }
   let dragMode = null, isDown = false;
   function toggleCell(r, c, mode) {
+    if (showingOptimal) return;
     const k = skey(r, c);
     if (S.termSet.has(k) || S.walls.has(k)) return;
     if (mode === true) sel.add(k);
@@ -356,7 +370,23 @@ import { solveSteinerExact } from "./steiner-solver";
 
   document.getElementById("steinerClear").onclick = () => { sel.clear(); saveSteiner(false); paintSteiner(); steinerMsg.textContent = ""; steinerMsg.className = "msg"; };
   document.getElementById("steinerCheck").onclick = () => checkSteiner(true);
+  steinerReveal.onclick = () => {
+    if (!steinerChecked) return;
+    if (!optimalCells) {
+      const answer = new Set<string>();
+      const cost = solveSteinerExact(GN, S.terms, S.walls, S.special, S.portalPairs, S.wrap, S.wrapVertical, answer);
+      if (!Number.isFinite(cost) || cost !== S.target) {
+        steinerMsg.textContent = "Couldn't reveal an optimal route. Please try again.";
+        return;
+      }
+      optimalCells = answer;
+    }
+    showingOptimal = !showingOptimal;
+    paintSteiner();
+  };
   function checkSteiner(verbose) {
+    if (verbose) { steinerChecked = true; saveSteiner(false); }
+    paintSteiner();
     const conn = steinerConnectivity();
     const cost = currentCost();
     if (conn.allConnected) {
@@ -380,19 +410,21 @@ import { solveSteinerExact } from "./steiner-solver";
   function saveSteiner(solved) {
     try {
       const prev = JSON.parse(localStorage.getItem(storeKey("steiner")) || "{}");
-      localStorage.setItem(storeKey("steiner"), JSON.stringify({ sel: [...sel], solved: solved || prev.solved || false, cost: currentCost() }));
+      localStorage.setItem(storeKey("steiner"), JSON.stringify({ sel: [...sel], checked: steinerChecked, solved: solved || prev.solved || false, cost: currentCost() }));
     } catch (_) {}
   }
   function loadSteiner() {
+    steinerChecked = false; showingOptimal = false; optimalCells = null;
     try {
       const d = JSON.parse(localStorage.getItem(storeKey("steiner")) || "null");
+      steinerChecked = Boolean(d?.checked || d?.solved);
       if (d && Array.isArray(d.sel)) d.sel.forEach((k) => sel.add(k));
       if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
     } catch (_) {}
   }
   document.getElementById("steinerShare").onclick = async () => {
     const conn = steinerConnectivity();
-    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + " (target " + S.target + ")" : "❌ unsolved") + "\n" + location.href);
+    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + (steinerChecked ? " (target " + S.target + ")" : "") : "❌ unsolved") + "\n" + location.href);
   };
 
   // ============================================================
@@ -939,19 +971,26 @@ import { solveSteinerExact } from "./steiner-solver";
   }
 
   // ============================================================
-  // GAME 3 — GRAPHLE: Wordle for graphs (guess the hidden 6-node graph)
-  // Win by matching all six property tiles, not the exact wiring.
+  // GAME 3 — GRAPHLE: guess the hidden 7–8 vertex graph.
+  // Win by matching all five property tiles, not the exact wiring.
   // ============================================================
-  const GL_N = 6, GL_TRIES = 6;
+  let GL_N = graphleSize(activeDate);
+  const GL_TRIES = 6;
   // fixed pair order = bit positions of guess/target masks
-  const GL_PAIRS = GRAPHLE_PAIRS;
+  let GL_PAIRS = graphlePairs(GL_N);
   const GL_POS = [];
-  for (let i = 0; i < GL_N; i++) {
-    const a = (2 * Math.PI * i) / GL_N - Math.PI / 2;
-    GL_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
+  function layoutGraphle() {
+    GL_N = graphleSize(activeDate);
+    GL_PAIRS = graphlePairs(GL_N);
+    GL_POS.length = 0;
+    for (let i = 0; i < GL_N; i++) {
+      const a = (2 * Math.PI * i) / GL_N - Math.PI / 2;
+      GL_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
+    }
   }
-  const glEdgesFromMask = graphleEdges;
-  const glProps = graphleProps;
+  layoutGraphle();
+  const glEdgesFromMask = (mask: number) => graphleEdges(mask, GL_N);
+  const glProps = (edges: number[][]) => graphleProps(edges, GL_N);
   function glCompare(t, g) {
     // numeric tiles: green exact; else yellow (±1) / gray with ↑/↓ showing
     // whether the TARGET is higher or lower than the guess
@@ -1075,7 +1114,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const left = GL_TRIES - glGuesses.length;
     graphleMeta.innerHTML = glDone === "won" ? "Solved!" :
       glDone === "lost" ? "Out of tries." :
-      "Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
+      GL_N + " vertices · Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
     graphleGuessBtn.style.opacity = glDone || !left ? "0.4" : "1";
     graphleGuessBtn.disabled = Boolean(glDone || !left);
   }
@@ -1202,6 +1241,7 @@ import { solveSteinerExact } from "./steiner-solver";
     } catch (_) {}
   }
   function rebuildGraphle() {
+    layoutGraphle();
     GL_TARGET = genGraphleTarget(activeDate);
     GL_TPROPS = glProps(glEdgesFromMask(GL_TARGET));
     glDraft = new Set<string>();
@@ -2072,7 +2112,6 @@ import { solveSteinerExact } from "./steiner-solver";
         if (s && s.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
       } catch (_) {}
       document.getElementById("steinerCustomName").textContent = session.name;
-      document.getElementById("steinerCustomTarget").textContent = d.target;
     } else {
       showView("color");
       colorCustomBar.classList.remove("hidden");
@@ -2137,7 +2176,6 @@ import { solveSteinerExact } from "./steiner-solver";
         const d = JSON.parse(localStorage.getItem(storeKey("steiner")) || "null");
         if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
       } catch (_) {}
-      document.getElementById("steinerTutTarget").textContent = S.target;
     } else {
       showView("color");
       colorTutBox.classList.remove("hidden");

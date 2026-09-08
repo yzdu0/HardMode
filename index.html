@@ -58,10 +58,10 @@
             <p><b>Share routes.</b> Branch from one short trunk instead of drawing separate paths.</p>
             <p><b>Wrap.</b> Dashed sides join left and right in the same row. Dashed top and bottom edges also join the same column. Rocks still block routes.</p>
           </div>
-          <p class="tutpar">Target cost: <b><span id="steinerTutTarget"></span></b>. Connect all seeds first; optimise after.</p>
+          <p class="tutpar">Connect all seeds first. Check to reveal the target and an optional optimal route.</p>
         </div>
         <div id="steinerMeta" class="meta"></div>
-        <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b> · target <b id="steinerCustomTarget"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
+        <div id="steinerCustomBar" class="custombar hidden"><span>Custom: <b id="steinerCustomName"></b></span><button id="steinerCustomBack" class="btn small">← Editor</button></div>
         <div id="steinerGrid" class="grid" role="grid" aria-label="Steiner grid"></div>
         <div class="row">
           <button id="steinerClear" class="btn">Clear</button>
@@ -69,6 +69,7 @@
           <button id="steinerShare" class="btn">Share</button>
         </div>
         <div id="steinerMsg" class="msg" role="status" aria-live="polite"></div>
+        <button id="steinerReveal" class="btn" hidden aria-pressed="false">Show optimal answer</button>
       </section>
 
       <!-- COLORING -->
@@ -108,12 +109,12 @@
       <section id="viewGraphle" class="view hidden" role="tabpanel" aria-labelledby="tabGraphle">
         <div class="puzzle-heading"><h2>Graphle</h2><button id="graphleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="graphleHelpBox">How to play</button></div>
         <div id="graphleHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Rebuild the hidden graph.</b> Tap two dots to toggle a link. The second dot stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
+          <p class="help-copy"><b>Rebuild the hidden 7–8 vertex graph.</b> Tap two dots to toggle a link. The second dot stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
           <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
           <p class="property-copy">Each guess is scored on five numbers. An arrow means the hidden graph's value is higher&nbsp;↑ or lower&nbsp;↓ than yours.</p>
           <dl class="metric-list">
-            <dt>E</dt><dd><b>Edges.</b> How many links you have drawn. Six dots allow 15 links in all, so this alone narrows things down fast — settle it first.</dd>
-            <dt>χ</dt><dd><b>Chromatic number.</b> The fewest colours needed to paint the six dots so that no link joins two of the same colour. 1 means no links at all, 2 means the dots split into two sides with every link crossing between them, and 3 or more means there is an odd-length ring somewhere.</dd>
+            <dt>E</dt><dd><b>Edges.</b> How many links you have drawn. Seven dots allow 21 possible links; eight allow 28.</dd>
+            <dt>χ</dt><dd><b>Chromatic number.</b> The fewest colours needed to paint the dots so that no link joins two of the same colour. 1 means no links at all, 2 means the dots split into two sides with every link crossing between them, and 3 or more means there is an odd-length ring somewhere.</dd>
             <dt>△</dt><dd><b>Triangles.</b> How many sets of three dots are all linked to each other. Adding one link to a dot with <i>k</i> shared neighbours creates <i>k</i> triangles at once, so this number climbs quickly in a busy graph.</dd>
             <dt>Cyc</dt><dd><b>Cycles.</b> How many distinct closed loops of three or more dots exist, counting a loop once however you walk it. Every triangle is also a cycle, so Cyc is never below △; a big gap between them means long loops rather than tight clumps.</dd>
             <dt>Diam</dt><dd><b>Diameter.</b> Take the two dots that are furthest apart and count the links on the shortest route between them. Small means tightly knit, large means strung out, and ∞ means some dot cannot be reached at all.</dd>
