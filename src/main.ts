@@ -1,5 +1,6 @@
 /* HardMode — deterministic daily graph puzzles. */
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
+import { roadConnections, RouteHistory } from "./steiner-presentation";
 import { generateColorGraph, chromaticNumber, isConnected, shuffled, countColourings, COUNT_CAP, COLOR_REVISION } from "./color-levels";
 // Treedle is archived. Its generator stays in guess-levels.ts and GUESS_REVISION
 // is still read here, because the keys of days already won on it have to keep
@@ -246,8 +247,6 @@ import { solveSteinerExact } from "./steiner-solver";
         label + '</span><i style="width:' + Math.max(6, Math.round((n / most) * 100)) + '%">' + n + "</i></div>";
     }).join("");
     box.classList.remove("hidden");
-    const note = document.getElementById("privacyNote");
-    if (note) note.hidden = false;
   }
   function drawAllResults() { for (const g of GAMES) drawResults(g); }
   // `fresh` is false when a solved state is merely being restored from storage:
@@ -346,6 +345,8 @@ import { solveSteinerExact } from "./steiner-solver";
   const steinerMsg = document.getElementById("steinerMsg");
   gridEl.style.gridTemplateColumns = "repeat(" + GN + ", 1fr)";
   const sel = new Set<string>();
+  const routeHistory = new RouteHistory();
+  const steinerUndo = document.getElementById("steinerUndo") as HTMLButtonElement;
   let steinerChecked = false, showingOptimal = false;
   let optimalCells: Set<string> | null = null;
   const steinerReveal = document.getElementById("steinerReveal") as HTMLButtonElement;
@@ -379,7 +380,7 @@ import { solveSteinerExact } from "./steiner-solver";
       const k = skey(r, c);
       const sp = S.special.get(k);
       let cls = "cell ", txt = "";
-      if (S.termSet.has(k)) { cls += "term"; txt = "●"; }
+      if (S.termSet.has(k)) { cls += "term"; txt = "■"; }
       else if (S.walls.has(k)) cls += "wall";
       else {
         cls += "free";
@@ -391,6 +392,12 @@ import { solveSteinerExact } from "./steiner-solver";
       }
       d.className = cls;
       d.textContent = txt;
+      for (const direction of ["n", "e", "s", "w"]) {
+        const link = document.createElement("span");
+        link.className = "road-link road-" + direction;
+        link.setAttribute("aria-hidden", "true");
+        d.appendChild(link);
+      }
       d.dataset.r = String(r); d.dataset.c = String(c);
       d.setAttribute("role", "gridcell");
       d.tabIndex = r === 0 && c === 0 ? 0 : -1;
@@ -441,15 +448,23 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   function paintSteiner() {
     const shown = showingOptimal ? optimalCells! : sel;
+    const active = new Set<string>([...S.termSet, ...shown]);
+    S.special.forEach((sp, k) => { if (sp.type === "bonus") active.add(k); });
+    const joins = roadConnections(GN, active, S.wrap, S.wrapVertical);
+    steinerUndo.disabled = showingOptimal || !routeHistory.available;
+    gridEl.classList.toggle("answer-view", showingOptimal);
     steinerMsg.hidden = showingOptimal;
     steinerReveal.hidden = !steinerChecked;
     steinerReveal.textContent = showingOptimal ? "Back to my route" : "Show optimal answer";
     steinerReveal.setAttribute("aria-pressed", String(showingOptimal));
     gridEl.setAttribute("aria-readonly", String(showingOptimal));
     (document.getElementById("steinerCheck") as HTMLButtonElement).disabled = showingOptimal;
-    (document.getElementById("steinerClear") as HTMLButtonElement).disabled = showingOptimal;
+    (document.getElementById("steinerClear") as HTMLButtonElement).disabled = showingOptimal || sel.size === 0;
     cellEls.forEach((el, k) => {
       el.classList.toggle("path", shown.has(k) && !S.termSet.has(k));
+      const mask = joins.get(k) || 0;
+      for (const [direction, bit] of [["n", 1], ["e", 2], ["s", 4], ["w", 8]] as const)
+        el.classList.toggle("join-" + direction, Boolean(mask & bit));
       // A free square has no pressed state: it is always road.
       if (!S.termSet.has(k) && !S.walls.has(k) && S.special.get(k)?.type !== "bonus") {
         el.setAttribute("aria-pressed", String(shown.has(k)));
@@ -458,13 +473,16 @@ import { solveSteinerExact } from "./steiner-solver";
     const conn = steinerConnectivity();
     S.terms.forEach(([r, c]) => {
       const el = cellEls.get(skey(r, c));
-      el.classList.remove("connected", "unconnected");
-      el.classList.add(showingOptimal || conn.allConnected ? "connected" : "unconnected");
+      el.classList.toggle("connected", showingOptimal || conn.reached.has(skey(r, c)));
+      el.classList.toggle("unconnected", !showingOptimal && !conn.reached.has(skey(r, c)));
     });
     const cost = currentCost();
-    const status = conn.allConnected ? " · <b>CONNECTED ✓</b>" : " · " + conn.reachedCount + "/" + S.terms.length + " linked";
-    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + (showingOptimal ? "Optimal route · Cost <b>" + S.target + "</b>" : "Cost <b>" + cost + "</b>" + (steinerChecked ? " · Target " + S.target : "") + status) + (S.kind ? " · <span class='board-kind'>" + S.kind + "</span>" : "") +
-      (S.wrapVertical ? " · <span class='seam-note'>↔ ↕ wraps</span>" : S.wrap ? " · <span class='seam-note'>↔ wraps</span>" : "");
+    const linked = showingOptimal || conn.allConnected;
+    steinerMeta.innerHTML =
+      "<span class='st-cost'><span>" + (showingOptimal ? "Optimal" : "Cost") + "</span><b>" + (showingOptimal ? S.target : cost) + "</b></span>" +
+      (steinerChecked && !showingOptimal ? "<span class='st-target'>Target <b>" + S.target + "</b></span>" : "") +
+      "<span class='st-linked" + (linked ? " complete" : "") + "'>" + (linked ? "✓ All towns linked" : conn.reachedCount + "/" + S.terms.length + " towns linked") + "</span>" +
+      "<span class='board-kind'>" + (mode === "tutorial" ? "Tutorial" : mode === "custom" ? "Custom" : S.kind || "") + "</span>";
   }
   let dragMode = null, isDown = false;
   function toggleCell(r, c, mode) {
@@ -472,6 +490,10 @@ import { solveSteinerExact } from "./steiner-solver";
     const k = skey(r, c);
     // Free squares are road already, so there is nothing to lay or lift there.
     if (S.termSet.has(k) || S.walls.has(k) || S.special.get(k)?.type === "bonus") return;
+    if ((mode === true && sel.has(k)) || (mode === false && !sel.has(k))) return;
+    gridEl.classList.remove("celebrate");
+    steinerMsg.textContent = "";
+    steinerMsg.className = "msg";
     if (mode === true) sel.add(k);
     else if (mode === false) sel.delete(k);
     else { sel.has(k) ? sel.delete(k) : sel.add(k); }
@@ -480,7 +502,12 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   gridEl.addEventListener("pointerdown", (e) => {
     const t = (e.target as Element).closest(".cell") as HTMLElement | null;
-    if (!t) return;
+    if (!t || showingOptimal || e.button !== 0 || !e.isPrimary) return;
+    routeHistory.begin(sel);
+    const previousFocus = gridEl.querySelector('[tabindex="0"]') as HTMLElement | null;
+    if (previousFocus) previousFocus.tabIndex = -1;
+    t.tabIndex = 0;
+    t.focus({ preventScroll: true });
     e.preventDefault();
     isDown = true;
     try { gridEl.setPointerCapture(e.pointerId); } catch (_) {}
@@ -497,6 +524,11 @@ import { solveSteinerExact } from "./steiner-solver";
     if (!t || !gridEl.contains(t)) return;
     toggleCell(+t.dataset.r, +t.dataset.c, dragMode);
   });
+  viewS.addEventListener("keydown", (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      e.preventDefault(); undoSteiner(); return;
+    }
+  });
   gridEl.addEventListener("keydown", (e: KeyboardEvent) => {
     const t = (e.target as Element).closest(".cell") as HTMLElement | null;
     if (!t) return;
@@ -511,12 +543,39 @@ import { solveSteinerExact } from "./steiner-solver";
       if (next) { t.tabIndex = -1; next.tabIndex = 0; next.focus(); }
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      routeHistory.begin(sel);
       toggleCell(r, c, null);
+      routeHistory.commit(sel);
+      paintSteiner();
     }
   });
-  window.addEventListener("pointerup", () => { isDown = false; dragMode = null; });
+  function finishSteinerStroke() {
+    if (!isDown) return;
+    isDown = false; dragMode = null;
+    routeHistory.commit(sel);
+    paintSteiner();
+  }
+  window.addEventListener("pointerup", finishSteinerStroke);
+  window.addEventListener("pointercancel", finishSteinerStroke);
+  window.addEventListener("blur", finishSteinerStroke);
+  gridEl.addEventListener("lostpointercapture", finishSteinerStroke);
+  function undoSteiner() {
+    if (showingOptimal) return;
+    finishSteinerStroke();
+    const previous = routeHistory.undo();
+    if (!previous) return;
+    sel.clear(); previous.forEach(k => sel.add(k));
+    gridEl.classList.remove("celebrate");
+    steinerMsg.textContent = ""; steinerMsg.className = "msg";
+    saveSteiner(false); paintSteiner();
+  }
+  steinerUndo.onclick = undoSteiner;
 
-  document.getElementById("steinerClear").onclick = () => { sel.clear(); saveSteiner(false); paintSteiner(); steinerMsg.textContent = ""; steinerMsg.className = "msg"; };
+  document.getElementById("steinerClear").onclick = () => {
+    routeHistory.begin(sel); sel.clear(); routeHistory.commit(sel);
+    gridEl.classList.remove("celebrate");
+    saveSteiner(false); paintSteiner(); steinerMsg.textContent = ""; steinerMsg.className = "msg";
+  };
   document.getElementById("steinerCheck").onclick = () => checkSteiner(true);
   steinerReveal.onclick = () => {
     if (!steinerChecked) return;
@@ -538,6 +597,11 @@ import { solveSteinerExact } from "./steiner-solver";
     const conn = steinerConnectivity();
     const cost = currentCost();
     if (conn.allConnected) {
+      if (verbose) {
+        gridEl.classList.remove("celebrate");
+        void gridEl.offsetWidth;
+        gridEl.classList.add("celebrate");
+      }
       let verdict;
       if (cost <= S.target) verdict = "Perfect — matches the exact optimum! 🌟";
       else if (cost <= S.target + 2) verdict = "Close to optimal.";
@@ -563,6 +627,8 @@ import { solveSteinerExact } from "./steiner-solver";
     } catch (_) {}
   }
   function loadSteiner() {
+    routeHistory.reset(); isDown = false; dragMode = null;
+    gridEl.classList.remove("celebrate");
     steinerChecked = false; showingOptimal = false; optimalCells = null;
     try {
       const d = JSON.parse(localStorage.getItem(storeKey("steiner")) || "null");

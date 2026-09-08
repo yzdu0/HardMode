@@ -823,7 +823,6 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   text-align: right;
 }
 .results-row.mine i { background: var(--accent); color: var(--on-accent); }
-.privacy-note { max-width: 46em; margin: 10px auto 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
 .how { margin-top: 16px; color: var(--muted); font-size: 13px; }
 .how summary { min-height: 40px; display: flex; align-items: center; font-weight: 750; }
 .how p { margin: 4px 0 0; line-height: 1.55; }
@@ -889,6 +888,95 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   border-radius: inherit;
   background: var(--road);
 }
+
+/* Steiner: a continuous network, with the cost of the ground still visible. */
+body:not([data-theme]) #viewSteiner {
+  --land: #e7eee4;
+  --water: #a4c8df;
+  --highland: #d5c19b;
+  --road: #375d5b;
+  --town: #243f42;
+  --on-road: #fff;
+  --cell-portal: #e1dbf3;
+  --cell-portal-fg: #61438e;
+}
+#steinerGrid {
+  position: relative;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--raised);
+  box-shadow: 0 3px 14px var(--shadow);
+}
+#steinerGrid.wraps { border-inline: 2px dashed var(--seam); margin-inline: 0; }
+#steinerGrid.wraps-vertical { border-block: 2px dashed var(--seam); }
+#steinerGrid .cell {
+  border: 0;
+  border-radius: 4px;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+#steinerGrid .cell.wall { box-shadow: inset 0 -2px 0 rgb(0 0 0 / .04); }
+#steinerGrid .cell.term { background: var(--land); color: var(--town-fg); }
+#steinerGrid .cell.bonus::before,
+#steinerGrid .cell.path::before,
+#steinerGrid .cell.term::before {
+  content: "";
+  position: absolute;
+  inset: 26%;
+  border-radius: 4px;
+  background: var(--road);
+  z-index: -1;
+}
+#steinerGrid .cell.term::before {
+  inset: 15%;
+  border-radius: 3px;
+  background: var(--town);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .12);
+  transition: box-shadow 180ms ease;
+}
+#steinerGrid .cell.term.connected::before { box-shadow: 0 0 0 2px var(--road), inset 0 0 0 2px var(--town-fg); }
+#steinerGrid .cell.term { font-size: 10px; }
+#steinerGrid .cell.portal { border-radius: 8px; font-size: 12px; }
+#steinerGrid .cell.portal.path::before { inset: 18%; border-radius: 50%; }
+#steinerGrid .road-link { display: none; position: absolute; background: var(--road); z-index: -1; pointer-events: none; }
+#steinerGrid .road-n, #steinerGrid .road-s { width: 34%; left: 33%; height: calc(50% + 2px); }
+#steinerGrid .road-e, #steinerGrid .road-w { height: 34%; top: 33%; width: calc(50% + 2px); }
+#steinerGrid .road-n { bottom: 50%; }
+#steinerGrid .road-s { top: 50%; }
+#steinerGrid .road-e { left: 50%; }
+#steinerGrid .road-w { right: 50%; }
+#steinerGrid .join-n .road-n, #steinerGrid .join-e .road-e,
+#steinerGrid .join-s .road-s, #steinerGrid .join-w .road-w { display: block; }
+#steinerGrid.answer-view { outline: 2px solid var(--accent); outline-offset: 3px; }
+#steinerGrid.answer-view .cell { cursor: default; }
+#steinerGrid .cell:focus-visible { z-index: 2; outline-offset: 2px; }
+#viewSteiner .btn { transition: background-color 140ms ease, transform 100ms ease; }
+#viewSteiner .btn:active:not(:disabled) { transform: translateY(1px); }
+#viewSteiner .btn:disabled { opacity: .4; cursor: default; }
+#steinerReveal { margin-top: 4px; color: var(--accent); }
+#steinerMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 12px 0; font-variant-numeric: tabular-nums; }
+#steinerMeta .st-cost { display: inline-flex; align-items: baseline; gap: 6px; }
+#steinerMeta .st-cost > span, #steinerMeta .st-target { color: var(--muted); font-size: 14px; font-weight: 500; }
+#steinerMeta .st-cost b { font-size: 24px; line-height: 1; letter-spacing: -.04em; }
+#steinerMeta .st-linked { color: var(--muted); font-size: 13px; font-weight: 600; }
+#steinerMeta .st-linked.complete { color: var(--good-fg); }
+#steinerMeta .board-kind { margin-left: auto; font-size: 12px; font-weight: 500; }
+@media (hover: hover) {
+  #steinerGrid:not(.answer-view) .cell.free:not(.bonus):hover { box-shadow: inset 0 0 0 2px var(--road); }
+}
+@keyframes steiner-settle {
+  0%, 100% { box-shadow: 0 3px 14px var(--shadow); }
+  40% { box-shadow: 0 0 0 4px var(--good-bg), 0 0 0 6px var(--good); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #steinerGrid.celebrate { animation: steiner-settle 650ms ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #steinerGrid .cell, #steinerGrid .cell::before, #viewSteiner .btn { transition: none; }
+}
+body[data-theme="minimal"] #steinerGrid { border-color: #111; box-shadow: none; border-radius: 0; }
+body[data-theme="terminal"] #steinerGrid, body[data-theme="terminal"] #steinerGrid .cell { border-radius: 0; }
 
 /* ---------- Facility map ----------
    The board is an ocean plate with the land drawn on it, so the grid keeps a

@@ -10,6 +10,9 @@
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <link rel="manifest" href="./site.webmanifest" />
 <link rel="stylesheet" href="/src/styles.css" />
+<!-- Google AdSense. Loads async so it never delays the board being playable. -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7982911345645846"
+     crossorigin="anonymous"></script>
 </head>
 <body>
 <script>try{var __t=localStorage.getItem("hm-theme");if(["dark","minimal","moss","terminal"].indexOf(__t)>=0)document.body.setAttribute("data-theme",__t);}catch(e){}</script>
@@ -54,7 +57,7 @@
         <div id="steinerTutBox" class="tutbox hidden">
           <div class="tuthead"><strong>Practice: link three towns</strong><button id="steinerTutBack" class="btn small">Back to daily</button></div>
           <p class="help-copy">Tap or drag across open land to lay one connected network of road.</p>
-          <div class="legend-inline" aria-label="Board legend"><span><i class="k-town">&#9679;</i> town</span><span><i class="k-water"></i> water</span><span><i class="k-land"></i> open land</span><span><i class="k-road">+</i> road, free</span><span><i class="k-highland"></i> highland &times;3</span><span><i class="k-portal">A</i> portal</span></div>
+          <div class="legend-inline" aria-label="Board legend"><span><i class="k-town">&#9632;</i> town</span><span><i class="k-water"></i> water</span><span><i class="k-land"></i> open land</span><span><i class="k-road">+</i> road, free</span><span><i class="k-highland"></i> highland &times;3</span><span><i class="k-portal">A</i> portal</span></div>
           <div class="tutorial-steps">
             <p><b>Build.</b> Tap or drag over open land. Drag back along your road to pull it up again.</p>
             <p><b>Read the map.</b> Water blocks you. Open land costs 1 a square, + squares are road already laid and cost nothing, the brown squares are highland and cost 3, and two squares marked with the same letter are the two ends of a portal.</p>
@@ -68,6 +71,7 @@
         <div id="steinerGrid" class="grid" role="grid" aria-label="Steiner grid"></div>
         <div class="row">
           <button id="steinerClear" class="btn">Clear</button>
+          <button id="steinerUndo" class="btn" disabled title="Undo last stroke (Ctrl/⌘ Z)">Undo</button>
           <button id="steinerCheck" class="btn primary">Check</button>
           <button id="steinerShare" class="btn">Share</button>
         </div>
@@ -261,7 +265,6 @@
         <button id="themeMoss" class="tbtn">🌿 Moss</button>
         <button id="themeTerminal" class="tbtn">▮ Terminal</button>
       </div>
-      <p class="privacy-note" id="privacyNote" hidden>Finishing a puzzle sends one anonymous line — the date, which puzzle and your score — so the day's results can be counted. No account, no personal data.</p>
     </footer>
   </div>
   <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
