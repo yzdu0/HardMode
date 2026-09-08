@@ -396,7 +396,7 @@ import { solveSteinerExact } from "./steiner-solver";
       d.tabIndex = r === 0 && c === 0 ? 0 : -1;
       const cellKind = S.termSet.has(k) ? "town" : S.walls.has(k) ? "water" :
         sp?.type === "bonus" ? "road, free to build" : sp?.type === "penalty" ? "highland, costs three" :
-        sp?.type === "portal" ? "ferry " + sp.pid : "open land";
+        sp?.type === "portal" ? "portal " + sp.pid : "open land";
       const seam = (S.wrap && (c === 0 || c === GN - 1)) || (S.wrapVertical && (r === 0 || r === GN - 1)) ? ", on the wrapping edge" : "";
       d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind + seam);
       gridEl.appendChild(d);
@@ -528,7 +528,7 @@ import { solveSteinerExact } from "./steiner-solver";
       let verdict;
       if (cost <= S.target) verdict = "Perfect — matches the exact optimum! 🌟";
       else if (cost <= S.target + 2) verdict = "Close to optimal.";
-      else verdict = "Valid, but the optimum is lower — look for shared trunks, free road and ferries.";
+      else verdict = "Valid, but the optimum is lower — look for shared trunks, free road and portals.";
       steinerMsg.textContent = "Solved! Cost " + cost + " (target " + S.target + ") — " + verdict;
       steinerMsg.className = "msg good";
       saveSteiner(true);
@@ -1984,7 +1984,7 @@ import { solveSteinerExact } from "./steiner-solver";
   const edSteinerLib = document.getElementById("edSteinerLib");
   const ED_TOOLS = [
     ["term", "● town"], ["wall", "≈ water"], ["bonus", "+ road"], ["pen", "▲ highland"],
-    ["portalA", "A ferry"], ["portalB", "B ferry"], ["erase", "⌫ erase"],
+    ["portalA", "A portal"], ["portalB", "B portal"], ["erase", "⌫ erase"],
   ];
   let edTool = "term";
   const edTerms = [];
@@ -2036,7 +2036,7 @@ import { solveSteinerExact } from "./steiner-solver";
     if (type === "portal") {
       let count = 0;
       edSpecial.forEach((v, kk) => { if (v.type === "portal" && v.pid === pid && kk !== k) count++; });
-      if (count >= 2) { edMsg("Only 2 ends per ferry.", false); return; }
+      if (count >= 2) { edMsg("Only 2 ends per portal.", false); return; }
     }
     edWalls.delete(k);
     edSpecial.set(k, pid ? { type, pid } : { type });

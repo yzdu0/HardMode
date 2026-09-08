@@ -1043,7 +1043,7 @@ body[data-theme="dark"] [data-biome="volcanic"] {
 .k-sea { background: var(--sea); }
 .k-road { background: var(--coast); color: var(--fg); }
 .k-water { background: var(--water); }
-.k-ferry { background: var(--cell-portal); color: var(--cell-portal-fg); }
+.k-portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 .k-land { background: var(--land); }
 .k-marsh { background: var(--marsh); }
 .k-highland { background: var(--highland); color: var(--fg); }
@@ -1052,7 +1052,7 @@ body[data-theme="dark"] [data-biome="volcanic"] {
 .k-depot { background: var(--depot); color: var(--depot-fg); }
 body[data-theme="minimal"] .grid.map { gap: 1px; padding: 0; border: 1px solid #111; border-radius: 0; background: #111; }
 body[data-theme="minimal"] .legend-inline i.k-road,
-body[data-theme="minimal"] .legend-inline i.k-ferry,
+body[data-theme="minimal"] .legend-inline i.k-portal,
 body[data-theme="minimal"] .mapkey i.k-sea { box-shadow: inset 0 0 0 1px #111; }
 #graphSvg, #graphleSvg, #editorSvg {
   border-color: var(--line);
