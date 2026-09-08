@@ -1,4 +1,4 @@
-/* NP-Hard mode — deterministic daily graph puzzles. */
+/* HardMode — deterministic daily graph puzzles. */
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
 import { generateColorGraph, chromaticNumber, isConnected, shuffled, countColourings, COUNT_CAP, COLOR_REVISION } from "./color-levels";
 import {
@@ -123,20 +123,70 @@ import { solveSteinerExact } from "./steiner-solver";
     document.getElementById("streakLabel").textContent = "🔥 " + s + " day streak";
   }
 
-  // ---------- theme (light / dark / minimal), persisted ----------
-  const THEME_IDS = { light: "themeLight", dark: "themeDark", minimal: "themeMinimal" };
+  // ---------- theme, persisted ----------
+  // "light" is the absence of a data-theme, so it carries no token block.
+  const THEMES = {
+    light: { id: "themeLight", bar: "#f5f6f8" },
+    dark: { id: "themeDark", bar: "#0b0d13" },
+    minimal: { id: "themeMinimal", bar: "#ffffff" },
+    moss: { id: "themeMoss", bar: "#f2f4e8" },
+    terminal: { id: "themeTerminal", bar: "#030806" },
+  };
+  const themeBar = document.querySelector('meta[name="theme-color"]');
   function setTheme(t) {
-    if (t !== "dark" && t !== "minimal") t = "light";
+    if (!Object.prototype.hasOwnProperty.call(THEMES, t)) t = "light";
     if (t === "light") delete document.body.dataset.theme;
     else document.body.dataset.theme = t;
     try { localStorage.setItem("hm-theme", t); } catch (_) {}
-    for (const k of Object.keys(THEME_IDS)) {
-      document.getElementById(THEME_IDS[k]).classList.toggle("active", k === t);
+    // Keep the browser's own chrome in step with the page.
+    if (themeBar) themeBar.setAttribute("content", THEMES[t].bar);
+    for (const k of Object.keys(THEMES)) {
+      document.getElementById(THEMES[k].id).classList.toggle("active", k === t);
     }
   }
-  document.getElementById("themeLight").onclick = () => setTheme("light");
-  document.getElementById("themeDark").onclick = () => setTheme("dark");
-  document.getElementById("themeMinimal").onclick = () => setTheme("minimal");
+  for (const k of Object.keys(THEMES)) {
+    document.getElementById(THEMES[k].id).onclick = () => setTheme(k);
+  }
+
+  // Both guessing games are drawn the same way: tap one dot then another to
+  // toggle the link between them, or press on one dot and release on another to
+  // draw it in a single drag. Either way the dot you finish on stays selected,
+  // so a whole path goes in without lifting between links. Tapping the selected
+  // dot again, tapping bare board, or Escape lifts the pen.
+  function bindEdgeDrawing(svg, api) {
+    let pressed = -1;
+    const dotAt = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y) as HTMLElement | null;
+      return el && el.tagName === "circle" && el.dataset.v !== undefined ? Number(el.dataset.v) : -1;
+    };
+    const tap = (i: number) => {
+      if (api.done()) return;
+      const from = api.pending();
+      if (from < 0 || from === i) api.setPending(from === i ? -1 : i);
+      else { api.toggle(from, i); api.setPending(i); }
+      api.repaint();
+    };
+    svg.addEventListener("pointerdown", (e: PointerEvent) => {
+      pressed = dotAt(e.clientX, e.clientY);
+      if (pressed >= 0) e.preventDefault();
+      else if (api.pending() >= 0) { api.setPending(-1); api.repaint(); }
+    });
+    svg.addEventListener("pointerup", (e: PointerEvent) => {
+      const from = pressed;
+      pressed = -1;
+      if (from < 0 || api.done()) return;
+      const to = dotAt(e.clientX, e.clientY);
+      if (to < 0) return;                     // released off the board: leave it be
+      if (to === from) { tap(from); return; } // never moved: an ordinary tap
+      api.toggle(from, to);                   // dragged across: draw that link
+      api.setPending(to);
+      api.repaint();
+    });
+    svg.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape" && api.pending() >= 0) { api.setPending(-1); api.repaint(); }
+    });
+    return tap;
+  }
 
   // ---------- compact inline help ----------
   function bindHelp(buttonId: string, boxId: string) {
@@ -425,7 +475,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   document.getElementById("steinerShare").onclick = async () => {
     const conn = steinerConnectivity();
-    shareText("NP-Hard mode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + (steinerChecked ? " (target " + S.target + ")" : "") : "❌ unsolved") + "\n" + location.href);
+    shareText("HardMode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + (steinerChecked ? " (target " + S.target + ")" : "") : "❌ unsolved") + "\n" + location.href);
   };
 
   // ============================================================
@@ -927,7 +977,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const bonus = tallySolved.length
       ? "\nCount 🔢: ✅ " + tallySolved.sort((a, z) => a - z).map((k) => k + "-colour").join(", ")
       : "";
-    shareText("NP-Hard mode " + shareLabel() + "\nColouring 🎨: "
+    shareText("HardMode " + shareLabel() + "\nColouring 🎨: "
       + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + bonus + "\n" + location.href);
   };
 
@@ -1050,7 +1100,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
 
   // ============================================================
-  // GAME 3 — GRAPHLE: guess the hidden 7–8 vertex graph.
+  // GAME 3 — GRAPHLE: guess the hidden 6–7 vertex graph.
   // Win by matching all five property tiles, not the exact wiring.
   // ============================================================
   let GL_N = graphleSize(activeDate);
@@ -1107,12 +1157,15 @@ import { solveSteinerExact } from "./steiner-solver";
   const graphleGuessBtn = document.getElementById("graphleGuess") as HTMLButtonElement;
   let glDraft = new Set<string>(); // "u-v" with u < v
   let glPending = -1;   // the dot a chain is currently drawing from
-  const glLiftPen = () => { if (glPending >= 0) { glPending = -1; paintGraphle(); } };
-  graphleSvg.addEventListener("pointerdown", (e) => {
-    if ((e.target as Element).tagName !== "circle") glLiftPen();
-  });
-  graphleSvg.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Escape") glLiftPen();
+  const glTap = bindEdgeDrawing(graphleSvg, {
+    done: () => Boolean(glDone),
+    pending: () => glPending,
+    setPending: (v: number) => { glPending = v; },
+    toggle: (a: number, b: number) => {
+      const k = Math.min(a, b) + "-" + Math.max(a, b);
+      if (glDraft.has(k)) glDraft.delete(k); else glDraft.add(k);
+    },
+    repaint: () => paintGraphle(),
   });
   let glGuesses = []; // {mask, tiles}
   let glDone = null; // 'won' | 'lost'
@@ -1159,24 +1212,8 @@ import { solveSteinerExact } from "./steiner-solver";
       c.setAttribute("aria-label", "Dot " + (i + 1) + (i === glPending ? ", selected" : ""));
       c.style.fill = "#eef1e8";
       c.dataset.v = String(i);
-      const selectGraphleNode = () => {
-        if (glDone) return;
-        if (glPending < 0 || glPending === i) glPending = glPending === i ? -1 : i;
-        else {
-          const a = Math.min(glPending, i), b = Math.max(glPending, i);
-          const k = a + "-" + b;
-          if (glDraft.has(k)) glDraft.delete(k); else glDraft.add(k);
-          // Stay on the dot just reached, so a path can be drawn in one sweep.
-          glPending = i;
-        }
-        paintGraphle();
-      };
-      c.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        selectGraphleNode();
-      });
       c.addEventListener("keydown", (e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectGraphleNode(); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); glTap(i); }
       });
       graphleSvg.appendChild(c);
       const t = document.createElementNS(NS, "text");
@@ -1288,7 +1325,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = glGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = glDone === "won" ? glGuesses.length + "/" + GL_TRIES : "X/" + GL_TRIES;
-    shareText("NP-Hard mode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("HardMode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
   };
   function saveGraphle() {
     try {
@@ -1390,12 +1427,15 @@ import { solveSteinerExact } from "./steiner-solver";
   const treedleGuessBtn = document.getElementById("treedleGuess") as HTMLButtonElement;
   let trDraft = new Set<string>(); // "u-v" with u < v
   let trPending = -1;   // the dot a chain is currently drawing from
-  const trLiftPen = () => { if (trPending >= 0) { trPending = -1; paintTreedle(); } };
-  treedleSvg.addEventListener("pointerdown", (e) => {
-    if ((e.target as Element).tagName !== "circle") trLiftPen();
-  });
-  treedleSvg.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Escape") trLiftPen();
+  const trTap = bindEdgeDrawing(treedleSvg, {
+    done: () => Boolean(trDone),
+    pending: () => trPending,
+    setPending: (v: number) => { trPending = v; },
+    toggle: (a: number, b: number) => {
+      const k = Math.min(a, b) + "-" + Math.max(a, b);
+      if (trDraft.has(k)) trDraft.delete(k); else trDraft.add(k);
+    },
+    repaint: () => paintTreedle(),
   });
   let trGuesses = []; // {mask, tiles}
   let trDone = null; // 'won' | 'lost'
@@ -1442,24 +1482,8 @@ import { solveSteinerExact } from "./steiner-solver";
       c.setAttribute("aria-label", "Dot " + (i + 1) + (i === trPending ? ", selected" : ""));
       c.style.fill = "#eef1e8";
       c.dataset.v = String(i);
-      const selectTreedleNode = () => {
-        if (trDone) return;
-        if (trPending < 0 || trPending === i) trPending = trPending === i ? -1 : i;
-        else {
-          const a = Math.min(trPending, i), b = Math.max(trPending, i);
-          const k = a + "-" + b;
-          if (trDraft.has(k)) trDraft.delete(k); else trDraft.add(k);
-          // Stay on the dot just reached, so a path can be drawn in one sweep.
-          trPending = i;
-        }
-        paintTreedle();
-      };
-      c.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        selectTreedleNode();
-      });
       c.addEventListener("keydown", (e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTreedleNode(); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); trTap(i); }
       });
       treedleSvg.appendChild(c);
       const t = document.createElementNS(NS, "text");
@@ -1542,7 +1566,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = trGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = trDone === "won" ? trGuesses.length + "/" + TR_TRIES : "X/" + TR_TRIES;
-    shareText("NP-Hard mode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("HardMode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
   };
   function saveTreedle() {
     try {
@@ -2295,7 +2319,7 @@ import { solveSteinerExact } from "./steiner-solver";
   let __initTheme = "light";
   try {
     const s = localStorage.getItem("hm-theme");
-    if (s === "dark" || s === "minimal") __initTheme = s;
+    if (s && Object.prototype.hasOwnProperty.call(THEMES, s)) __initTheme = s;
   } catch (_) {}
   setTheme(__initTheme);
   buildGrid(); loadSteiner(); paintSteiner();

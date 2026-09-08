@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HardMode">
+  <rect width="64" height="64" rx="14" fill="#3157d5"/>
+  <g stroke="#ffffff" stroke-width="6" stroke-linecap="round">
+    <line x1="32" y1="20" x2="17" y2="45"/>
+    <line x1="32" y1="20" x2="47" y2="45"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="32" cy="19" r="9"/>
+    <circle cx="17" cy="45" r="9"/>
+    <circle cx="47" cy="45" r="9"/>
+  </g>
+</svg>

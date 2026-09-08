@@ -3,18 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="NP-Hard mode is a daily set of four compact graph puzzles: Steiner, Colouring, Graphle, and Treedle." />
+<meta name="description" content="HardMode is a daily set of four compact graph puzzles: Steiner, Colouring, Graphle, and Treedle." />
 <meta name="theme-color" content="#f5f6f8" />
-<title>NP-Hard mode — Daily graph puzzles</title>
+<title>HardMode — Daily graph puzzles</title>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+<link rel="manifest" href="./site.webmanifest" />
 <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
-<script>try{var __t=localStorage.getItem("hm-theme");if(__t==="dark"||__t==="minimal")document.body.setAttribute("data-theme",__t);}catch(e){}</script>
+<script>try{var __t=localStorage.getItem("hm-theme");if(["dark","minimal","moss","terminal"].indexOf(__t)>=0)document.body.setAttribute("data-theme",__t);}catch(e){}</script>
   <div class="app">
     <header class="site-header">
       <div class="brand-row">
         <div>
-          <h1>NP-Hard <span>mode</span></h1>
+          <h1><span>NP-</span>HardMode</h1>
         </div>
         <div class="streak-pill"><span id="streakLabel"></span></div>
       </div>
@@ -230,11 +233,16 @@
     </main>
 
     <footer>
-      <button id="tabEditor" class="editor-link">Build a puzzle <span aria-hidden="true">↗</span></button>
+      <div class="footer-links">
+        <button id="tabEditor" class="editor-link">Build a puzzle <span aria-hidden="true">↗</span></button>
+        <a class="editor-link" href="https://docs.google.com/forms/d/e/1FAIpQLSc85g3I8F2oC6lUgh9V1qy-wA5UyYpBTa-cXq0bXSWPcfEZkQ/viewform" target="_blank" rel="noopener noreferrer">Send feedback <span aria-hidden="true">↗</span></a>
+      </div>
       <div class="themerow">Theme:
         <button id="themeLight" class="tbtn">☀️ Light</button>
         <button id="themeDark" class="tbtn">🌙 Dark</button>
         <button id="themeMinimal" class="tbtn">▫️ Minimal</button>
+        <button id="themeMoss" class="tbtn">🌿 Moss</button>
+        <button id="themeTerminal" class="tbtn">▮ Terminal</button>
       </div>
     </footer>
   </div>

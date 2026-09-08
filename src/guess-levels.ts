@@ -4,8 +4,12 @@ export type Edge = [number, number];
 // Bumped whenever the target pool changes, so saved runs never mix generations.
 export const GUESS_REVISION = 'challenge-2';
 
-export const GRAPHLE_REVISION = 'challenge-3';
-export const GRAPHLE_N = 8, TREEDLE_N = 8;
+export const GRAPHLE_REVISION = 'challenge-4';
+// Graphle alternates between six and seven dots day to day. A default would
+// only invite a caller to forget which board it is on, so every helper below
+// takes the size explicitly.
+export const GRAPHLE_SIZES = [6, 7] as const;
+export const TREEDLE_N = 8;
 const pairsOf = (n: number) => {
   const pairs: Edge[] = [];
   for (let u = 0; u < n; u++) for (let v = u + 1; v < n; v++) pairs.push([u, v]);
@@ -13,12 +17,11 @@ const pairsOf = (n: number) => {
 };
 // Fixed pair order: these index the bits of every guess and target mask.
 export const graphlePairs = (n: number) => pairsOf(n);
-export const GRAPHLE_PAIRS = graphlePairs(GRAPHLE_N);
 export const TREEDLE_PAIRS = pairsOf(TREEDLE_N);
 
 const edgesFromMask = (mask: number, pairs: Edge[]) =>
   pairs.filter((_, i) => mask & (1 << i)).map(([u, v]) => [u, v] as Edge);
-export const graphleEdges = (mask: number, n = GRAPHLE_N) => edgesFromMask(mask, graphlePairs(n));
+export const graphleEdges = (mask: number, n: number) => edgesFromMask(mask, graphlePairs(n));
 export const treedleEdges = (mask: number) => edgesFromMask(mask, TREEDLE_PAIRS);
 
 function neighbours(n: number, edges: number[][]) {
@@ -74,7 +77,7 @@ function countCycles(n: number, edges: number[][]) {
 }
 
 export interface GraphleProps { e: number; chi: number; tri: number; cyc: number; diam: number }
-export function graphleProps(edges: number[][], n = GRAPHLE_N): GraphleProps {
+export function graphleProps(edges: number[][], n: number): GraphleProps {
   return {
     e: edges.length,
     chi: chromaticNumber(n, edges),
@@ -170,8 +173,8 @@ function random(seed: string): () => number {
   };
 }
 
-export function graphleSize(date: string): 7 | 8 {
-  return random(`${GRAPHLE_REVISION}|size|${date}`)() < 0.5 ? 7 : 8;
+export function graphleSize(date: string): 6 | 7 {
+  return random(`${GRAPHLE_REVISION}|size|${date}`)() < 0.5 ? 6 : 7;
 }
 
 export function generateGraphleTarget(date: string): number {

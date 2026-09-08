@@ -11,6 +11,45 @@
   --soil: #10160f;
   --moss-pale: #e9eddc;
   --neon-pink: #ff2e63;
+
+  /* Surfaces. A theme is these tokens plus a handful of board colours; every
+     panel below reads them rather than hard-coding a shade. */
+  --page: #f5f6f8;
+  --surface: #fff;          /* cards, buttons, inputs */
+  --raised: #fafbfc;        /* panels sitting on a card, and the SVG boards */
+  --tut: #f5f7ff;           /* teaching boxes */
+  --tut-line: #cdd6fb;
+  --on-accent: #fff;
+  --hover-line: #b9bec9;
+  --shadow: rgba(25, 30, 45, .06);
+  --tab-on: #eef1ff;
+  --tab-on-line: #aebcf1;
+  --on-good: #fff;
+  --good-bg: #ecf8ef;
+  --good-fg: #14652a;
+  --bad-bg: #fff0ee;
+  --bad-fg: #a3291b;
+  --warn-bg: #fff8d8;
+  --warn-fg: #6b5a12;
+  --warn-line: #c5a63a;
+
+  /* Steiner board */
+  --cell-bg: #f1f2f5;
+  --cell-fg: #9398a2;
+  --cell-wall: #17181b;
+  --cell-path: #9fb1ff;
+  --cell-path-fg: #193180;
+  --cell-seed: #3157d5;
+  --cell-seed-fg: #fff;
+  --cell-bonus: #fff8d8;
+  --cell-bonus-line: #c5a63a;
+  --cell-bonus-fg: #806a19;
+  --cell-thorn: #fff0f0;
+  --cell-thorn-line: #e8adb0;
+  --cell-thorn-fg: #a94149;
+  --cell-portal: #e8f8fb;
+  --cell-portal-line: #82cbd6;
+  --cell-portal-fg: #257481;
 }
 * { box-sizing: border-box; }
 .hidden { display: none !important; }
@@ -75,7 +114,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
 .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .tab {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   padding: 9px 8px;
   font-size: 14px;
   font-weight: 700;
@@ -86,13 +125,15 @@ header h1 span { color: var(--muted); font-weight: 500; }
   justify-content: center;
   gap: 7px;
 }
-.tab.active { background: #eef1ff; color: var(--accent); border-color: #aebcf1; }
-.editor-link { display: block; min-height: 40px; margin: 0 auto 4px; padding: 6px 10px; border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
+.tab.active { background: var(--tab-on); color: var(--accent); border-color: var(--tab-on-line); }
+.editor-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; margin: 0; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.editor-link:hover { color: var(--fg); }
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 14px; margin-bottom: 4px; }
 .editor-link.active { color: var(--accent); }
 .view.hidden { display: none; }
 .puzzle-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
 .puzzle-heading h2 { margin: 0; font-size: 28px; line-height: 1; letter-spacing: -.035em; }
-.learn-btn { min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--fg); padding: 0 13px; font-size: 13px; font-weight: 750; cursor: pointer; }
+.learn-btn { min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); padding: 0 13px; font-size: 13px; font-weight: 750; cursor: pointer; }
 .rules { margin: 0 0 10px; font-size: 16px; line-height: 1.5; }
 .legend-inline { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 14px; color: var(--muted); font-size: 13px; }
 .legend-inline span { display: inline-flex; align-items: center; gap: 4px; }
@@ -121,7 +162,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
   width: min(420px, calc(100vw - 32px));
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   color: var(--fg);
   padding: 18px;
   box-shadow: 0 18px 48px rgba(16, 22, 15, 0.22);
@@ -133,7 +174,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #f7f8f5;
+  background: var(--raised);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -144,17 +185,17 @@ header h1 span { color: var(--muted); font-weight: 500; }
 }
 .sharebox .row { margin: 0; }
 /* Bonus counting challenge under the palette. */
-.tally { margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfc; }
+.tally { margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
 .tally.hidden { display: none; }
 .tally-ask { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
 .tally-note { margin: 0 0 8px; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .tally-warn {
   margin: 0 0 10px;
   padding: 8px 10px;
-  border-left: 3px solid #c5a63a;
+  border-left: 3px solid var(--warn-line);
   border-radius: 0 8px 8px 0;
-  background: #fff8d8;
-  color: #6b5a12;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -168,7 +209,7 @@ header h1 span { color: var(--muted); font-weight: 500; }
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: #fff;
+  background: var(--surface);
   color: var(--fg);
   font-weight: 700;
 }
@@ -374,9 +415,7 @@ body[data-theme="minimal"] .grid.wraps::after { color: #111; }
 }
 #treedleSvg circle.node.pending { stroke: #e11d48; stroke-width: 3.5; }
 #treedleSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
-body[data-theme="dark"] #treedleSvg { background: #151b15; }
 body[data-theme="minimal"] #treedleSvg { background: #fff; border: 1px solid #111; }
-body[data-theme="dark"] #graphleSvg { background: #151b15; }
 body[data-theme="minimal"] #graphleSvg { background: #fff; border: 1px solid #111; }
 .ghist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .ghist:empty { display: none; }
@@ -385,7 +424,7 @@ body[data-theme="minimal"] #graphleSvg { background: #fff; border: 1px solid #11
   width: 62px; height: 62px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   flex: 0 0 auto;
 }
 .gtiles { display: flex; gap: 4px; flex: 1; }
@@ -470,45 +509,209 @@ footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: cen
 .tbtn.active { border-color: var(--fg); color: var(--fg); }
 
 /* ---------- Dark theme ---------- */
+
+/* ---------- Dark theme ----------
+   One coherent cool-neutral scale. The old version was two half-finished dark
+   themes stacked on each other — a warm moss one underneath and a blue-grey one
+   patched over the top — which is why borders read green against blue panels
+   and the accent was the same cream as the text. Everything below is tokens. */
 body[data-theme="dark"] {
-  --fg: #e9eddc;
-  --muted: #9aa48e;
-  --line: #2c352a;
-  --accent: #e9eddc;
-  --good: #7fd08a;
-  --bad: #ff8a7a;
-  background: #10140e;
+  --fg: #e7eaf2;
+  --muted: #98a1b5;
+  --line: #2a3140;
+  --accent: #7d9bff;
+  --good: #64dd9a;
+  --bad: #ff8f80;
+
+  --page: #0b0d13;
+  --surface: #161a24;
+  --raised: #1e2330;
+  --tut: #1a2136;
+  --tut-line: #303c5c;
+  --on-accent: #0b0d13;
+  --hover-line: #414b60;
+  --shadow: rgba(0, 0, 0, .45);
+  --tab-on: #1f2a4d;
+  --tab-on-line: #4a5f9e;
+  --on-good: #06210f;
+  --good-bg: #12291d;
+  --good-fg: #7fe0aa;
+  --bad-bg: #2c1715;
+  --bad-fg: #ffa295;
+  --warn-bg: #2a2210;
+  --warn-fg: #e6d59c;
+  --warn-line: #c5a63a;
+
+  --cell-bg: #222836;
+  --cell-fg: #767f92;
+  --cell-wall: #04050a;
+  --cell-path: #4a63b8;
+  --cell-path-fg: #e7eaf2;
+  --cell-seed: #7d9bff;
+  --cell-seed-fg: #0b0d13;
+  --cell-bonus: #2f2a12;
+  --cell-bonus-line: #8a7524;
+  --cell-bonus-fg: #e0cd7d;
+  --cell-thorn: #33191b;
+  --cell-thorn-line: #7d4145;
+  --cell-thorn-fg: #f0a0a4;
+  --cell-portal: #10303a;
+  --cell-portal-line: #2f6f80;
+  --cell-portal-fg: #86d3e4;
+
+  background: var(--page);
   color: var(--fg);
 }
-body[data-theme="dark"] .datebtn,
-body[data-theme="dark"] .tab,
-body[data-theme="dark"] .btn,
-body[data-theme="dark"] .archive,
-body[data-theme="dark"] .archive-item,
-body[data-theme="dark"] .tool,
-body[data-theme="dark"] .tutbox,
-body[data-theme="dark"] .kindbox,
-body[data-theme="dark"] .custombar,
-body[data-theme="dark"] .lib-item { background: #1a211a; color: var(--fg); }
-body[data-theme="dark"] .tab.active,
-body[data-theme="dark"] .btn.primary,
-body[data-theme="dark"] .btn.active,
-body[data-theme="dark"] .archive-item.current,
-body[data-theme="dark"] .tool.active { color: #10140e; }
-body[data-theme="dark"] .lib-item button { background: #232b22; color: var(--fg); }
-body[data-theme="dark"] .archive-head input { background: #10140e; color: var(--fg); color-scheme: dark; }
-body[data-theme="dark"] .sharebox { background: #1a211a; }
-body[data-theme="dark"] .sharebox pre { background: #10140e; }
-body[data-theme="dark"] .tally { background: #171a20; }
-body[data-theme="dark"] .tally-input { background: #10140e; color: var(--fg); }
-body[data-theme="dark"] .tally-warn { background: #241f0e; border-left-color: #c5a63a; color: #e2d59a; }
+/* Rock needs an edge of its own or it melts into the page behind the board. */
+body[data-theme="dark"] .cell.wall { border-color: #232a38; }
+body[data-theme="dark"] .archive-head input,
+body[data-theme="dark"] .tally-input { background: var(--page); color-scheme: dark; }
+body[data-theme="dark"] .sharebox pre { background: var(--page); }
+body[data-theme="dark"] .lib-item button { background: var(--raised); color: var(--fg); }
 body[data-theme="dark"] .how { color: var(--fg); }
-body[data-theme="dark"] .linkbtn { color: var(--muted); }
-body[data-theme="dark"] .cell.free { background: #222a20; color: #6f7a68; }
-body[data-theme="dark"] .cell.wall { background: #000; border-color: #3d4739; color: #000; }
-body[data-theme="dark"] #graphSvg,
-body[data-theme="dark"] #editorSvg { background: #151b15; }
-body[data-theme="dark"] .swatch.active { outline-color: #e9eddc; }
+body[data-theme="dark"] .swatch { border-color: var(--surface); }
+body[data-theme="dark"] .swatch.active { outline-color: var(--fg); }
+body[data-theme="dark"] .cell { border-color: transparent; }
+body[data-theme="dark"] #graphSvg line.lit:not(.conflict),
+body[data-theme="dark"] #graphSvg path.edge.lit:not(.conflict) { stroke: #9db4ff; }
+body[data-theme="dark"] #graphSvg line, body[data-theme="dark"] #graphleSvg line,
+body[data-theme="dark"] #treedleSvg line, body[data-theme="dark"] #editorSvg line,
+body[data-theme="dark"] #graphSvg path.edge, body[data-theme="dark"] #graphleSvg path.edge,
+body[data-theme="dark"] #treedleSvg path.edge { stroke: #55607a; }
+body[data-theme="dark"] #graphSvg circle.node,
+body[data-theme="dark"] #graphleSvg circle.node,
+body[data-theme="dark"] #treedleSvg circle.node,
+body[data-theme="dark"] #editorSvg circle.node { stroke: #566276; }
+
+/* ---------- Moss theme ----------
+   The warm end of the range, and the one that matches the game's own words:
+   seeds, spores, thorns, moss. Paper-pale greens with an ink-dark canopy. */
+body[data-theme="moss"] {
+  --fg: #1f2c17;
+  --muted: #63735a;
+  --line: #d7e0c8;
+  --accent: #4a7a2f;
+  --good: #2f6b26;
+  --bad: #a33c2a;
+
+  --page: #f2f4e8;
+  --surface: #fdfdf6;
+  --raised: #f6f8ec;
+  --tut: #eef3e1;
+  --tut-line: #cddcb6;
+  --on-accent: #fdfdf6;
+  --on-good: #fdfdf6;
+  --hover-line: #aebf98;
+  --shadow: rgba(45, 60, 30, .09);
+  --tab-on: #e6efd6;
+  --tab-on-line: #b3ca92;
+  --good-bg: #e6f2df;
+  --good-fg: #24571d;
+  --bad-bg: #fbeae5;
+  --bad-fg: #8f3320;
+  --warn-bg: #fbf3d5;
+  --warn-fg: #6a5714;
+  --warn-line: #bda43c;
+
+  --cell-bg: #e8eeda;
+  --cell-fg: #8d9b81;
+  --cell-wall: #24301a;
+  --cell-path: #a7cd7c;
+  --cell-path-fg: #22400f;
+  --cell-seed: #4a7a2f;
+  --cell-seed-fg: #fdfdf6;
+  --cell-bonus: #fbf3d5;
+  --cell-bonus-line: #bda43c;
+  --cell-bonus-fg: #6a5714;
+  --cell-thorn: #fbe6e0;
+  --cell-thorn-line: #d8a08e;
+  --cell-thorn-fg: #97402c;
+  --cell-portal: #ddf0ee;
+  --cell-portal-line: #7fbdb6;
+  --cell-portal-fg: #26635c;
+
+  background: var(--page);
+  color: var(--fg);
+}
+body[data-theme="moss"] .archive-head input,
+body[data-theme="moss"] .tally-input { background: var(--surface); }
+body[data-theme="moss"] #graphSvg line, body[data-theme="moss"] #graphleSvg line,
+body[data-theme="moss"] #treedleSvg line, body[data-theme="moss"] #editorSvg line,
+body[data-theme="moss"] #graphSvg path.edge, body[data-theme="moss"] #graphleSvg path.edge,
+body[data-theme="moss"] #treedleSvg path.edge { stroke: #9aae88; }
+body[data-theme="moss"] #graphSvg line.lit:not(.conflict),
+body[data-theme="moss"] #graphSvg path.edge.lit:not(.conflict) { stroke: #4a7a2f; }
+body[data-theme="moss"] #graphSvg circle.node, body[data-theme="moss"] #graphleSvg circle.node,
+body[data-theme="moss"] #treedleSvg circle.node, body[data-theme="moss"] #editorSvg circle.node { stroke: #3c5230; }
+
+/* ---------- Terminal theme ----------
+   Phosphor on black, monospaced. Deliberately the loudest of the set: it makes
+   the boards read like a printout rather than a page. */
+body[data-theme="terminal"] {
+  --fg: #8bf5bd;
+  --muted: #4e9c76;
+  --line: #17372a;
+  --accent: #27e58c;
+  --good: #27e58c;
+  --bad: #ff6b6b;
+
+  --page: #030806;
+  --surface: #0a1712;
+  --raised: #0d1e17;
+  --tut: #0b1c15;
+  --tut-line: #1d4735;
+  --on-accent: #030806;
+  --on-good: #030806;
+  --hover-line: #2c6b50;
+  --shadow: rgba(0, 0, 0, .6);
+  --tab-on: #10301f;
+  --tab-on-line: #27e58c;
+  --good-bg: #082115;
+  --good-fg: #5cf0a8;
+  --bad-bg: #2a0f0f;
+  --bad-fg: #ff9d9d;
+  --warn-bg: #23200a;
+  --warn-fg: #e8dd8a;
+  --warn-line: #b8a72e;
+
+  --cell-bg: #10241b;
+  --cell-fg: #3f7d60;
+  --cell-wall: #000;
+  --cell-path: #1c7d55;
+  --cell-path-fg: #b6ffdb;
+  --cell-seed: #27e58c;
+  --cell-seed-fg: #030806;
+  --cell-bonus: #23200a;
+  --cell-bonus-line: #b8a72e;
+  --cell-bonus-fg: #e8dd8a;
+  --cell-thorn: #2a0f0f;
+  --cell-thorn-line: #8a3b3b;
+  --cell-thorn-fg: #ff9d9d;
+  --cell-portal: #0a2430;
+  --cell-portal-line: #2b7f96;
+  --cell-portal-fg: #7fd8ee;
+
+  background: var(--page);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+body[data-theme="terminal"] h1 { letter-spacing: -.02em; }
+body[data-theme="terminal"] .cell { border-color: transparent; }
+body[data-theme="terminal"] .cell.wall { border-color: #143024; }
+body[data-theme="terminal"] .archive-head input,
+body[data-theme="terminal"] .tally-input { background: var(--page); color-scheme: dark; }
+body[data-theme="terminal"] .sharebox pre { background: var(--page); }
+body[data-theme="terminal"] .lib-item button { background: var(--raised); color: var(--fg); }
+body[data-theme="terminal"] .swatch { border-color: var(--surface); }
+body[data-theme="terminal"] .swatch.active { outline-color: var(--accent); }
+body[data-theme="terminal"] #graphSvg line, body[data-theme="terminal"] #graphleSvg line,
+body[data-theme="terminal"] #treedleSvg line, body[data-theme="terminal"] #editorSvg line,
+body[data-theme="terminal"] #graphSvg path.edge, body[data-theme="terminal"] #graphleSvg path.edge,
+body[data-theme="terminal"] #treedleSvg path.edge { stroke: #2f7a5a; }
+body[data-theme="terminal"] #graphSvg line.lit:not(.conflict),
+body[data-theme="terminal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #27e58c; }
+body[data-theme="terminal"] #graphSvg circle.node, body[data-theme="terminal"] #graphleSvg circle.node,
+body[data-theme="terminal"] #treedleSvg circle.node, body[data-theme="terminal"] #editorSvg circle.node { stroke: #27e58c; }
 
 /* ---------- Minimal theme (stark monochrome; hits Steiner hardest) ---------- */
 body[data-theme="minimal"] {
@@ -565,7 +768,7 @@ body[data-theme="minimal"] .tally { background: #fff; border: 1px solid #111; }
 body[data-theme="minimal"] .tally-input { background: #fff; border: 1px solid #111; }
 body[data-theme="minimal"] .tally-warn { background: #fff; border-left-color: #111; color: #111; }
 
-/* ---------- NP-Hard mode redesign ---------- */
+/* ---------- HardMode redesign ---------- */
 body { min-width: 320px; line-height: 1.45; }
 button, input { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
@@ -577,8 +780,8 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 18px 46px rgba(25, 30, 45, .06);
+  background: var(--surface);
+  box-shadow: 0 18px 46px var(--shadow);
 }
 .feedback-key { display: flex; flex-wrap: wrap; gap: 7px 13px; margin: -1px 0 12px; color: var(--muted); font-size: 12px; }
 .feedback-key span { display: inline-flex; align-items: center; gap: 5px; }
@@ -586,19 +789,19 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .meta { min-height: 22px; margin: 5px 0 8px; color: var(--muted); font-size: 14px; font-weight: 650; }
 .meta b { color: var(--fg); }
 .msg { min-height: 25px; margin-top: 10px; font-size: 14px; }
-.msg.good { padding: 10px 12px; border-radius: 10px; background: #ecf8ef; color: #14652a; }
-.msg.bad { padding: 10px 12px; border-radius: 10px; background: #fff0ee; color: #a3291b; }
+.msg.good { padding: 10px 12px; border-radius: 10px; background: var(--good-bg); color: var(--good-fg); }
+.msg.bad { padding: 10px 12px; border-radius: 10px; background: var(--bad-bg); color: var(--bad-fg); }
 .btn, .tool, .learn-btn {
   min-height: 44px;
   border-color: var(--line);
   border-radius: 11px;
-  background: #fff;
+  background: var(--surface);
   color: var(--fg);
   transition: border-color .15s ease, background .15s ease, transform .1s ease;
 }
-.btn:hover, .tool:hover, .learn-btn:hover, .tab:hover { border-color: #b9bec9; }
+.btn:hover, .tool:hover, .learn-btn:hover, .tab:hover { border-color: var(--hover-line); }
 .btn:active, .tool:active, .learn-btn:active, .tab:active { transform: translateY(1px); }
-.btn.primary, .btn.active, .tool.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.btn.primary, .btn.active, .tool.active { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .btn:disabled { cursor: not-allowed; }
 .row { gap: 8px; }
 .how { margin-top: 16px; color: var(--muted); font-size: 13px; }
@@ -607,9 +810,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .tutbox, .kindbox {
   margin: 2px 0 14px;
   padding: 15px;
-  border: 1px solid #cdd6fb;
+  border: 1px solid var(--tut-line);
   border-radius: 14px;
-  background: #f5f7ff;
+  background: var(--tut);
   font-size: 14px;
 }
 .tuthead { align-items: flex-start; margin-bottom: 11px; }
@@ -624,35 +827,35 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .metric-list dd b { color: var(--fg); font-weight: 700; }
 .metric-list dd i { font-style: italic; }
 .tutorial-steps { display: grid; gap: 6px; }
-.tutorial-steps p { margin: 0; padding: 9px 10px; border-radius: 9px; background: #fff; }
+.tutorial-steps p { margin: 0; padding: 9px 10px; border-radius: 9px; background: var(--surface); }
 .tutpar { color: var(--muted); }
 .linkbtn { min-height: 36px; color: var(--accent); text-decoration: none; }
-.datebtn, .icon-btn, .archive, .archive-item { border-color: var(--line); background: #fff; }
+.datebtn, .icon-btn, .archive, .archive-item { border-color: var(--line); background: var(--surface); }
 .icon-btn:disabled { cursor: not-allowed; }
-.archive { padding: 12px; border-radius: 14px; box-shadow: 0 12px 30px rgba(25, 30, 45, .08); }
+.archive { padding: 12px; border-radius: 14px; box-shadow: 0 12px 30px var(--shadow); }
 .archive-head input { min-height: 38px; padding: 6px 8px; }
 .archive-list { grid-template-columns: repeat(6, 1fr); }
 .archive-item { min-height: 47px; border-radius: 9px; }
-.archive-item.current { border-color: var(--accent); background: var(--accent); }
-.tab.done::after { content: "✓"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #1d813b; color: #fff; font-size: 10px; }
+.archive-item.current { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.tab.done::after { content: "✓"; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--good); color: var(--on-good); font-size: 10px; }
 
 /* puzzle boards */
 .grid { gap: 3px; }
-.cell { border-radius: 4px; background: #f1f2f5; color: #777d88; }
-.cell.free { background: #f1f2f5; color: #9398a2; }
-.cell.wall { border-color: #17181b; background: #17181b; color: #17181b; }
-.cell.path { border-color: #9fb1ff; background: #9fb1ff; color: #193180; }
-.cell.term, .cell.term.connected, .cell.term.unconnected { border-color: #3157d5; background: #3157d5; color: #fff; }
-.cell.bonus { border-color: #c5a63a; background: #fff8d8; color: #806a19; }
-.cell.bonus.path { border-color: #9fb1ff; background: #9fb1ff; color: #193180; }
-.cell.penalty { border-color: #e8adb0; background: #fff0f0; color: #a94149; }
+.cell { border-radius: 4px; background: var(--cell-bg); color: var(--cell-fg); }
+.cell.free { background: var(--cell-bg); color: var(--cell-fg); }
+.cell.wall { border-color: var(--cell-wall); background: var(--cell-wall); color: var(--cell-wall); }
+.cell.path { border-color: var(--cell-path); background: var(--cell-path); color: var(--cell-path-fg); }
+.cell.term, .cell.term.connected, .cell.term.unconnected { border-color: var(--cell-seed); background: var(--cell-seed); color: var(--cell-seed-fg); }
+.cell.bonus { border-color: var(--cell-bonus-line); background: var(--cell-bonus); color: var(--cell-bonus-fg); }
+.cell.bonus.path { border-color: var(--cell-path); background: var(--cell-path); color: var(--cell-path-fg); }
+.cell.penalty { border-color: var(--cell-thorn-line); background: var(--cell-thorn); color: var(--cell-thorn-fg); }
 .cell.penalty.path { border-color: #dba0a4; background: #eac0c2; color: #733238; }
-.cell.portal { border-color: #82cbd6; background: #e8f8fb; color: #257481; }
+.cell.portal { border-color: var(--cell-portal-line); background: var(--cell-portal); color: var(--cell-portal-fg); }
 .cell.portal.path { border-color: #87b9dd; background: #b9daf2; color: #174969; }
 #graphSvg, #graphleSvg, #treedleSvg, #editorSvg {
   border-color: var(--line);
   border-radius: 14px;
-  background: #fafbfc;
+  background: var(--raised);
   box-shadow: none;
 }
 #graphSvg line, #graphleSvg line, #treedleSvg line, #editorSvg line,
@@ -663,7 +866,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .swatch { width: 42px; height: 42px; border-radius: 10px; box-shadow: none; }
 .swatch.active { outline-color: var(--fg); outline-offset: 1px; }
 .ghist { gap: 7px; }
-.grow { padding: 7px; border: 1px solid var(--line); border-radius: 11px; background: #fafbfc; }
+.grow { padding: 7px; border: 1px solid var(--line); border-radius: 11px; background: var(--raised); }
 .gtile { border-radius: 5px; }
 .tools { gap: 6px; }
 .tool { padding: 7px 10px; font-size: 13px; }
@@ -674,34 +877,6 @@ footer p { font-size: 13px; }
 .themerow { font-size: 12px; }
 .tbtn { min-height: 40px; font-size: 12px; }
 
-body[data-theme="dark"] { background: #0d0f13; }
-body[data-theme="dark"] .view,
-body[data-theme="dark"] .streak-pill,
-body[data-theme="dark"] .datebtn,
-body[data-theme="dark"] .icon-btn,
-body[data-theme="dark"] .tab,
-body[data-theme="dark"] .btn,
-body[data-theme="dark"] .learn-btn,
-body[data-theme="dark"] .archive,
-body[data-theme="dark"] .archive-item,
-body[data-theme="dark"] .tool,
-body[data-theme="dark"] .lib-item,
-body[data-theme="dark"] .custombar { background: #171a20; }
-/* The blanket .btn background above also lands on .btn.primary, which left the
-   dark label of a primary action sitting on a dark fill. Invert it back. */
-body[data-theme="dark"] .btn.primary,
-body[data-theme="dark"] .btn.active,
-body[data-theme="dark"] .tool.active { border-color: var(--accent); background: var(--accent); color: #10140e; }
-body[data-theme="dark"] .tab.active { border-color: #6f88e8; background: #202b50; color: #c5d0ff; }
-body[data-theme="dark"] .tutorial-steps p { background: #171a20; }
-body[data-theme="dark"] .tutbox,
-body[data-theme="dark"] .kindbox { border-color: #34426e; background: #182039; }
-body[data-theme="dark"] #graphSvg,
-body[data-theme="dark"] #graphleSvg,
-body[data-theme="dark"] #treedleSvg,
-body[data-theme="dark"] #editorSvg { background: #11141a; }
-body[data-theme="dark"] #graphSvg line.lit:not(.conflict),
-body[data-theme="dark"] #graphSvg path.edge.lit:not(.conflict) { stroke: #8ea8ff; }
 body[data-theme="minimal"] #graphSvg line.lit:not(.conflict),
 body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111; }
 

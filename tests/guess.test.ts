@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'vite';
 import {
-  GRAPHLE_N, TREEDLE_N, GRAPHLE_PAIRS, TREEDLE_PAIRS,
+  TREEDLE_N, TREEDLE_PAIRS, GRAPHLE_SIZES,
   graphleSize, graphlePairs, TREEDLE_LOOKALIKES, TREEDLE_MAX_CLASS, TREEDLE_TARGETS,
   graphleEdges, treedleEdges, graphleProps, treedleProps,
   graphleFingerprint, treedleFingerprint,
@@ -45,11 +45,11 @@ test('the Treedle shortlist is exactly the most confusable shapes', () => {
   assert(!TREEDLE_TARGETS.includes('7|2|7|49|7'), 'the star is too obvious');
 });
 
-test('Graphle uses only connected, varied 7–8 vertex targets', () => {
+test('Graphle uses only connected, varied 6–7 vertex targets', () => {
   const seen = new Set<string>(), sizes = new Set<number>();
   for (const date of dates) {
     const n = graphleSize(date), mask = generateGraphleTarget(date);
-    assert(n === 7 || n === 8);
+    assert(GRAPHLE_SIZES.includes(n), 'unexpected board size ' + n);
     assert.equal(generateGraphleTarget(date), mask);
     const pairs = graphlePairs(n), edges = graphleEdges(mask, n), props = graphleProps(edges, n);
     assert.equal(pairs.length, n * (n - 1) / 2);
@@ -66,8 +66,8 @@ test('Graphle uses only connected, varied 7–8 vertex targets', () => {
   assert.equal(sizes.size, 2);
 });
 
-test('every 7–8 vertex edge round-trips including the highest mask bit', () => {
-  for (const n of [7, 8]) for (const [i, pair] of graphlePairs(n).entries()) {
+test('every 6–7 vertex edge round-trips including the highest mask bit', () => {
+  for (const n of GRAPHLE_SIZES) for (const [i, pair] of graphlePairs(n).entries()) {
     assert.deepEqual(graphleEdges(1 << i, n), [pair]);
   }
 });
@@ -115,12 +115,12 @@ test('the five scored numbers match hand-worked shapes', () => {
   const star: [number, number][] = [[0, 1], [0, 2], [0, 3], [0, 4], [0, 5], [0, 6], [0, 7]];
   assert.deepEqual(treedleProps(star), { leaf: 7, diam: 2, maxd: 7, w: 49, alpha: 7 });
   const triangle: [number, number][] = [[0, 1], [1, 2], [0, 2]];
-  const t = graphleProps(triangle);
+  const t = graphleProps(triangle, 6);
   assert.equal(t.tri, 1);
   assert.equal(t.cyc, 1);
   assert.equal(t.chi, 3);
   assert.equal(t.diam, Infinity); // dots 4-6 are unlinked
-  const complete: [number, number][] = GRAPHLE_PAIRS.map(([u, v]) => [u, v] as [number, number]);
-  assert.deepEqual(graphleProps(complete),
-    { e: 28, chi: 8, tri: 56, cyc: 8018, diam: 1 });
+  // Every dot joined to every other: the densest board either size allows.
+  assert.deepEqual(graphleProps(graphlePairs(6), 6), { e: 15, chi: 6, tri: 20, cyc: 197, diam: 1 });
+  assert.deepEqual(graphleProps(graphlePairs(7), 7), { e: 21, chi: 7, tri: 35, cyc: 1172, diam: 1 });
 });
