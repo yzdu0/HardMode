@@ -1,7 +1,7 @@
 {
   "name": "HardMode",
   "short_name": "HardMode",
-  "description": "A daily set of four compact graph puzzles: Steiner, Colouring, Graphle and Treedle.",
+  "description": "A daily set of four compact graph puzzles: Steiner, Colouring, Graphle and Facility.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

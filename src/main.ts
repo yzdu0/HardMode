@@ -1,10 +1,11 @@
 /* HardMode — deterministic daily graph puzzles. */
 import { generateSteiner, STEINER_REVISION } from "./steiner-levels";
 import { generateColorGraph, chromaticNumber, isConnected, shuffled, countColourings, COUNT_CAP, COLOR_REVISION } from "./color-levels";
-import {
-  graphleSize, graphlePairs, GRAPHLE_REVISION, TREEDLE_PAIRS, graphleEdges, treedleEdges, graphleProps, treedleProps,
-  generateGraphleTarget, generateTreedleTarget, GUESS_REVISION,
-} from "./guess-levels";
+// Treedle is archived. Its generator stays in guess-levels.ts and GUESS_REVISION
+// is still read here, because the keys of days already won on it have to keep
+// resolving for the streak — and because the game may yet come back.
+import { graphleSize, graphlePairs, GRAPHLE_REVISION, graphleEdges, graphleProps, generateGraphleTarget, GUESS_REVISION } from "./guess-levels";
+import { generateFacility, evaluate, routeCells, descend, distanceFrom, optimalSites, MAROONED, FACILITY_REVISION } from "./facility-levels";
 import { solveSteinerExact } from "./steiner-solver";
 (function () {
   "use strict";
@@ -12,7 +13,7 @@ import { solveSteinerExact } from "./steiner-solver";
   type Point = [number, number];
   type Edge = [number, number];
   type PuzzleMode = "daily" | "tutorial" | "custom";
-  type GameKey = "steiner" | "color" | "graphle" | "treedle";
+  type GameKey = "steiner" | "color" | "graphle" | "facility" | "treedle";
   type CustomSession = { id: string; name: string; game: "steiner" | "color"; data: any };
 
   // ---------- dates ----------
@@ -43,7 +44,8 @@ import { solveSteinerExact } from "./steiner-solver";
   let mode: PuzzleMode = "daily";
   let customSession: CustomSession | null = null;
   function dailyStoreKey(date: string, game: GameKey) {
-    const revision = game === "steiner" ? STEINER_REVISION : game === "color" ? COLOR_REVISION : game === "graphle" ? GRAPHLE_REVISION : GUESS_REVISION;
+    const revision = game === "steiner" ? STEINER_REVISION : game === "color" ? COLOR_REVISION
+      : game === "graphle" ? GRAPHLE_REVISION : game === "facility" ? FACILITY_REVISION : GUESS_REVISION;
     return "hm-" + date + "-" + game + "-" + revision;
   }
   function storeKey(game: GameKey) {
@@ -62,14 +64,14 @@ import { solveSteinerExact } from "./steiner-solver";
   const tabS = document.getElementById("tabSteiner");
   const tabC = document.getElementById("tabColor");
   const tabG = document.getElementById("tabGraphle");
-  const tabT = document.getElementById("tabTreedle");
+  const tabF = document.getElementById("tabFacility");
   const tabE = document.getElementById("tabEditor");
   const viewS = document.getElementById("viewSteiner");
   const viewC = document.getElementById("viewColor");
   const viewG = document.getElementById("viewGraphle");
-  const viewT = document.getElementById("viewTreedle");
+  const viewF = document.getElementById("viewFacility");
   const viewE = document.getElementById("viewEditor");
-  const VIEWS = { steiner: [tabS, viewS], color: [tabC, viewC], graphle: [tabG, viewG], treedle: [tabT, viewT], editor: [tabE, viewE] };
+  const VIEWS = { steiner: [tabS, viewS], color: [tabC, viewC], graphle: [tabG, viewG], facility: [tabF, viewF], editor: [tabE, viewE] };
   function showView(which) {
     for (const k of Object.keys(VIEWS)) {
       const on = k === which;
@@ -81,7 +83,7 @@ import { solveSteinerExact } from "./steiner-solver";
   tabS.onclick = () => { if (mode !== "daily") exitToDaily("steiner"); else showView("steiner"); };
   tabC.onclick = () => { if (mode !== "daily") exitToDaily("color"); else showView("color"); };
   tabG.onclick = () => { if (mode !== "daily") exitToDaily("graphle"); else showView("graphle"); };
-  tabT.onclick = () => { if (mode !== "daily") exitToDaily("treedle"); else showView("treedle"); };
+  tabF.onclick = () => { if (mode !== "daily") exitToDaily("facility"); else showView("facility"); };
   tabE.onclick = () => {
     if (mode !== "daily") {
       mode = "daily";
@@ -96,7 +98,10 @@ import { solveSteinerExact } from "./steiner-solver";
   };
 
   // ---------- streak (always relative to real today) ----------
-  const GAMES: GameKey[] = ["steiner", "color", "graphle", "treedle"];
+  const GAMES: GameKey[] = ["steiner", "color", "graphle", "facility"];
+  // Treedle has been retired from the line-up, but a day won on it was still a
+  // day won, so the streak keeps counting it.
+  const STREAK_GAMES: GameKey[] = [...GAMES, "treedle"];
   function isSolvedStore(key, game) {
     try {
       const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
@@ -113,11 +118,11 @@ import { solveSteinerExact } from "./steiner-solver";
   function updateStreak() {
     let s = 0;
     const d = new Date();
-    const todayDone = GAMES.some((g) => isSolvedStore(TODAY_REAL, g));
+    const todayDone = STREAK_GAMES.some((g) => isSolvedStore(TODAY_REAL, g));
     if (!todayDone) d.setDate(d.getDate() - 1);
     for (let i = 0; i < 365; i++) {
       const k = todayKey(d);
-      if (GAMES.some((g) => isSolvedStore(k, g))) { s++; d.setDate(d.getDate() - 1); }
+      if (STREAK_GAMES.some((g) => isSolvedStore(k, g))) { s++; d.setDate(d.getDate() - 1); }
       else break;
     }
     document.getElementById("streakLabel").textContent = "🔥 " + s + " day streak";
@@ -197,7 +202,7 @@ import { solveSteinerExact } from "./steiner-solver";
     steiner: { head: "cost over target", order: ["0", "1", "2", "3+"], name: { "0": "=", "1": "+1", "2": "+2", "3+": "+3" } },
     color: { head: "stars", order: ["3", "2", "1"], name: { "3": "★★★", "2": "★★", "1": "★" } },
     graphle: { head: "guesses used", order: ["1", "2", "3", "4", "5", "6", "X"], name: null },
-    treedle: { head: "guesses used", order: ["1", "2", "3", "4", "5", "6", "X"], name: null },
+    facility: { head: "travel over target", order: ["0", "1", "2", "3+"], name: { "0": "=", "1": "+1", "2": "+2", "3+": "+3" } },
   };
   let statsOn = true;                       // flipped off by the first refusal
   let statsCache = null;                    // { date, games }
@@ -263,7 +268,7 @@ import { solveSteinerExact } from "./steiner-solver";
     await loadStats(activeDate);
     drawAllResults();
   }
-  const steinerBucket = (over) => over <= 0 ? "0" : over === 1 ? "1" : over === 2 ? "2" : "3+";
+  const overBucket = (over: number) => over <= 0 ? "0" : over === 1 ? "1" : over === 2 ? "2" : "3+";
 
   // ---------- compact inline help ----------
   function bindHelp(buttonId: string, boxId: string) {
@@ -275,7 +280,7 @@ import { solveSteinerExact } from "./steiner-solver";
     };
   }
   bindHelp("graphleHelpBtn", "graphleHelpBox");
-  bindHelp("treedleHelpBtn", "treedleHelpBox");
+  bindHelp("facilityHelpBtn", "facilityHelpBox");
   bindHelp("tallyHintBtn", "tallyHintBox");
 
   // ============================================================
@@ -526,7 +531,7 @@ import { solveSteinerExact } from "./steiner-solver";
       steinerMsg.className = "msg good";
       saveSteiner(true);
       updateStreak(); renderArchive();
-      reportResult("steiner", steinerBucket(cost - S.target), verbose);
+      reportResult("steiner", overBucket(cost - S.target), verbose);
       return true;
     } else {
       if (verbose) {
@@ -1457,246 +1462,321 @@ import { solveSteinerExact } from "./steiner-solver";
   }
 
   // ============================================================
-  // GAME 4 — TREEDLE: Wordle for trees (guess the hidden tree)
-  // Same guessing game as Graphle, but the answer is always a tree:
-  // connected, no cycles. Win by matching all six tree tiles.
+  // GAME 4 — FACILITY LOCATION: site depots on an island map
+  // Every town walks over land to its nearest depot; the score is the total
+  // of those walks and the target is the exact minimum.
   // ============================================================
-  const TR_N = 8, TR_TRIES = 6;
-  const TR_PAIRS = TREEDLE_PAIRS;
-  const TR_POS = [];
-  for (let i = 0; i < TR_N; i++) {
-    const a = (2 * Math.PI * i) / TR_N - Math.PI / 2;
-    TR_POS.push([170 + 118 * Math.cos(a), 170 + 118 * Math.sin(a)]);
-  }
-  const trEdgesFromMask = treedleEdges;
-  const trProps = treedleProps;
-  function trCompare(t, g) {
-    const num = (a, b) => {
-      if (a === b) return { cls: "g-green", dir: "" };
-      return { cls: Math.abs(a - b) === 1 ? "g-yellow" : "g-gray", dir: a > b ? "↑" : "↓" };
-    };
-    const tile = (label, value, r) => ({ label, value: value + r.dir, cls: r.cls });
-    const out = [
-      tile("Leaf", String(g.leaf), num(t.leaf, g.leaf)),
-      tile("Δ", String(g.maxd), num(t.maxd, g.maxd)),
-      tile("α", String(g.alpha), num(t.alpha, g.alpha)),
-    ];
-    const dv = isFinite(g.diam) ? String(g.diam) : "∞";
-    if (t.diam === g.diam) out.push({ label: "Diam", value: dv, cls: "g-green" });
-    else if (!isFinite(t.diam) || !isFinite(g.diam)) {
-      out.push({ label: "Diam", value: dv + (!isFinite(t.diam) ? "↑" : "↓"), cls: "g-gray" });
-    } else {
-      const r = num(t.diam, g.diam);
-      out.push({ label: "Diam", value: dv + r.dir, cls: r.cls });
-    }
-    const wv = isFinite(g.w) ? String(g.w) : "∞";
-    if (t.w === g.w) out.push({ label: "W", value: wv, cls: "g-green" });
-    else if (!isFinite(t.w) || !isFinite(g.w)) {
-      out.push({ label: "W", value: wv + (!isFinite(t.w) ? "↑" : "↓"), cls: "g-gray" });
-    } else {
-      const r = num(t.w, g.w);
-      out.push({ label: "W", value: wv + r.dir, cls: r.cls });
-    }
-    return out;
-  }
-  const genTreedleTarget = generateTreedleTarget;
+  let F = generateFacility(activeDate);
+  const facilityGrid = document.getElementById("facilityGrid");
+  const facilityMeta = document.getElementById("facilityMeta");
+  const facilityMsg = document.getElementById("facilityMsg");
+  const facilityReveal = document.getElementById("facilityReveal") as HTMLButtonElement;
+  const facilityAim = document.getElementById("facilityAim");
+  const fCells = new Map<string, HTMLElement>();
+  const fSel = new Set<string>();
+  let facilityChecked = false, showingBest = false;
+  let bestSites: string[] | null = null;
+  // Fixed for a board: which sea is open water, and which land is shoreline.
+  let fDeep = new Set<string>(), fCoast = new Set<string>();
+  const fkey = (r: number, c: number) => r + "," + c;
 
-  let TR_TARGET = genTreedleTarget(activeDate);
-  let TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
-  const treedleSvg = document.getElementById("treedleSvg");
-  const treedleMeta = document.getElementById("treedleMeta");
-  const treedleDraft = document.getElementById("treedleDraft");
-  const treedleHist = document.getElementById("treedleHist");
-  const treedleMsg = document.getElementById("treedleMsg");
-  const treedleGuessBtn = document.getElementById("treedleGuess") as HTMLButtonElement;
-  let trDraft = new Set<string>(); // "u-v" with u < v
-  let trPending = -1;   // the dot a chain is currently drawing from
-  const trTap = bindEdgeDrawing(treedleSvg, {
-    done: () => Boolean(trDone),
-    pending: () => trPending,
-    setPending: (v: number) => { trPending = v; },
-    toggle: (a: number, b: number) => {
-      const k = Math.min(a, b) + "-" + Math.max(a, b);
-      if (trDraft.has(k)) trDraft.delete(k); else trDraft.add(k);
-    },
-    repaint: () => paintTreedle(),
-  });
-  let trGuesses = []; // {mask, tiles}
-  let trDone = null; // 'won' | 'lost'
-  function trDraftStats() {
-    const p = trProps([...trDraft].map((k) => k.split("-").map(Number)));
-    return "Leaf " + p.leaf + " · Diam " + (isFinite(p.diam) ? p.diam : "∞") +
-      " · Δ " + p.maxd + " · W " + (isFinite(p.w) ? p.w : "∞") + " · α " + p.alpha;
-  }
-  function paintTreedle() {
-    treedleSvg.innerHTML = "";
-    const NS = "http://www.w3.org/2000/svg";
-    const R = 19;
-    trDraft.forEach((k) => {
-      const [u, v] = k.split("-").map(Number);
-      const [x1, y1] = TR_POS[u], [x2, y2] = TR_POS[v];
-      let bi = -1, bd = Infinity;
-      for (let w = 0; w < TR_N; w++) {
-        if (w === u || w === v) continue;
-        const d = segPointDist(x1, y1, x2, y2, TR_POS[w][0], TR_POS[w][1]);
-        if (d < bd) { bd = d; bi = w; }
+  function readMap() {
+    fDeep = new Set(); fCoast = new Set();
+    const land = (r: number, c: number) => r >= 0 && c >= 0 && r < F.N && c < F.N && F.land.has(fkey(r, c));
+    for (let r = 0; r < F.N; r++) for (let c = 0; c < F.N; c++) {
+      const k = fkey(r, c);
+      if (F.land.has(k)) {
+        // Shoreline: land with sea, or the board's own edge, directly beside it.
+        if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => !land(r + dr, c + dc))) fCoast.add(k);
+        continue;
       }
-      if (bi >= 0 && bd < R + 4) {
-        const others = [];
-        for (let w = 0; w < TR_N; w++) if (w !== u && w !== v) others.push(TR_POS[w]);
-        const cp = edgeBow(x1, y1, x2, y2, TR_POS[bi][0], TR_POS[bi][1], R, others);
-        const p = document.createElementNS(NS, "path");
-        p.setAttribute("d", "M " + x1 + " " + y1 + " Q " + cp[0] + " " + cp[1] + " " + x2 + " " + y2);
-        p.setAttribute("class", "edge");
-        treedleSvg.appendChild(p);
-      } else {
-        const l = document.createElementNS(NS, "line");
-        l.setAttribute("x1", String(x1)); l.setAttribute("y1", String(y1));
-        l.setAttribute("x2", String(x2)); l.setAttribute("y2", String(y2));
-        treedleSvg.appendChild(l);
+      // Open water: sea with no land anywhere around it, corners included.
+      let near = false;
+      for (let dr = -1; dr <= 1 && !near; dr++) for (let dc = -1; dc <= 1; dc++) {
+        if ((dr || dc) && land(r + dr, c + dc)) { near = true; break; }
       }
-    });
-    for (let i = 0; i < TR_N; i++) {
-      const c = document.createElementNS(NS, "circle");
-      c.setAttribute("cx", String(TR_POS[i][0])); c.setAttribute("cy", String(TR_POS[i][1]));
-      c.setAttribute("r", "19");
-      c.setAttribute("class", "node" + (i === trPending ? " pending" : ""));
-      c.setAttribute("role", "button");
-      c.setAttribute("tabindex", "0");
-      c.setAttribute("aria-label", "Dot " + (i + 1) + (i === trPending ? ", selected" : ""));
-      c.style.fill = "#eef1e8";
-      c.dataset.v = String(i);
-      c.addEventListener("keydown", (e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); trTap(i); }
-      });
-      treedleSvg.appendChild(c);
-      const t = document.createElementNS(NS, "text");
-      t.setAttribute("x", String(TR_POS[i][0])); t.setAttribute("y", String(TR_POS[i][1] + 4));
-      t.setAttribute("text-anchor", "middle");
-      t.textContent = String(i + 1);
-      t.style.fill = "#5c6650";
-      treedleSvg.appendChild(t);
+      if (!near) fDeep.add(k);
     }
-    treedleDraft.textContent = trDraftStats();
-    paintTreedleMeta();
   }
-  function paintTreedleMeta() {
-    const left = TR_TRIES - trGuesses.length;
-    treedleMeta.innerHTML = trDone === "won" ? "Solved!" :
-      trDone === "lost" ? "Out of tries." :
-      "Guess <b>" + (trGuesses.length + 1) + "</b>/" + TR_TRIES;
-    treedleGuessBtn.style.opacity = trDone || !left ? "0.4" : "1";
-    treedleGuessBtn.disabled = Boolean(trDone || !left);
-  }
-  function trAddHistRow(mask, tiles, prefix = "") {
-    const row = document.createElement("div");
-    row.className = "grow";
-    row.appendChild(graphMiniSvg(mask, TR_PAIRS, TR_POS));
-    const box = document.createElement("div");
-    box.className = "gtiles";
-    if (prefix) {
-      const p = document.createElement("div");
-      p.textContent = prefix;
-      p.style.cssText = "font-size:11px;font-weight:700;color:#6b7561;min-width:52px;";
-      box.appendChild(p);
-    }
-    tiles.forEach((t) => {
+
+  function buildMap() {
+    facilityGrid.innerHTML = "";
+    fCells.clear();
+    readMap();
+    facilityGrid.style.gridTemplateColumns = "repeat(" + F.N + ", 1fr)";
+    facilityGrid.style.setProperty("--map-n", String(F.N));
+    for (let r = 0; r < F.N; r++) for (let c = 0; c < F.N; c++) {
       const d = document.createElement("div");
-      d.className = "gtile " + t.cls;
-      const s = document.createElement("small");
-      s.textContent = t.label;
-      const v = document.createElement("span");
-      v.textContent = t.value;
-      d.appendChild(s); d.appendChild(v);
-      box.appendChild(d);
-    });
-    row.appendChild(box);
-    treedleHist.appendChild(row);
-  }
-  function trRevealTarget() {
-    trAddHistRow(TR_TARGET, trCompare(TR_TPROPS, TR_TPROPS), "Answer");
-  }
-  document.getElementById("treedleClear").onclick = () => {
-    if (trDone) return;
-    trDraft.clear(); trPending = -1;
-    paintTreedle();
-  };
-  document.getElementById("treedleGuess").onclick = () => {
-    if (trDone || trGuesses.length >= TR_TRIES) return;
-    let mask = 0;
-    TR_PAIRS.forEach(([u, v], i) => { if (trDraft.has(u + "-" + v)) mask |= (1 << i); });
-    const tiles = trCompare(TR_TPROPS, trProps(trEdgesFromMask(mask)));
-    trGuesses.push({ mask, tiles });
-    trDraft.clear(); trPending = -1;
-    trAddHistRow(mask, tiles);
-    if (tiles.every((t) => t.cls === "g-green")) {
-      trDone = "won";
-      saveTreedle();
-      treedleMsg.textContent = "Solved in " + trGuesses.length + "/" + TR_TRIES + "! 🎉";
-      treedleMsg.className = "msg good";
-      updateStreak(); renderArchive();
-      reportResult("treedle", String(trGuesses.length), true);
-    } else if (trGuesses.length >= TR_TRIES) {
-      trDone = "lost";
-      saveTreedle();
-      treedleMsg.textContent = "Out of tries — the answer is revealed below.";
-      treedleMsg.className = "msg bad";
-      trRevealTarget();
-      reportResult("treedle", "X", true);
-    } else {
-      saveTreedle();
+      d.className = "cell";
+      d.dataset.r = String(r); d.dataset.c = String(c);
+      d.setAttribute("role", "gridcell");
+      d.tabIndex = r === 0 && c === 0 ? 0 : -1;
+      facilityGrid.appendChild(d);
+      fCells.set(fkey(r, c), d);
     }
-    paintTreedle();
+  }
+
+  function paintFacility() {
+    const shown = showingBest && bestSites ? new Set(bestSites) : fSel;
+    const scored = evaluate(F, shown);
+    const track = routeCells(F, shown);
+    const walk = new Map<string, number>();
+    F.towns.forEach((t, i) => walk.set(fkey(t[0], t[1]), scored.per[i]));
+
+    fCells.forEach((el, k) => {
+      const sea = !F.land.has(k);
+      const town = F.townSet.has(k);
+      const depot = shown.has(k);
+      // Terrain only shows where nothing is standing on it: a town or a depot
+      // takes the whole cell, or it would be read as coastline with a dot.
+      let cls = "cell";
+      if (sea) cls += fDeep.has(k) ? " sea deep" : " sea";
+      else if (!town && !depot) {
+        cls += fCoast.has(k) ? " land coast" : " land";
+        if (track.has(k)) cls += " track";
+      }
+      if (town) cls += " town" + (shown.size && walk.get(k) >= MAROONED ? " stranded" : "");
+      if (depot) cls += " depot";
+      el.className = cls;
+
+      let glyph = "", label: string;
+      const [r, c] = k.split(",").map(Number);
+      const where = "Row " + (r + 1) + ", column " + (c + 1) + ", ";
+      if (town) {
+        const d = walk.get(k);
+        // With nothing placed there is no distance to show yet, so the town is
+        // just a town rather than a board full of failures.
+        glyph = depot ? "◆" : !shown.size ? "●" : d >= MAROONED ? "—" : String(d);
+        label = where + "town" + (!shown.size ? "" : d >= MAROONED ? ", no route to a depot" : ", walks " + d) +
+          (depot ? ", depot here" : "");
+      } else if (depot) {
+        glyph = "◆";
+        label = where + "depot";
+      } else if (sea) {
+        label = where + "sea";
+      } else {
+        label = where + "land" + (track.has(k) ? ", on a walked route" : "");
+      }
+      el.textContent = glyph;
+      el.setAttribute("aria-label", label);
+      if (!sea) el.setAttribute("aria-pressed", String(depot));
+      else el.removeAttribute("aria-pressed");
+    });
+
+    facilityMsg.hidden = showingBest;
+    facilityReveal.hidden = !facilityChecked;
+    facilityReveal.textContent = showingBest ? "Back to my depots" : "Show the best placement";
+    facilityReveal.setAttribute("aria-pressed", String(showingBest));
+    facilityGrid.setAttribute("aria-readonly", String(showingBest));
+    (document.getElementById("facilityCheck") as HTMLButtonElement).disabled = showingBest;
+    (document.getElementById("facilityClear") as HTMLButtonElement).disabled = showingBest;
+
+    const missed = scored.served.filter((ok) => !ok).length;
+    const count = "Depots <b>" + shown.size + "/" + F.slots + "</b>";
+    const target = facilityChecked ? " · Target " + F.target : "";
+    // A verdict on a half-placed board is no verdict: "all served" while depots
+    // are still in hand reads as a win that has not been won, and a town is only
+    // cut off once there is nothing left to reach it with.
+    const all = shown.size === F.slots;
+    const state = showingBest ? "Best placement · Travel <b>" + F.target + "</b>"
+      : !shown.size ? count + " · drop them anywhere on land"
+      : missed ? count + " · Travel <b>—</b>" + target + " · " + missed + " town" +
+          (missed === 1 ? "" : "s") + (all ? " cut off" : " not reached yet")
+      : count + " · Travel <b>" + scored.total + "</b>" + target +
+          (all ? " · <b>ALL SERVED ✓</b>" : "");
+    facilityMeta.innerHTML = state + " · <span class='board-kind'>" + F.kind + "</span>";
+    // Cell classes were just rewritten from scratch, so any hover marks went
+    // with them; put them back if the pointer is still resting somewhere.
+    fAimCells.clear();
+    if (fAimKey) showAim(fAimKey);
+  }
+
+  // ---- aim: what a depot on the cell under the pointer would do ----
+  // Hovering asks the board a question — which towns would come here, and what
+  // would that cost — without committing to the answer.
+  let fAimKey: string | null = null;
+  let fAimCells = new Set<string>();
+  function clearAim() {
+    fAimCells.forEach((k) => fCells.get(k)?.classList.remove("aim", "aim-track", "claimed"));
+    fAimCells.clear();
+    facilityAim.hidden = true;
+    facilityAim.textContent = "";
+  }
+  function showAim(k: string) {
+    clearAim();
+    fAimKey = k;
+    if (showingBest || !F.land.has(k)) { fAimKey = null; return; }
+    const now = evaluate(F, fSel);
+    const field = distanceFrom(F.N, F.land, [k]);
+    const standing = fSel.has(k);
+    const mark = (cell: string, cls: string) => {
+      const el = fCells.get(cell);
+      if (el) { el.classList.add(cls); fAimCells.add(cell); }
+    };
+    let taken = 0;
+    F.towns.forEach((town, i) => {
+      const tk = fkey(town[0], town[1]);
+      const reach = field.get(tk);
+      if (reach === undefined) return;
+      // A depot already standing here keeps the towns it ties for; a proposed
+      // one only takes the towns it would genuinely bring closer.
+      if (!(reach < now.per[i] || (standing && reach === now.per[i]))) return;
+      taken++;
+      mark(tk, "claimed");
+      for (const step of descend(F.N, field, tk)) if (step !== k) mark(step, "aim-track");
+    });
+    mark(k, "aim");
+    const towns = taken + (taken === 1 ? " town" : " towns");
+    if (standing) {
+      facilityAim.textContent = taken ? "This depot serves " + towns + "." : "This depot serves nobody — it is spare.";
+    } else if (!taken) {
+      facilityAim.textContent = "A depot here would bring no town closer.";
+    } else {
+      const after = evaluate(F, [...fSel, k]).total;
+      const saved = now.served.every(Boolean) ? now.total - after : 0;
+      facilityAim.textContent = "A depot here would take " + towns +
+        (fSel.size < F.slots
+          ? " — total " + after + (saved > 0 ? " (−" + saved + ")" : "")
+          : " — drag one over to try it");
+    }
+    facilityAim.hidden = false;
+  }
+  facilityGrid.addEventListener("pointerover", (e: PointerEvent) => {
+    // Touch has no hover: a finger resting on a cell is a tap being made, not
+    // a question being asked.
+    if (e.pointerType !== "mouse") return;
+    const k = fCellAt(e.clientX, e.clientY);
+    if (k === null) { fAimKey = null; clearAim(); }
+    else if (k !== fAimKey) showAim(k);
+  });
+  facilityGrid.addEventListener("pointerleave", () => { fAimKey = null; clearAim(); });
+
+  // Tap land to drop or lift a depot; press on a depot and release on empty land
+  // to slide it across, which is the only way to rearrange once all are out.
+  let fFrom: string | null = null;
+  const fCellAt = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const cell = el?.closest(".cell") as HTMLElement | null;
+    return cell && facilityGrid.contains(cell) ? fkey(+cell.dataset.r, +cell.dataset.c) : null;
   };
-  document.getElementById("treedleShare").onclick = () => {
-    const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
-    const lines = trGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
-    const score = trDone === "won" ? trGuesses.length + "/" + TR_TRIES : "X/" + TR_TRIES;
-    shareText("HardMode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score + "\n" + shareLink());
+  function fTap(k: string) {
+    if (showingBest || !F.land.has(k)) return;
+    if (fSel.has(k)) fSel.delete(k);
+    else if (fSel.size >= F.slots) {
+      facilityMsg.textContent = "All " + F.slots + " depots are out — lift one first, or drag one over.";
+      facilityMsg.className = "msg";
+      return;
+    } else fSel.add(k);
+    facilityMsg.textContent = ""; facilityMsg.className = "msg";
+    saveFacility(false);
+    paintFacility();
+  }
+  facilityGrid.addEventListener("pointerdown", (e: PointerEvent) => {
+    fFrom = fCellAt(e.clientX, e.clientY);
+    if (fFrom) e.preventDefault();
+  });
+  facilityGrid.addEventListener("pointerup", (e: PointerEvent) => {
+    const from = fFrom;
+    fFrom = null;
+    if (from === null || showingBest) return;
+    const to = fCellAt(e.clientX, e.clientY);
+    if (to === null) return;
+    if (to !== from && fSel.has(from) && !fSel.has(to) && F.land.has(to)) {
+      fSel.delete(from); fSel.add(to);
+      facilityMsg.textContent = ""; facilityMsg.className = "msg";
+      saveFacility(false);
+      paintFacility();
+      return;
+    }
+    fTap(to);
+  });
+  facilityGrid.addEventListener("keydown", (e: KeyboardEvent) => {
+    const t = (e.target as Element).closest(".cell") as HTMLElement | null;
+    if (!t) return;
+    const r = Number(t.dataset.r), c = Number(t.dataset.c);
+    const moves: Record<string, Point> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    if (moves[e.key]) {
+      e.preventDefault();
+      const [dr, dc] = moves[e.key];
+      const next = fCells.get(fkey(Math.max(0, Math.min(F.N - 1, r + dr)), Math.max(0, Math.min(F.N - 1, c + dc))));
+      if (next) { t.tabIndex = -1; next.tabIndex = 0; next.focus(); }
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fTap(fkey(r, c));
+    }
+  });
+
+  document.getElementById("facilityClear").onclick = () => {
+    fSel.clear(); fAimKey = null; saveFacility(false); paintFacility();
+    facilityMsg.textContent = ""; facilityMsg.className = "msg";
   };
-  function saveTreedle() {
+  document.getElementById("facilityCheck").onclick = () => checkFacility(true);
+  facilityReveal.onclick = () => {
+    if (!facilityChecked) return;
+    if (!bestSites) bestSites = optimalSites(F);
+    showingBest = !showingBest;
+    fAimKey = null; clearAim();
+    paintFacility();
+  };
+  function checkFacility(verbose: boolean) {
+    if (verbose) { facilityChecked = true; saveFacility(false); }
+    paintFacility();
+    const scored = evaluate(F, fSel);
+    const missed = scored.served.filter((ok) => !ok).length;
+    if (missed) {
+      if (verbose) {
+        facilityMsg.textContent = "Not yet — " + missed + " town" + (missed === 1 ? " has" : "s have") +
+          " no route to a depot. Remember nobody crosses water.";
+        facilityMsg.className = "msg bad";
+      }
+      return false;
+    }
+    const over = scored.total - F.target;
+    const verdict = over <= 0 ? "Perfect — the exact optimum! 🌟"
+      : fSel.size < F.slots ? "You still have " + (F.slots - fSel.size) +
+        " in hand — another depot can only shorten the walks."
+      : over <= 2 ? "Close. One depot is a cell or two off."
+      : "Valid, but the optimum is lower — try serving the far towns from one depot placed between them.";
+    facilityMsg.textContent = "Solved! Travel " + scored.total + " (target " + F.target + ") — " + verdict;
+    facilityMsg.className = "msg good";
+    saveFacility(true);
+    updateStreak(); renderArchive();
+    reportResult("facility", overBucket(over), verbose);
+    return true;
+  }
+  function saveFacility(solved: boolean) {
     try {
-      localStorage.setItem(dailyStoreKey(activeDate, "treedle"), JSON.stringify({
-        masks: trGuesses.map((g) => g.mask),
-        solved: trDone === "won",
-        lost: trDone === "lost",
+      const prev = JSON.parse(localStorage.getItem(storeKey("facility")) || "{}");
+      localStorage.setItem(storeKey("facility"), JSON.stringify({
+        sel: [...fSel], checked: facilityChecked, solved: solved || prev.solved || false,
       }));
     } catch (_) {}
   }
-  function loadTreedle() {
+  function loadFacility() {
+    facilityChecked = false; showingBest = false; bestSites = null;
     try {
-      const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "treedle")) || "null");
-      if (d && Array.isArray(d.masks)) {
-        for (const mask of d.masks) {
-          if (typeof mask !== "number" || mask < 0 || mask >= (1 << TR_PAIRS.length)) continue;
-          trGuesses.push({ mask, tiles: trCompare(TR_TPROPS, trProps(trEdgesFromMask(mask))) });
-        }
-        if (d.solved) {
-          trDone = "won";
-          treedleMsg.textContent = "Solved in " + trGuesses.length + "/" + TR_TRIES + "! 🎉";
-          treedleMsg.className = "msg good";
-        } else if (d.lost) {
-          trDone = "lost";
-          treedleMsg.textContent = "Out of tries — the answer is revealed below.";
-          treedleMsg.className = "msg bad";
-        }
-      }
+      const d = JSON.parse(localStorage.getItem(storeKey("facility")) || "null");
+      facilityChecked = Boolean(d?.checked || d?.solved);
+      if (d && Array.isArray(d.sel)) d.sel.forEach((k: string) => { if (F.land.has(k)) fSel.add(k); });
+      if (d && d.solved) checkFacility(false);
     } catch (_) {}
   }
-  function rebuildTreedle() {
-    TR_TARGET = genTreedleTarget(activeDate);
-    TR_TPROPS = trProps(trEdgesFromMask(TR_TARGET));
-    trDraft = new Set<string>();
-    trPending = -1;
-    trGuesses = [];
-    trDone = null;
-    treedleHist.innerHTML = "";
-    treedleMsg.textContent = ""; treedleMsg.className = "msg";
-    loadTreedle();
-    for (const g of trGuesses) trAddHistRow(g.mask, g.tiles);
-    if (trDone === "lost") trRevealTarget();
-    paintTreedle();
+  function rebuildFacility() {
+    F = generateFacility(activeDate);
+    fSel.clear();
+    fAimKey = null;
+    facilityMsg.textContent = ""; facilityMsg.className = "msg";
+    buildMap();
+    loadFacility();
+    paintFacility();
   }
+  document.getElementById("facilityShare").onclick = () => {
+    const scored = evaluate(F, fSel);
+    const ok = scored.served.every(Boolean);
+    shareText("HardMode " + shareLabel() + "\nFacility 📍: " +
+      (ok ? "✅ travel " + scored.total + (facilityChecked ? " (target " + F.target + ")" : "") : "❌ unsolved") +
+      "\n" + shareLink());
+  };
 
   // ============================================================
   // ARCHIVE + date navigation (all games)
@@ -1729,7 +1809,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const progress = document.getElementById("todayProgress");
     progress.querySelector("span").textContent = activeDate === TODAY_REAL ? "Today" : "Selected";
     progress.querySelector("strong").textContent = solvedToday + " / 4";
-    const puzzleTabs = [tabS, tabC, tabG, tabT];
+    const puzzleTabs = [tabS, tabC, tabG, tabF];
     puzzleTabs.forEach((tab, index) => {
       const done = isSolved(activeDate, GAMES[index]);
       tab.classList.toggle("done", done);
@@ -1737,11 +1817,11 @@ import { solveSteinerExact } from "./steiner-solver";
     });
     for (let i = 0; i < ARCHIVE_DAYS; i++) {
       const k = addDays(TODAY_REAL, -i);
-      const s = isSolved(k, "steiner"), c = isSolved(k, "color"), gr = isSolved(k, "graphle"), tr = isSolved(k, "treedle");
+      const s = isSolved(k, "steiner"), c = isSolved(k, "color"), gr = isSolved(k, "graphle"), fa = isSolved(k, "facility");
       const b = document.createElement("button");
       b.className = "archive-item" + (k === activeDate ? " current" : "");
-      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "·") + (c ? "🎨" : "·") + (gr ? "◉" : "·") + (tr ? "🌳" : "·") + "</span>";
-      const done = [s && "steiner", c && "colouring", gr && "graphle", tr && "treedle"].filter(Boolean);
+      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "·") + (c ? "🎨" : "·") + (gr ? "◉" : "·") + (fa ? "📍" : "·") + "</span>";
+      const done = [s && "steiner", c && "colouring", gr && "graphle", fa && "facility"].filter(Boolean);
       b.title = k + (done.length ? " — " + done.join(", ") : "");
       b.onclick = () => setActiveDate(k);
       archiveList.appendChild(b);
@@ -1776,8 +1856,8 @@ import { solveSteinerExact } from "./steiner-solver";
     } catch (_) {}
     // rebuild graphle
     rebuildGraphle();
-    // rebuild treedle
-    rebuildTreedle();
+    // rebuild facility
+    rebuildFacility();
     renderArchive();
     for (const g of GAMES) delete myBucket[g];
     statsCache = null;
@@ -2415,7 +2495,7 @@ import { solveSteinerExact } from "./steiner-solver";
   buildGrid(); loadSteiner(); paintSteiner();
   loadColor(); refreshColor();
   rebuildGraphle();
-  rebuildTreedle();
+  rebuildFacility();
   // re-assert solved banners after load
   try {
     const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "steiner")) || "null");

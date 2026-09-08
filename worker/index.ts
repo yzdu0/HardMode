@@ -25,7 +25,9 @@ interface Env {
   ASSETS?: { fetch(request: Request): Promise<Response> };
 }
 
-export const GAMES = ["steiner", "color", "graphle", "treedle"] as const;
+// Treedle is retired from the site but stays here: its rows are already stored,
+// and a client left open on an old tab should not have its result refused.
+export const GAMES = ["steiner", "color", "graphle", "facility", "treedle"] as const;
 export type Game = (typeof GAMES)[number];
 
 // What a finished puzzle is worth, per game. Anything outside these sets is a
@@ -34,6 +36,7 @@ export const BUCKETS: Record<Game, readonly string[]> = {
   steiner: ["0", "1", "2", "3+"],          // cost over the target
   color: ["3", "2", "1"],                   // stars
   graphle: ["1", "2", "3", "4", "5", "6", "X"],
+  facility: ["0", "1", "2", "3+"],          // travel over the target
   treedle: ["1", "2", "3", "4", "5", "6", "X"],
 };
 

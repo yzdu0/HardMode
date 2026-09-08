@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="HardMode is a daily set of four compact graph puzzles: Steiner, Colouring, Graphle, and Treedle." />
+<meta name="description" content="HardMode is a daily set of four compact graph puzzles: Steiner, Colouring, Graphle, and Facility." />
 <meta name="theme-color" content="#f5f6f8" />
 <title>HardMode — Daily graph puzzles</title>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
@@ -40,7 +40,7 @@
         <button id="tabSteiner" class="tab active" role="tab" aria-selected="true" aria-controls="viewSteiner">Steiner</button>
         <button id="tabColor" class="tab" role="tab" aria-selected="false" aria-controls="viewColor">Colouring</button>
         <button id="tabGraphle" class="tab" role="tab" aria-selected="false" aria-controls="viewGraphle">Graphle</button>
-        <button id="tabTreedle" class="tab" role="tab" aria-selected="false" aria-controls="viewTreedle">Treedle</button>
+        <button id="tabFacility" class="tab" role="tab" aria-selected="false" aria-controls="viewFacility">Facility</button>
       </nav>
     </header>
 
@@ -172,35 +172,35 @@
         </div>
       </section>
 
-      <!-- TREEDLE -->
-      <section id="viewTreedle" class="view hidden" role="tabpanel" aria-labelledby="tabTreedle">
-        <div class="puzzle-heading"><h2>Treedle</h2><button id="treedleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="treedleHelpBox">How to play</button></div>
-        <div id="treedleHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Rebuild the hidden tree.</b> Join all eight dots with seven links and no loops. Tap two dots to toggle a link; the second stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
-          <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
-          <p class="property-copy">Every answer is a tree: eight dots, seven links, no loops. Each guess is scored on five numbers, and an arrow means the hidden tree's value is higher&nbsp;↑ or lower&nbsp;↓ than yours.</p>
-          <dl class="metric-list">
-            <dt>Leaf</dt><dd><b>Leaves.</b> How many dots have exactly one link — the loose ends. Two leaves means a single line of dots; seven means a star with one dot in the middle.</dd>
-            <dt>Diam</dt><dd><b>Diameter.</b> The number of links on the longest route between any two dots. A line of eight scores 7, a star scores 2. Read together with Leaf it says a lot about the shape.</dd>
-            <dt>Δ</dt><dd><b>Busiest dot.</b> The largest number of links meeting at any one dot. 2 means no dot ever branches, so the tree is a plain line; a high value means one hub carries most of it.</dd>
-            <dt>W</dt><dd><b>Total distance.</b> Add up the number of links between every pair of dots — 28 pairs in all. A star keeps everything close and scores low (49); a straight line scores the most (84). It is the most sensitive of the five, so use it to tell near-misses apart.</dd>
-            <dt>α</dt><dd><b>Largest unlinked set.</b> The biggest group of dots you can pick with no link between any two of them. A star scores 7 (every outer dot), a line scores 4 (every other dot). High means one hub, low means the links are spread evenly.</dd>
-          </dl>
+      <!-- FACILITY -->
+      <section id="viewFacility" class="view hidden" role="tabpanel" aria-labelledby="tabFacility">
+        <div class="puzzle-heading"><h2>Facility</h2><button id="facilityHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="facilityHelpBox">How to play</button></div>
+        <div id="facilityHelpBox" class="tutbox hidden">
+          <p class="help-copy"><b>Site the depots.</b> A fixed number of depots go anywhere on the land. Every town then walks to its nearest one, and your score is the total of those walks &mdash; the lower the better.</p>
+          <div class="legend-inline" aria-label="Map legend"><span><i class="k k-sea"></i> sea</span><span><i class="k k-land"></i> land</span><span><i class="k k-town">3</i> town</span><span><i class="k k-depot">&#9670;</i> depot</span><span><i class="k k-track"></i> walked</span></div>
+          <div class="tutorial-steps">
+            <p><b>Place and move.</b> Tap land to drop a depot, tap it again to lift it. Drag a depot to slide it somewhere else &mdash; useful once they are all out.</p>
+            <p><b>Only land counts.</b> Nobody swims. A depot across a channel is no use however near it looks, so an island with people on it always needs its own depot.</p>
+            <p><b>Read the numbers.</b> Each town shows how far it currently walks; a town with no route at all shows &mdash;. The tracks they take are shaded as you go.</p>
+            <p><b>Try before you place.</b> Hover any land cell and the map shows which towns would switch to a depot there, the routes they would take, and what the total would become.</p>
+            <p><b>Greed is not enough.</b> Placing each depot where it helps most right now is almost never the best answer &mdash; every board here beats that. Try pulling one depot off the crowd to cover the far towns and see what the total does.</p>
+          </div>
+          <p class="tutpar">Serve every town, then Check to reveal the target and, if you want it, the best placement.</p>
         </div>
-        <div id="treedleMeta" class="meta"></div>
-        <svg id="treedleSvg" viewBox="0 0 340 340" role="group" aria-label="Treedle board"></svg>
-        <div id="treedleDraft" class="meta"></div>
+        <div id="facilityMeta" class="meta"></div>
+        <div id="facilityGrid" class="grid map" role="grid" aria-label="Island map"></div>
+        <div id="facilityAim" class="aimline" hidden></div>
         <div class="row">
-          <button id="treedleClear" class="btn">Clear</button>
-          <button id="treedleGuess" class="btn primary">Guess</button>
-          <button id="treedleShare" class="btn">Share</button>
+          <button id="facilityClear" class="btn">Clear</button>
+          <button id="facilityCheck" class="btn primary">Check</button>
+          <button id="facilityShare" class="btn">Share</button>
         </div>
-        <div id="treedleHist" class="ghist"></div>
-        <div id="treedleMsg" class="msg" role="status" aria-live="polite"></div>
-        <div id="treedleResults" class="results hidden" aria-live="polite">
+        <div id="facilityMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="facilityResults" class="results hidden" aria-live="polite">
           <strong class="results-head"></strong>
           <div class="results-bars"></div>
         </div>
+        <button id="facilityReveal" class="btn" hidden aria-pressed="false">Show the best placement</button>
       </section>
 
       <!-- EDITOR -->

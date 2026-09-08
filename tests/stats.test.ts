@@ -68,7 +68,7 @@ test('the tally covers every game and ignores rows it cannot place', () => {
   assert.equal(games.graphle.total, 7, 'unknown buckets must not inflate the total');
   assert.deepEqual(games.graphle.buckets, { '1': 0, '2': 0, '3': 5, '4': 0, '5': 0, '6': 0, X: 2 });
   assert.equal(games.steiner.total, 4);
-  assert.equal(games.treedle.total, 0, 'a game nobody finished still reports zero');
+  assert.equal(games.facility.total, 0, 'a game nobody finished still reports zero');
   // Every declared bucket is present, so the page never has to guess a shape.
   // Membership, not order: integer-like keys are reordered by the language, so
   // the payload cannot carry display order and the page supplies its own.

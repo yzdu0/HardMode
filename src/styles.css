@@ -50,6 +50,22 @@
   --cell-portal: #e8f8fb;
   --cell-portal-line: #82cbd6;
   --cell-portal-fg: #257481;
+
+  /* Facility map. Bright water, sandy shores, and a warm track for the ground
+     towns actually walk over. */
+  --sea: #b1d9f4;
+  --sea-deep: #93c8ec;
+  --land: #d8ecaf;
+  --coast: #f1e5b8;
+  --land-fg: #8a9c6b;
+  --track: #f4bf62;
+  --track-fg: #6d4a14;
+  --town: #26313f;
+  --town-fg: #fff;
+  --depot: #3157d5;
+  --depot-fg: #fff;
+  --stranded: #d64545;
+  --stranded-fg: #fff;
 }
 * { box-sizing: border-box; }
 .hidden { display: none !important; }
@@ -396,26 +412,6 @@ body[data-theme="minimal"] .grid.wraps::after { color: #111; }
 }
 #graphleSvg circle.node.pending { stroke: #e11d48; stroke-width: 3.5; }
 #graphleSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
-/* ---------- Treedle (Wordle for trees) ---------- */
-#treedleSvg {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: #ffffff;
-  margin-top: 8px;
-  box-shadow: 0 4px 14px rgba(20, 33, 15, 0.06);
-}
-#treedleSvg line { stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
-#treedleSvg path.edge { fill: none; stroke: #9aa78f; stroke-width: 2; stroke-linecap: round; opacity: 0.9; }
-#treedleSvg circle.node {
-  stroke: #22301c;
-  stroke-width: 2;
-  cursor: pointer;
-  filter: drop-shadow(0 2px 3px rgba(20, 33, 15, 0.25));
-}
-#treedleSvg circle.node.pending { stroke: #e11d48; stroke-width: 3.5; }
-#treedleSvg text { pointer-events: none; font-size: 12px; font-weight: 800; font-family: inherit; }
-body[data-theme="minimal"] #treedleSvg { background: #fff; border: 1px solid #111; }
 body[data-theme="minimal"] #graphleSvg { background: #fff; border: 1px solid #111; }
 .ghist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .ghist:empty { display: none; }
@@ -559,6 +555,20 @@ body[data-theme="dark"] {
   --cell-portal-line: #2f6f80;
   --cell-portal-fg: #86d3e4;
 
+    --sea: #12294a;
+  --sea-deep: #0a1a2e;
+  --land: #2c3f23;
+  --coast: #414527;
+  --land-fg: #7c8d6b;
+  --track: #4e4523;
+  --track-fg: #ecd79b;
+  --town: #dfe5f0;
+  --town-fg: #0b0d13;
+  --depot: #7d9bff;
+  --depot-fg: #0b0d13;
+  --stranded: #ff8f80;
+  --stranded-fg: #2c1715;
+
   background: var(--page);
   color: var(--fg);
 }
@@ -575,12 +585,10 @@ body[data-theme="dark"] .cell { border-color: transparent; }
 body[data-theme="dark"] #graphSvg line.lit:not(.conflict),
 body[data-theme="dark"] #graphSvg path.edge.lit:not(.conflict) { stroke: #9db4ff; }
 body[data-theme="dark"] #graphSvg line, body[data-theme="dark"] #graphleSvg line,
-body[data-theme="dark"] #treedleSvg line, body[data-theme="dark"] #editorSvg line,
-body[data-theme="dark"] #graphSvg path.edge, body[data-theme="dark"] #graphleSvg path.edge,
-body[data-theme="dark"] #treedleSvg path.edge { stroke: #55607a; }
+body[data-theme="dark"] #editorSvg line,
+body[data-theme="dark"] #graphSvg path.edge, body[data-theme="dark"] #graphleSvg path.edge { stroke: #55607a; }
 body[data-theme="dark"] #graphSvg circle.node,
 body[data-theme="dark"] #graphleSvg circle.node,
-body[data-theme="dark"] #treedleSvg circle.node,
 body[data-theme="dark"] #editorSvg circle.node { stroke: #566276; }
 
 /* ---------- Moss theme ----------
@@ -630,19 +638,32 @@ body[data-theme="moss"] {
   --cell-portal-line: #7fbdb6;
   --cell-portal-fg: #26635c;
 
+    --sea: #d7e7ee;
+  --sea-deep: #c1d9e3;
+  --land: #e2edcb;
+  --coast: #f0efcf;
+  --land-fg: #99a887;
+  --track: #cfe2a0;
+  --track-fg: #3d5c22;
+  --town: #24301a;
+  --town-fg: #fdfdf6;
+  --depot: #4a7a2f;
+  --depot-fg: #fdfdf6;
+  --stranded: #a33c2a;
+  --stranded-fg: #fdfdf6;
+
   background: var(--page);
   color: var(--fg);
 }
 body[data-theme="moss"] .archive-head input,
 body[data-theme="moss"] .tally-input { background: var(--surface); }
 body[data-theme="moss"] #graphSvg line, body[data-theme="moss"] #graphleSvg line,
-body[data-theme="moss"] #treedleSvg line, body[data-theme="moss"] #editorSvg line,
-body[data-theme="moss"] #graphSvg path.edge, body[data-theme="moss"] #graphleSvg path.edge,
-body[data-theme="moss"] #treedleSvg path.edge { stroke: #9aae88; }
+body[data-theme="moss"] #editorSvg line,
+body[data-theme="moss"] #graphSvg path.edge, body[data-theme="moss"] #graphleSvg path.edge { stroke: #9aae88; }
 body[data-theme="moss"] #graphSvg line.lit:not(.conflict),
 body[data-theme="moss"] #graphSvg path.edge.lit:not(.conflict) { stroke: #4a7a2f; }
 body[data-theme="moss"] #graphSvg circle.node, body[data-theme="moss"] #graphleSvg circle.node,
-body[data-theme="moss"] #treedleSvg circle.node, body[data-theme="moss"] #editorSvg circle.node { stroke: #3c5230; }
+body[data-theme="moss"] #editorSvg circle.node { stroke: #3c5230; }
 
 /* ---------- Terminal theme ----------
    Phosphor on black, monospaced. Deliberately the loudest of the set: it makes
@@ -691,6 +712,20 @@ body[data-theme="terminal"] {
   --cell-portal-line: #2b7f96;
   --cell-portal-fg: #7fd8ee;
 
+    --sea: #061511;
+  --sea-deep: #030b08;
+  --land: #0f2a1e;
+  --coast: #143a28;
+  --land-fg: #3a7359;
+  --track: #1c7d55;
+  --track-fg: #b6ffdb;
+  --town: #8bf5bd;
+  --town-fg: #030806;
+  --depot: #27e58c;
+  --depot-fg: #030806;
+  --stranded: #ff6b6b;
+  --stranded-fg: #2a0f0f;
+
   background: var(--page);
   color: var(--fg);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -705,13 +740,12 @@ body[data-theme="terminal"] .lib-item button { background: var(--raised); color:
 body[data-theme="terminal"] .swatch { border-color: var(--surface); }
 body[data-theme="terminal"] .swatch.active { outline-color: var(--accent); }
 body[data-theme="terminal"] #graphSvg line, body[data-theme="terminal"] #graphleSvg line,
-body[data-theme="terminal"] #treedleSvg line, body[data-theme="terminal"] #editorSvg line,
-body[data-theme="terminal"] #graphSvg path.edge, body[data-theme="terminal"] #graphleSvg path.edge,
-body[data-theme="terminal"] #treedleSvg path.edge { stroke: #2f7a5a; }
+body[data-theme="terminal"] #editorSvg line,
+body[data-theme="terminal"] #graphSvg path.edge, body[data-theme="terminal"] #graphleSvg path.edge { stroke: #2f7a5a; }
 body[data-theme="terminal"] #graphSvg line.lit:not(.conflict),
 body[data-theme="terminal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #27e58c; }
 body[data-theme="terminal"] #graphSvg circle.node, body[data-theme="terminal"] #graphleSvg circle.node,
-body[data-theme="terminal"] #treedleSvg circle.node, body[data-theme="terminal"] #editorSvg circle.node { stroke: #27e58c; }
+body[data-theme="terminal"] #editorSvg circle.node { stroke: #27e58c; }
 
 /* ---------- Minimal theme (stark monochrome; hits Steiner hardest) ---------- */
 body[data-theme="minimal"] {
@@ -721,6 +755,21 @@ body[data-theme="minimal"] {
   --accent: #111;
   --good: #111;
   --bad: #111;
+
+  --sea: #fff;
+  --sea-deep: #fff;
+  --land: #e3e3e3;
+  --coast: #efefef;
+  --land-fg: #aeaeae;
+  --track: #999;
+  --track-fg: #fff;
+  --town: #111;
+  --town-fg: #fff;
+  --depot: #111;
+  --depot-fg: #fff;
+  --stranded: #111;
+  --stranded-fg: #fff;
+
   background: #fff;
   color: var(--fg);
 }
@@ -872,16 +921,90 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .cell.penalty.path { border-color: #dba0a4; background: #eac0c2; color: #733238; }
 .cell.portal { border-color: var(--cell-portal-line); background: var(--cell-portal); color: var(--cell-portal-fg); }
 .cell.portal.path { border-color: #87b9dd; background: #b9daf2; color: #174969; }
-#graphSvg, #graphleSvg, #treedleSvg, #editorSvg {
+
+/* ---------- Facility map ----------
+   The board is an ocean plate with the land drawn on it, so the grid keeps a
+   tight gap and a padded surround rather than floating tiles on the page. */
+.grid.map {
+  gap: 1px;
+  padding: 7px;
+  border-radius: 14px;
+  background: var(--sea-deep);
+  /* The board is its own query container, so the glyphs are sized against the
+     map's real width rather than the viewport's — one rule for every board
+     size and every screen. */
+  container-type: inline-size;
+}
+.map .cell { border-radius: 2px; border-color: transparent; font-size: calc(100cqi / var(--map-n, 12) * 0.46); }
+/* Narrower than this the digits are below reading size. The routes on the map
+   and the running total say the same thing, so the towns simply go quiet. */
+@container (max-width: 470px) {
+  .map .cell.town:not(.depot) { font-size: 0; }
+}
+.board-kind { color: var(--muted); }
+.map .cell.sea { background: var(--sea); color: var(--sea); cursor: not-allowed; }
+.map .cell.sea.deep { background: var(--sea-deep); color: var(--sea-deep); }
+.map .cell.land { background: var(--land); color: var(--land-fg); }
+.map .cell.land.coast { background: var(--coast); }
+/* Ground a town walks over on its way to a depot: the score made visible. */
+.map .cell.track { background: var(--track); color: var(--track-fg); }
+.map .cell.town { background: var(--town); color: var(--town-fg); }
+.map .cell.town.stranded { background: var(--stranded); color: var(--stranded-fg); }
+.map .cell.depot { background: var(--depot); color: var(--depot-fg); }
+/* A depot standing in a town keeps the town's ring so both still read. */
+.map .cell.depot.town { box-shadow: inset 0 0 0 2px var(--town); }
+.map .cell.depot.town.stranded { box-shadow: none; }
+/* Aim: the answer to "what if a depot went here", drawn over the live board.
+   A ghost depot under the pointer, the routes it would pull towards it, and a
+   ring on each town that would switch. */
+.map .cell.aim { box-shadow: inset 0 0 0 2px var(--depot); }
+.map .cell.aim:not(.depot)::after {
+  content: "◆";
+  color: var(--depot);
+  opacity: 0.55;
+  font-size: calc(100cqi / var(--map-n, 12) * 0.46);
+}
+/* Tinted over the terrain rather than replacing it, so the coast still shows
+   through the routes a proposed depot would pull towards it. */
+.map .cell.aim-track { box-shadow: inset 0 0 0 99px color-mix(in srgb, var(--depot) 42%, transparent); }
+.map .cell.claimed { box-shadow: inset 0 0 0 2px var(--depot); }
+/* What that depot would be worth, in words, directly under the map. */
+.aimline {
+  margin-top: 8px;
+  min-height: 19px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* Map legend keys are colour chips rather than glyphs, since most of the map
+   has no symbol on it at all. */
+.legend-inline i.k-sea, .legend-inline i.k-land, .legend-inline i.k-track,
+.legend-inline i.k-town, .legend-inline i.k-depot {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.k-sea { background: var(--sea); }
+.k-land { background: var(--land); }
+.k-track { background: var(--track); }
+.k-town { background: var(--town); color: var(--town-fg); }
+.k-depot { background: var(--depot); color: var(--depot-fg); }
+body[data-theme="minimal"] .grid.map { gap: 1px; padding: 0; border: 1px solid #111; border-radius: 0; background: #111; }
+body[data-theme="minimal"] .legend-inline i.k-sea { box-shadow: inset 0 0 0 1px #111; }
+#graphSvg, #graphleSvg, #editorSvg {
   border-color: var(--line);
   border-radius: 14px;
   background: var(--raised);
   box-shadow: none;
 }
-#graphSvg line, #graphleSvg line, #treedleSvg line, #editorSvg line,
-#graphSvg path.edge, #graphleSvg path.edge, #treedleSvg path.edge { stroke: #9ba1ad; }
+#graphSvg line, #graphleSvg line, #editorSvg line,
+#graphSvg path.edge, #graphleSvg path.edge { stroke: #9ba1ad; }
 #graphSvg line.lit:not(.conflict), #graphSvg path.edge.lit:not(.conflict) { stroke: #3157d5; }
-#graphSvg circle.node, #graphleSvg circle.node, #treedleSvg circle.node, #editorSvg circle.node { stroke: #2e3138; filter: none; }
+#graphSvg circle.node, #graphleSvg circle.node, #editorSvg circle.node { stroke: #2e3138; filter: none; }
 .palette { gap: 8px; }
 .swatch { width: 42px; height: 42px; border-radius: 10px; box-shadow: none; }
 .swatch.active { outline-color: var(--fg); outline-offset: 1px; }
@@ -901,6 +1024,9 @@ body[data-theme="minimal"] #graphSvg line.lit:not(.conflict),
 body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111; }
 
 @media (max-width: 560px) {
+  /* The map is the one board whose cells are worth more than the card's inset,
+     so on a phone it reaches out to the edges. */
+  .grid.map { margin-inline: -10px; padding: 5px; }
   .site-header { margin-bottom: 12px; }
   .view { padding: 15px; border-radius: 15px; }
   .puzzle-heading h2 { font-size: 25px; }
