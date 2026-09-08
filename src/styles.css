@@ -909,10 +909,10 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 
 /* Steiner: a continuous network, with the cost of the ground still visible. */
 body:not([data-theme]) #viewSteiner {
-  --land: #e7eee4;
+  --land: #bce58c;
   --water: #a4c8df;
   --highland: #d5c19b;
-  --road: #375d5b;
+  --road: #626974;
   --town: #243f42;
   --on-road: #fff;
   --cell-portal: #e1dbf3;
