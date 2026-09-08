@@ -553,7 +553,7 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   document.getElementById("steinerShare").onclick = async () => {
     const conn = steinerConnectivity();
-    shareText("HardMode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + (steinerChecked ? " (target " + S.target + ")" : "") : "❌ unsolved") + "\n" + location.href);
+    shareText("HardMode " + shareLabel() + "\nSteiner 🌱: " + (conn.allConnected ? "✅ cost " + currentCost() + (steinerChecked ? " (target " + S.target + ")" : "") : "❌ unsolved") + "\n" + shareLink());
   };
 
   // ============================================================
@@ -1057,7 +1057,7 @@ import { solveSteinerExact } from "./steiner-solver";
       ? "\nCount 🔢: ✅ " + tallySolved.sort((a, z) => a - z).map((k) => k + "-colour").join(", ")
       : "";
     shareText("HardMode " + shareLabel() + "\nColouring 🎨: "
-      + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + bonus + "\n" + location.href);
+      + (ok ? "✅ " + st.usedCount + " colours" : "❌ unsolved") + bonus + "\n" + shareLink());
   };
 
   // ---------- share sheet ----------
@@ -1079,6 +1079,9 @@ import { solveSteinerExact } from "./steiner-solver";
       return false;
     }
   }
+  // The plain page address: never the "#e=..." of a custom level someone
+  // happens to have open, which would send readers to a different puzzle.
+  const shareLink = () => location.href.split("#")[0];
   async function shareText(txt) {
     sharePayload = txt;
     shareBody.textContent = txt;
@@ -1406,7 +1409,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = glGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = glDone === "won" ? glGuesses.length + "/" + GL_TRIES : "X/" + GL_TRIES;
-    shareText("HardMode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("HardMode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score + "\n" + shareLink());
   };
   function saveGraphle() {
     try {
@@ -1649,7 +1652,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = trGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = trDone === "won" ? trGuesses.length + "/" + TR_TRIES : "X/" + TR_TRIES;
-    shareText("HardMode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score);
+    shareText("HardMode · Treedle " + activeDate + "\n" + lines.join("\n") + "\n" + score + "\n" + shareLink());
   };
   function saveTreedle() {
     try {
