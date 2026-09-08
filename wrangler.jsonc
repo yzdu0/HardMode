@@ -3,16 +3,16 @@
   "name": "nphard",
   "compatibility_date": "2026-09-07",
 
-  // Only /api/* reaches this script; static files answer before it runs. It is
-  // written to work with no database attached, so the site deploys and behaves
-  // exactly as before until d1_databases below is filled in.
+  // Only /api/* reaches this script; static files answer before it runs. It
+  // still works with no database attached — the endpoints report themselves
+  // switched off and the page hides its results panels — so a provisioning
+  // failure costs the stats, never the puzzles.
   "main": "worker/index.ts",
 
-  // This is a static site: there is no Worker script and nothing runs on the
-  // server, so `assets` is the whole deployment. Without this file wrangler
-  // treats the first deploy as an unconfigured project, runs its setup wizard,
-  // and tries to wire @cloudflare/vite-plugin into vite.config.ts — which is
-  // for Workers that execute code, and which this project does not need.
+  // The built site. Without this file at all, wrangler treats the first deploy
+  // as an unconfigured project, runs its setup wizard, and tries to wire
+  // @cloudflare/vite-plugin into vite.config.ts — which this project does not
+  // need, and which fails.
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -27,13 +27,19 @@
 
   "observability": {
     "enabled": true
-  }
+  },
 
-  // Daily result stats are off until a database exists. To switch them on:
-  //   npx wrangler d1 create hardmode-stats
-  // then paste the id it prints and redeploy — the table creates itself.
+  // Daily result stats. The binding deliberately carries no database_id:
+  // wrangler provisions a D1 database named below on the first deploy that
+  // needs one, and every later deploy inherits it from the deployed Worker's
+  // own settings rather than creating another. That keeps this working in CI,
+  // where wrangler's write-back of the new id into this file is thrown away
+  // with the checkout.
   //
-  // "d1_databases": [
-  //   { "binding": "STATS", "database_name": "hardmode-stats", "database_id": "PASTE_ID_HERE" }
-  // ]
+  // If provisioning is ever refused, the fix is two commands:
+  //   npx wrangler d1 create hardmode-stats
+  // then paste the printed id in as "database_id" here.
+  "d1_databases": [
+    { "binding": "STATS", "database_name": "hardmode-stats" }
+  ]
 }
