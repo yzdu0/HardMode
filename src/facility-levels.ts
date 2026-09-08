@@ -43,7 +43,7 @@ export const BIOMES: Biome[] = [
   { id: 'snow', name: 'snow', weight: 17, wet: 0.86, relief: 1.4, cap: 0.44,
     blocked: 'open water', ground: 'snow', soft: 'deep snow', hard: 'glacier',
     greenChance: 0.34, greenSoft: 'thawed scrub' },
-  { id: 'volcanic', name: 'volcanic', weight: 6, wet: 0.62, relief: 1.7, cap: 0.5,
+  { id: 'volcanic', name: 'volcanic', weight: 2, wet: 0.62, relief: 1.7, cap: 0.5,
     blocked: 'lava', ground: 'ash', soft: 'ash field', hard: 'lava rock',
     greenChance: 0, greenSoft: 'ash field' },
 ];
@@ -74,7 +74,7 @@ export interface FacilityBoard {
 }
 
 // Bumped whenever the level pool changes, so saved runs never mix generations.
-export const FACILITY_REVISION = 'biomes-2';
+export const FACILITY_REVISION = 'nested-1';
 
 // What it costs to cross a step of ground. Marsh and highland are the only two
 // grades: enough to bend a route without needing a key to read the map.
@@ -353,16 +353,29 @@ const paintCapes: Painter = (rnd, N) => {
   blob(land, N, mid, mid, N * 0.17, rnd);
   const arms = 4 + Math.floor(rnd() * 3);
   const turn = rnd() * Math.PI;
+  let forks = 2;                     // two side arms at most, or it reads as scribble
   for (let i = 0; i < arms; i++) {
     const a = (2 * Math.PI * i) / arms + turn;
     // Each headland leaves the middle and wanders; the sea between two of them
     // is often a shorter way round than the land is.
     let r = mid, c = mid, drift = 0;
-    for (let step = 0, len = Math.round(N * (0.34 + rnd() * 0.3)); step < len; step++) {
+    const len = Math.round(N * (0.34 + rnd() * 0.3));
+    const fork = forks > 0 && rnd() < 0.55 ? Math.round(len * (0.4 + rnd() * 0.3)) : -1;
+    for (let step = 0; step < len; step++) {
       drift += (rnd() - 0.5) * 0.25;
       r += Math.cos(a + drift); c += Math.sin(a + drift);
       if (!inside(N, Math.round(r), Math.round(c))) break;
       blob(land, N, r, c, (0.85 + rnd() * 0.5) * u, rnd);
+      if (step !== fork) continue;
+      // A headland off the headland, and a bay between the two of them.
+      forks--;
+      let br = r, bc = c;
+      const ba = a + drift + (rnd() < 0.5 ? 1 : -1) * (0.7 + rnd() * 0.5);
+      for (let s = 0, sub = Math.round(len * (0.4 + rnd() * 0.25)); s < sub; s++) {
+        br += Math.cos(ba); bc += Math.sin(ba);
+        if (!inside(N, Math.round(br), Math.round(bc))) break;
+        blob(land, N, br, bc, (0.7 + rnd() * 0.4) * u, rnd);
+      }
     }
   }
   return { land, kind: 'capes', water: [0.58, 0.72], relief: [2, 1] };
@@ -502,8 +515,104 @@ function wellSpread(N: number, land: Set<string>): boolean {
   return bottom - top >= reach && right - left >= reach;
 }
 
+// ---------- one level down ----------
+// A coastline that only ever goes land, sea, edge is a silhouette. Now and
+// then a map wants an island in a lake, or a lake bitten out of the middle of
+// a landmass — the same shape, one level in. Sparingly: a pond in every
+// landmass stops reading as a coastline at all.
+
+/** How far each cell of a region sits from the nearest thing that is not it. */
+function depths(N: number, region: Set<string>): Map<string, number> {
+  const depth = new Map<string, number>();
+  const queue: string[] = [];
+  for (const k of region) {
+    // Off the board counts as outside, so an edge cell is never deep.
+    const around = neighbours(N, k);
+    if (around.length < 4 || around.some(nk => !region.has(nk))) { depth.set(k, 1); queue.push(k); }
+  }
+  for (let i = 0; i < queue.length; i++) {
+    const next = depth.get(queue[i])! + 1;
+    for (const nk of neighbours(N, queue[i])) {
+      if (region.has(nk) && !depth.has(nk)) { depth.set(nk, next); queue.push(nk); }
+    }
+  }
+  return depth;
+}
+
+/** The cell of a region farthest from its own edge, and how much room it has. */
+function heart(N: number, region: string[]): { at: Cell; room: number } | null {
+  const depth = depths(N, new Set(region));
+  let best: string | null = null, room = 0;
+  for (const [k, d] of depth) if (d > room) { room = d; best = k; }
+  return best ? { at: parse(best), room } : null;
+}
+
+/** Water the board's edge cannot reach: a lake rather than the open sea. */
+function lakes(N: number, land: Set<string>): string[][] {
+  const water = new Set<string>();
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const k = key([r, c]);
+    if (!land.has(k)) water.add(k);
+  }
+  const open = new Set<string>();
+  const queue: string[] = [];
+  for (let i = 0; i < N; i++) {
+    for (const k of [key([0, i]), key([N - 1, i]), key([i, 0]), key([i, N - 1])]) {
+      if (water.has(k) && !open.has(k)) { open.add(k); queue.push(k); }
+    }
+  }
+  for (let i = 0; i < queue.length; i++) {
+    for (const nk of neighbours(N, queue[i])) {
+      if (water.has(nk) && !open.has(nk)) { open.add(nk); queue.push(nk); }
+    }
+  }
+  const shut = new Set([...water].filter(k => !open.has(k)));
+  return clumps(N, shut);
+}
+
+function fill(land: Set<string>, N: number, cr: number, cc: number, R: number, water: boolean) {
+  for (let r = Math.floor(cr - R); r <= cr + R; r++) {
+    for (let c = Math.floor(cc - R); c <= cc + R; c++) {
+      if (!inside(N, r, c) || Math.hypot(r - cr, c - cc) > R) continue;
+      if (water) land.delete(key([r, c])); else land.add(key([r, c]));
+    }
+  }
+}
+
+function nest(land: Set<string>, N: number, rnd: () => number) {
+  // Radii here are in cells, not twelfths of the board: what makes the shape
+  // read is the ring of water left around the islet, and a ring is one cell
+  // wide whatever the board measures.
+  let done = false;
+  // An islet left standing in the largest lake the family already drew.
+  const [pool] = lakes(N, land).filter(l => l.length >= 10);
+  if (pool) {
+    const middle = heart(N, pool);
+    if (middle && middle.room >= 3) {
+      fill(land, N, middle.at[0], middle.at[1], Math.min(middle.room - 1.6, 1.7), false);
+      done = true;
+    }
+  }
+  // Or — never as well as — a lake bitten out of the middle of a landmass,
+  // which usually leaves an islet of its own: land inside water inside land.
+  // One such feature to a board; two starts to look like a pattern.
+  if (done) return;
+  const inland = [...depths(N, land)].filter(([, d]) => d >= 5).map(([k]) => k);
+  if (!inland.length) return;
+  const [cr, cc] = parse(inland[Math.floor(rnd() * inland.length)]);
+  const R = 2.3 + rnd() * 1.5;
+  fill(land, N, cr, cc, R, true);
+  if (R >= 2.7 && rnd() < 0.8) fill(land, N, cr, cc, R - 1.8, false);
+}
+
 /** Land masses, largest first. */
 export function islands(N: number, land: Set<string>): string[][] {
+  return clumps(N, land);
+}
+
+/** Connected runs of whatever set of cells is handed in, largest first. */
+function clumps(N: number, cells: Set<string>): string[][] {
+  const land = cells;
   const seen = new Set<string>();
   const out: string[][] = [];
   for (const start of land) {
@@ -674,6 +783,8 @@ export function generateFacility(dateKey: string): FacilityBoard {
     const { land, kind, water, relief } = painter(rnd, N);
     // A desert is the same coastline with most of the water taken out of it.
     fitWater(land, N, rnd, Math.max(0.06, water[0] * biome.wet), Math.min(0.85, water[1] * biome.wet));
+    // Some days the coastline folds back on itself. Not most days.
+    if (rnd() < 0.5) nest(land, N, rnd);
     const groups = islands(N, land).filter(g => g.length >= 2);
     if (!groups.length || groups[0].length < N) continue;
     if (!wellSpread(N, land)) continue;

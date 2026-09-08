@@ -173,6 +173,60 @@ test('every family and every biome turns up, in combination', () => {
   assert.ok(new Set(boards.map(b => b.kind)).size >= 20, 'too few worlds');
 });
 
+// Independent flood fill: water the border can reach is open sea, so anything
+// left over is a lake, and land whose every neighbour is lake is an island in
+// one. None of this shares code with the generator.
+function nesting(b: FacilityBoard) {
+  const step = (k: string) => {
+    const [r, c] = k.split(',').map(Number);
+    return [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+      .filter(([nr, nc]) => nr >= 0 && nc >= 0 && nr < b.N && nc < b.N)
+      .map(([nr, nc]) => `${nr},${nc}`);
+  };
+  const water = new Set<string>();
+  for (let r = 0; r < b.N; r++) for (let c = 0; c < b.N; c++) {
+    if (!b.land.has(key([r, c]))) water.add(key([r, c]));
+  }
+  const open = new Set<string>();
+  const queue: string[] = [];
+  for (let i = 0; i < b.N; i++) {
+    for (const k of [key([0, i]), key([b.N - 1, i]), key([i, 0]), key([i, b.N - 1])]) {
+      if (water.has(k) && !open.has(k)) { open.add(k); queue.push(k); }
+    }
+  }
+  for (let i = 0; i < queue.length; i++) {
+    for (const nk of step(queue[i])) if (water.has(nk) && !open.has(nk)) { open.add(nk); queue.push(nk); }
+  }
+  const lake = new Set([...water].filter(k => !open.has(k)));
+  const islet = islands(b.N, b.land).some(g =>
+    g.some(k => step(k).some(nk => lake.has(nk))) &&
+    g.every(k => step(k).every(nk => b.land.has(nk) || lake.has(nk))));
+  return { lake: lake.size > 0, islet };
+}
+
+test('the coastline folds back on itself now and then, and no more than that', () => {
+  const boards = days(200).map(generateFacility);
+  const nested = boards.filter(b => nesting(b).islet).length;
+  // An island in a lake is a treat, not a motif: often enough to turn up in a
+  // week of play, rare enough that two in a row is a coincidence.
+  assert.ok(nested >= 8, `only ${nested} of 200 boards have an island inside a lake`);
+  assert.ok(nested <= 70, `${nested} of 200 boards do — the nesting has taken over`);
+
+  // Every islet has to be somewhere a depot can actually be useful.
+  for (const b of boards) {
+    for (const t of b.towns) assert.ok(b.land.has(key(t)), 'a town went into the water');
+  }
+});
+
+test('temperate is the world; the rest are weather', () => {
+  const seen = days(300).map(d => generateFacility(d).biome.id);
+  const share = (id: string) => seen.filter(x => x === id).length / seen.length;
+  assert.ok(share('temperate') > 0.5, `temperate is only ${(share('temperate') * 100).toFixed(0)}%`);
+  assert.ok(share('volcanic') > 0, 'volcanic never turns up at all');
+  assert.ok(share('volcanic') < 0.06, `volcanic is ${(share('volcanic') * 100).toFixed(0)}% of days`);
+  for (const biome of BIOMES) assert.ok(share(biome.id) > 0, `${biome.id} never turns up`);
+});
+
 test('a biome names every kind of ground it puts on the board', () => {
   for (const biome of BIOMES) {
     for (const word of [biome.blocked, biome.ground, biome.soft, biome.hard]) {
