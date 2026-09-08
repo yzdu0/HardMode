@@ -56,9 +56,13 @@ export function readResult(body: unknown, today: string): { row?: ResultRow; why
   if (typeof game !== "string" || !(GAMES as readonly string[]).includes(game)) return { why: "bad game" };
   if (typeof player !== "string" || !PLAYER.test(player)) return { why: "bad player" };
   if (typeof bucket !== "string" || !BUCKETS[game as Game].includes(bucket)) return { why: "bad bucket" };
-  // Only days the archive actually offers: no future dates, nothing ancient.
+  // Only days the archive actually offers, give or take the date line. A board
+  // is picked by the player's own calendar while the server keeps UTC, so
+  // between the two midnights anyone east of UTC is a day ahead of the server
+  // and anyone west of it a day behind. Both are playing today where they
+  // stand, so a day either side of the window still counts.
   const age = dayNumber(today) - dayNumber(day);
-  if (!Number.isFinite(age) || age < 0 || age >= ARCHIVE_DAYS) return { why: "day out of range" };
+  if (!Number.isFinite(age) || age < -1 || age > ARCHIVE_DAYS) return { why: "day out of range" };
   return { row: { day, game: game as Game, player, bucket } };
 }
 

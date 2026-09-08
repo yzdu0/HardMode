@@ -52,8 +52,19 @@ test('only days the archive still offers are accepted', () => {
     new Date(Date.parse(TODAY + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
   assert(readResult(ok({ day: shift(0) }), TODAY).row, 'today');
   assert(readResult(ok({ day: shift(-89) }), TODAY).row, 'the oldest archive day');
-  assert.equal(readResult(ok({ day: shift(1) }), TODAY).row, undefined, 'tomorrow');
-  assert.equal(readResult(ok({ day: shift(-90) }), TODAY).row, undefined, 'fallen out of the archive');
+  assert.equal(readResult(ok({ day: shift(2) }), TODAY).row, undefined, 'the day after tomorrow');
+  assert.equal(readResult(ok({ day: shift(-91) }), TODAY).row, undefined, 'fallen out of the archive');
+});
+
+test('a player east of the date line is still playing today', () => {
+  // The board a player is given comes from their own calendar, and the server
+  // keeps time in UTC. Between UTC midnight and their own, anyone ahead of UTC
+  // is on a date the server has not reached — and anyone behind it is on one
+  // the server has already left. Both are today where they are standing.
+  const shift = (days: number) =>
+    new Date(Date.parse(TODAY + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
+  assert(readResult(ok({ day: shift(1) }), TODAY).row, 'a day ahead of UTC, as in New Zealand');
+  assert(readResult(ok({ day: shift(-90) }), TODAY).row, 'a day behind UTC, as in Hawaii');
 });
 
 test('the tally covers every game and ignores rows it cannot place', () => {
