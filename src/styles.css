@@ -41,7 +41,7 @@
   --grout: #a9bb98;
   --seam: #9333ea;
   --on-road: #313b44;
-  --road: #b0bcc7;
+  --road: #c3cdd6;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
@@ -522,7 +522,7 @@ body[data-theme="dark"] {
   --grout: #0c1017;
   --seam: #c39bff;
   --on-road: #10161c;
-  --road: #aab7c4;
+  --road: #c2ced9;
   --cell-portal: #123a47;
   --cell-portal-fg: #8fdcec;
 
@@ -597,7 +597,7 @@ body[data-theme="moss"] {
   --grout: #b3c3a1;
   --seam: #8a3fc0;
   --on-road: #2c3730;
-  --road: #b0bcb2;
+  --road: #c5cfc6;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
