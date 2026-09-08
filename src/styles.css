@@ -40,6 +40,7 @@
   --water: #5fa5db;
   --grout: #a9bb98;
   --seam: #9333ea;
+  --road-free: #f9d89c;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
@@ -518,6 +519,7 @@ body[data-theme="dark"] {
   --water: #1c4a7d;
   --grout: #0c1017;
   --seam: #c39bff;
+  --road-free: #5b4416;
   --cell-portal: #123a47;
   --cell-portal-fg: #8fdcec;
 
@@ -591,6 +593,7 @@ body[data-theme="moss"] {
   --water: #86b3c6;
   --grout: #b3c3a1;
   --seam: #8a3fc0;
+  --road-free: #eed7a2;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
@@ -655,6 +658,7 @@ body[data-theme="terminal"] {
   --water: #02110c;
   --grout: #020705;
   --seam: #8bf5bd;
+  --road-free: #11543b;
   --cell-portal: #06333f;
   --cell-portal-fg: #7fd8ee;
 
@@ -720,6 +724,7 @@ body[data-theme="minimal"] {
   --water: #111;
   --grout: #111;
   --seam: #111;
+  --road-free: #c4c4c4;
   --cell-portal: #fff;
   --cell-portal-fg: #111;
 
@@ -855,7 +860,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .cell.free { background: var(--land); color: var(--land-fg); }
 .cell.wall { background: var(--water); color: var(--water); }
 .cell.term, .cell.term.connected, .cell.term.unconnected { background: var(--town); color: var(--town-fg); }
-.cell.bonus { background: var(--coast); color: var(--fg); }
+/* A + square is road that is already there. It wears the road's own colour,
+   kept pale so that laying your own over it still reads as a change. */
+.cell.bonus { background: var(--road-free); color: var(--fg); }
 .cell.penalty { background: var(--highland); color: var(--fg); }
 .cell.portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 /* The road you lay, drawn over whatever it crosses — exactly as the map draws
@@ -1043,7 +1050,7 @@ body[data-theme="dark"] [data-biome="volcanic"] {
   font-weight: 800;
 }
 .k-sea { background: var(--sea); }
-.k-road { background: var(--coast); color: var(--fg); }
+.k-road { background: var(--road-free); color: var(--fg); }
 .k-water { background: var(--water); }
 .k-portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 .k-land { background: var(--land); }
