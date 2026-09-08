@@ -804,6 +804,26 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .btn.primary, .btn.active, .tool.active { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .btn:disabled { cursor: not-allowed; }
 .row { gap: 8px; }
+/* Daily result histogram, shown once a puzzle is finished. */
+.results { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+.results.hidden { display: none; }
+.results-head { display: block; margin-bottom: 8px; font-size: 13px; }
+.results-bars { display: grid; gap: 4px; font-size: 12px; }
+.results-row { display: grid; grid-template-columns: 2.2em 1fr; gap: 8px; align-items: center; }
+.results-row span { color: var(--muted); font-weight: 700; text-align: right; }
+.results-row i {
+  display: block;
+  min-width: 1.9em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--line);
+  color: var(--fg);
+  font-style: normal;
+  font-weight: 700;
+  text-align: right;
+}
+.results-row.mine i { background: var(--accent); color: var(--on-accent); }
+.privacy-note { max-width: 46em; margin: 10px auto 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
 .how { margin-top: 16px; color: var(--muted); font-size: 13px; }
 .how summary { min-height: 40px; display: flex; align-items: center; font-weight: 750; }
 .how p { margin: 4px 0 0; line-height: 1.55; }

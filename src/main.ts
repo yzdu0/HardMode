@@ -188,6 +188,83 @@ import { solveSteinerExact } from "./steiner-solver";
     return tap;
   }
 
+  // ---------- daily result stats ----------
+  // Finishing a puzzle posts one anonymous line to /api/result and the day's
+  // histogram comes back from /api/stats. Everything here degrades to silence:
+  // no endpoint, no database, or no network and the panels simply stay hidden,
+  // because a puzzle must never depend on a server being up.
+  const RESULT_LABELS = {
+    steiner: { head: "cost over target", order: ["0", "1", "2", "3+"], name: { "0": "=", "1": "+1", "2": "+2", "3+": "+3" } },
+    color: { head: "stars", order: ["3", "2", "1"], name: { "3": "★★★", "2": "★★", "1": "★" } },
+    graphle: { head: "guesses used", order: ["1", "2", "3", "4", "5", "6", "X"], name: null },
+    treedle: { head: "guesses used", order: ["1", "2", "3", "4", "5", "6", "X"], name: null },
+  };
+  let statsOn = true;                       // flipped off by the first refusal
+  let statsCache = null;                    // { date, games }
+  const myBucket = {};                      // game -> the bucket this device sent
+  function playerId() {
+    try {
+      let id = localStorage.getItem("hm-player");
+      if (!id || !/^[a-z0-9]{8,40}$/.test(id)) {
+        id = Array.from({ length: 16 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+        localStorage.setItem("hm-player", id);
+      }
+      return id;
+    } catch (_) { return null; }
+  }
+  async function loadStats(date) {
+    if (!statsOn) return null;
+    try {
+      // Always ask: the answer changes the moment anyone finishes, and the one
+      // reader who most needs it fresh is the player who just did.
+      const res = await fetch("/api/stats?date=" + encodeURIComponent(date), { cache: "no-store" });
+      if (!res.ok) { statsOn = false; return null; }
+      const data = await res.json();
+      if (!data || data.enabled === false) { statsOn = false; return null; }
+      statsCache = data;
+      return data;
+    } catch (_) { statsOn = false; return null; }
+  }
+  function drawResults(game) {
+    const box = document.getElementById(game + "Results");
+    if (!box) return;
+    const spec = RESULT_LABELS[game];
+    const slot = statsCache && statsCache.date === activeDate && statsCache.games ? statsCache.games[game] : null;
+    if (!statsOn || !slot || !slot.total) { box.classList.add("hidden"); return; }
+    const most = Math.max(...spec.order.map((b) => slot.buckets[b] || 0), 1);
+    box.querySelector(".results-head").textContent =
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today · " + spec.head;
+    box.querySelector(".results-bars").innerHTML = spec.order.map((b) => {
+      const n = slot.buckets[b] || 0;
+      const label = spec.name ? spec.name[b] : b;
+      return '<div class="results-row' + (myBucket[game] === b ? " mine" : "") + '"><span>' +
+        label + '</span><i style="width:' + Math.max(6, Math.round((n / most) * 100)) + '%">' + n + "</i></div>";
+    }).join("");
+    box.classList.remove("hidden");
+    const note = document.getElementById("privacyNote");
+    if (note) note.hidden = false;
+  }
+  function drawAllResults() { for (const g of GAMES) drawResults(g); }
+  // `fresh` is false when a solved state is merely being restored from storage:
+  // only a puzzle finished here and now is worth reporting.
+  async function reportResult(game, bucket, fresh) {
+    myBucket[game] = bucket;
+    if (!statsOn) return;
+    const player = fresh ? playerId() : null;
+    if (player) {
+      try {
+        await fetch("/api/result", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ day: activeDate, game, bucket, player }),
+        });
+      } catch (_) { /* the puzzle is already won; the tally is not worth an error */ }
+    }
+    await loadStats(activeDate);
+    drawAllResults();
+  }
+  const steinerBucket = (over) => over <= 0 ? "0" : over === 1 ? "1" : over === 2 ? "2" : "3+";
+
   // ---------- compact inline help ----------
   function bindHelp(buttonId: string, boxId: string) {
     const button = document.getElementById(buttonId);
@@ -449,6 +526,7 @@ import { solveSteinerExact } from "./steiner-solver";
       steinerMsg.className = "msg good";
       saveSteiner(true);
       updateStreak(); renderArchive();
+      reportResult("steiner", steinerBucket(cost - S.target), verbose);
       return true;
     } else {
       if (verbose) {
@@ -941,6 +1019,7 @@ import { solveSteinerExact } from "./steiner-solver";
     colorMsg.className = "msg good";
     saveColor(true);
     updateStreak(); renderArchive();
+    reportResult("color", st.usedCount <= G.chi ? "3" : st.usedCount === G.chi + 1 ? "2" : "1", verbose);
     return true;
   }
   function saveColor(solved) {
@@ -1310,12 +1389,14 @@ import { solveSteinerExact } from "./steiner-solver";
       graphleMsg.textContent = "Solved in " + glGuesses.length + "/" + GL_TRIES + "! 🎉";
       graphleMsg.className = "msg good";
       updateStreak(); renderArchive();
+      reportResult("graphle", String(glGuesses.length), true);
     } else if (glGuesses.length >= GL_TRIES) {
       glDone = "lost";
       saveGraphle();
       graphleMsg.textContent = "Out of tries — the answer is revealed below.";
       graphleMsg.className = "msg bad";
       glRevealTarget();
+      reportResult("graphle", "X", true);
     } else {
       saveGraphle();
     }
@@ -1551,12 +1632,14 @@ import { solveSteinerExact } from "./steiner-solver";
       treedleMsg.textContent = "Solved in " + trGuesses.length + "/" + TR_TRIES + "! 🎉";
       treedleMsg.className = "msg good";
       updateStreak(); renderArchive();
+      reportResult("treedle", String(trGuesses.length), true);
     } else if (trGuesses.length >= TR_TRIES) {
       trDone = "lost";
       saveTreedle();
       treedleMsg.textContent = "Out of tries — the answer is revealed below.";
       treedleMsg.className = "msg bad";
       trRevealTarget();
+      reportResult("treedle", "X", true);
     } else {
       saveTreedle();
     }
@@ -1693,6 +1776,10 @@ import { solveSteinerExact } from "./steiner-solver";
     // rebuild treedle
     rebuildTreedle();
     renderArchive();
+    for (const g of GAMES) delete myBucket[g];
+    statsCache = null;
+    drawAllResults();
+    loadStats(activeDate).then(drawAllResults);
   }
   dateBtn.onclick = () => archiveEl.classList.toggle("hidden");
   prevBtn.onclick = () => setActiveDate(addDays(activeDate, -1));
@@ -2331,6 +2418,8 @@ import { solveSteinerExact } from "./steiner-solver";
     const d = JSON.parse(localStorage.getItem(dailyStoreKey(activeDate, "steiner")) || "null");
     if (d && d.solved) { const c = steinerConnectivity(); if (c.allConnected) checkSteiner(false); }
   } catch (_) {}
+  // Pull today's numbers in the background; the page is already usable.
+  loadStats(activeDate).then(drawAllResults);
   buildEdSteiner(); buildEdColor();
   renderEdLib("steiner"); renderEdLib("color");
   setEdType("steiner");

@@ -72,6 +72,10 @@
           <button id="steinerShare" class="btn">Share</button>
         </div>
         <div id="steinerMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="steinerResults" class="results hidden" aria-live="polite">
+          <strong class="results-head"></strong>
+          <div class="results-bars"></div>
+        </div>
         <button id="steinerReveal" class="btn" hidden aria-pressed="false">Show optimal answer</button>
       </section>
 
@@ -107,6 +111,10 @@
           <button id="colorShare" class="btn">Share</button>
         </div>
         <div id="colorMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="colorResults" class="results hidden" aria-live="polite">
+          <strong class="results-head"></strong>
+          <div class="results-bars"></div>
+        </div>
         <div id="colorTally" class="tally">
           <p class="tally-ask">Bonus — how many different ways can this graph be coloured with <b id="colorTallyK">3</b> colours?</p>
           <p class="tally-note">Only the grouping counts: two colourings that put the same dots together are one answer, however the colours are swapped. Every colour has to be used, so a grouping that leaves one spare does not count.</p>
@@ -158,6 +166,10 @@
         </div>
         <div id="graphleHist" class="ghist"></div>
         <div id="graphleMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="graphleResults" class="results hidden" aria-live="polite">
+          <strong class="results-head"></strong>
+          <div class="results-bars"></div>
+        </div>
       </section>
 
       <!-- TREEDLE -->
@@ -185,6 +197,10 @@
         </div>
         <div id="treedleHist" class="ghist"></div>
         <div id="treedleMsg" class="msg" role="status" aria-live="polite"></div>
+        <div id="treedleResults" class="results hidden" aria-live="polite">
+          <strong class="results-head"></strong>
+          <div class="results-bars"></div>
+        </div>
       </section>
 
       <!-- EDITOR -->
@@ -244,6 +260,7 @@
         <button id="themeMoss" class="tbtn">🌿 Moss</button>
         <button id="themeTerminal" class="tbtn">▮ Terminal</button>
       </div>
+      <p class="privacy-note" id="privacyNote" hidden>Finishing a puzzle sends one anonymous line — the date, which puzzle and your score — so the day's results can be counted. No account, no personal data.</p>
     </footer>
   </div>
   <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
