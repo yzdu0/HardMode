@@ -101,7 +101,7 @@ import { solveSteinerExact } from "./steiner-solver";
     try {
       const d = JSON.parse(localStorage.getItem(dailyStoreKey(key, game)) || "null");
       // Keep earned streaks from the original boards without restoring old moves.
-      const legacySolved = game === "steiner" && ["", "-challenge-1", "-challenge-2", "-challenge-3"].some(suffix => {
+      const legacySolved = game === "steiner" && ["", "-challenge-1", "-challenge-2", "-challenge-3", "-challenge-4"].some(suffix => {
         try { return !!JSON.parse(localStorage.getItem("hm-" + key + "-steiner" + suffix) || "null")?.solved; }
         catch (_) { return false; }
       });
@@ -230,7 +230,10 @@ import { solveSteinerExact } from "./steiner-solver";
     cellEls.clear();
     gridEl.style.gridTemplateColumns = "repeat(" + GN + ", 1fr)";
     gridEl.classList.toggle("wraps", Boolean(S.wrap));
-    gridEl.setAttribute("aria-label", S.wrap
+    gridEl.classList.toggle("wraps-vertical", Boolean(S.wrapVertical));
+    gridEl.setAttribute("aria-label", S.wrapVertical
+      ? "Steiner grid, wrapping: left/right and top/bottom edges are joined"
+      : S.wrap
       ? "Steiner grid, wrapping: the left and right edges are joined"
       : "Steiner grid");
     for (let r = 0; r < GN; r++) for (let c = 0; c < GN; c++) {
@@ -254,7 +257,7 @@ import { solveSteinerExact } from "./steiner-solver";
       const cellKind = S.termSet.has(k) ? "seed" : S.walls.has(k) ? "rock" :
         sp?.type === "bonus" ? "free spore" : sp?.type === "penalty" ? "thorn, cost three" :
         sp?.type === "portal" ? "portal " + sp.pid : "empty cell";
-      const seam = S.wrap && (c === 0 || c === GN - 1) ? ", on the wrapping edge" : "";
+      const seam = (S.wrap && (c === 0 || c === GN - 1)) || (S.wrapVertical && (r === 0 || r === GN - 1)) ? ", on the wrapping edge" : "";
       d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind + seam);
       gridEl.appendChild(d);
       cellEls.set(k, d);
@@ -276,7 +279,7 @@ import { solveSteinerExact } from "./steiner-solver";
       const [r, c] = k.split(",").map(Number);
       if (jump.has(k)) { const j = jump.get(k); if (!seen.has(j)) { seen.add(j); q.push(j); } }
       for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-        const nr = r + dr;
+        const nr = S.wrapVertical && dc === 0 ? (r + dr + GN) % GN : r + dr;
         // On a wrapping board the row's two ends are neighbours.
         const nc = S.wrap && dr === 0 ? (c + dc + GN) % GN : c + dc;
         if (nr < 0 || nc < 0 || nr >= GN || nc >= GN) continue;
@@ -301,7 +304,7 @@ import { solveSteinerExact } from "./steiner-solver";
     });
     const cost = currentCost();
     const status = conn.allConnected ? " · <b>CONNECTED ✓</b>" : " · " + conn.reachedCount + "/" + S.terms.length + " linked";
-    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Cost <b>" + cost + "</b> · Target " + S.target + status + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrap ? " ↔ wraps" : "") + "</span>" : "");
+    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Cost <b>" + cost + "</b> · Target " + S.target + status + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrapVertical ? " ↔ ↕ wraps" : S.wrap ? " ↔ wraps" : "") + "</span>" : "");
   }
   let dragMode = null, isDown = false;
   function toggleCell(r, c, mode) {
@@ -340,7 +343,7 @@ import { solveSteinerExact } from "./steiner-solver";
     if (moves[e.key]) {
       e.preventDefault();
       const [dr, dc] = moves[e.key];
-      const nr = Math.max(0, Math.min(GN - 1, r + dr));
+      const nr = S.wrapVertical && dc === 0 ? (r + dr + GN) % GN : Math.max(0, Math.min(GN - 1, r + dr));
       const nc = S.wrap && dr === 0 ? (c + dc + GN) % GN : Math.max(0, Math.min(GN - 1, c + dc));
       const next = cellEls.get(skey(nr, nc));
       if (next) { t.tabIndex = -1; next.tabIndex = 0; next.focus(); }

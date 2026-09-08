@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'vite';
 import {
-  generateSteiner, fallbackSteiner, greedyNetworkCost, spanningNetworkCost, boardGraph,
+  generateSteiner, fallbackSteiner, greedyNetworkCost, spanningNetworkCost, boardGraph, topologyForDate,
   STEINER_FAMILIES, STEINER_MIN_GAP,
 } from '../src/steiner-levels.ts';
 import type { SteinerBoard } from '../src/steiner-levels.ts';
@@ -10,12 +10,12 @@ import { solveSteinerExact } from '../src/steiner-solver.ts';
 
 const fingerprint = (b: SteinerBoard) => JSON.stringify({
   N: b.N, terms: b.terms, walls: [...b.walls], special: [...b.special],
-  portals: b.portalPairs, wrap: b.wrap, target: b.target, kind: b.kind,
+  portals: b.portalPairs, wrap: b.wrap, wrapVertical: b.wrapVertical, target: b.target, kind: b.kind,
 });
 
 // Independent exhaustive enumeration: no shared graph builder or solver logic.
 function bruteForce(N: number, terms: number[][], walls: Set<string>,
-    special: Map<string, { type: string }>, portals: Record<string, number[][]>, wrap?: boolean) {
+    special: Map<string, { type: string }>, portals: Record<string, number[][]>, wrap?: boolean, wrapVertical?: boolean) {
   const keys = terms.map(p => p.join(','));
   const optional: string[] = [];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -37,7 +37,8 @@ function bruteForce(N: number, terms: number[][], walls: Set<string>,
     for (const key of queue) {
       const [r, c] = key.split(',').map(Number);
       const sideways = wrap ? [[r, (c + 1) % N], [r, (c + N - 1) % N]] : [[r, c + 1], [r, c - 1]];
-      const neighbors = [[r + 1, c], [r - 1, c], ...sideways].map(p => p.join(','));
+      const vertical = wrapVertical ? [[(r + 1) % N, c], [(r + N - 1) % N, c]] : [[r + 1, c], [r - 1, c]];
+      const neighbors = [...vertical, ...sideways].map(p => p.join(','));
       for (const pair of Object.values(portals)) {
         const [a, b] = pair.map(p => p.join(','));
         if (key === a) neighbors.push(b);
@@ -60,6 +61,7 @@ test('exact target matches exhaustive search with walls, free cells, thorns and 
     const special = new Map<string, { type: string }>();
     const portals: Record<string, number[][]> = seed % 3 === 0 ? { A: [[1, 0], [2, 1]] } : {};
     const wrap = seed % 5 < 2;
+    const wrapVertical = wrap && seed % 2 === 0;
     let state = seed + 1;
     const roll = () => { state = Math.imul(state, 1664525) + 1013904223; return (state >>> 16) % 4; };
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -72,13 +74,43 @@ test('exact target matches exhaustive search with walls, free cells, thorns and 
       if (value === 2) special.set(key, { type: 'penalty' });
     }
     for (const pair of Object.values(portals)) for (const p of pair) special.set(p.join(','), { type: 'portal' });
-    assert.equal(solveSteinerExact(N, terms, walls, special, portals, wrap),
-      bruteForce(N, terms, walls, special, portals, wrap), 'case ' + seed);
+    assert.equal(solveSteinerExact(N, terms, walls, special, portals, wrap, wrapVertical),
+      bruteForce(N, terms, walls, special, portals, wrap, wrapVertical), 'case ' + seed);
   }
 });
 
 const naiveGap = (b: SteinerBoard) =>
   Math.min(greedyNetworkCost(b), spanningNetworkCost(b)) - b.target;
+
+test('daily topology has a 40% horizontal chance and a conditional 50% vertical chance', () => {
+  let horizontal = 0, vertical = 0;
+  for (let day = 0; day < 10000; day++) {
+    const date = new Date(Date.UTC(2026, 0, 1 + day)).toISOString().slice(0, 10);
+    const topology = topologyForDate(date);
+    assert.deepEqual(topologyForDate(date), topology);
+    assert(!topology.wrapVertical || topology.wrap);
+    horizontal += Number(topology.wrap);
+    vertical += Number(topology.wrapVertical);
+  }
+  assert(horizontal > 3800 && horizontal < 4200);
+  assert(vertical / horizontal > 0.47 && vertical / horizontal < 0.53);
+});
+
+test('vertical wrap joins top and bottom in the same column', () => {
+  const terms = [[0, 1], [2, 1]];
+  assert.equal(solveSteinerExact(3, terms, new Set(), new Map(), {}, true, true), 0);
+  assert.equal(solveSteinerExact(3, terms, new Set(), new Map(), {}, true, false), 1);
+  const b: SteinerBoard = {
+    N: 3, terms: [[0, 0], [2, 2]], termSet: new Set(['0,0', '2,2']),
+    walls: new Set(['2,1']), special: new Map(), portalPairs: {},
+    wrap: true, wrapVertical: true, target: 0, kind: 'test',
+  };
+  const graph = boardGraph(b);
+  const index = (r: number, c: number) => graph.cells.findIndex(p => p[0] === r && p[1] === c);
+  assert(graph.adjacent[index(0, 0)].includes(index(2, 0)));
+  assert(!graph.adjacent[index(0, 0)].includes(index(2, 2)), 'no diagonal seam jump');
+  assert(!graph.adjacent[index(0, 1)].includes(-1), 'no edge into a wall');
+});
 
 test('wrap joins only left/right neighbors and never crosses a wall', () => {
   const horizontal = [[1, 0], [1, 2]];
@@ -87,7 +119,7 @@ test('wrap joins only left/right neighbors and never crosses a wall', () => {
   assert.equal(solveSteinerExact(3, [[0, 1], [2, 1]], new Set(), new Map(), {}, true), 1);
   const b: SteinerBoard = {
     N: 3, terms: [[0, 0], [2, 2]], termSet: new Set(['0,0', '2,2']),
-    walls: new Set(['1,2']), special: new Map(), portalPairs: {}, wrap: true, target: 0, kind: 'test',
+    walls: new Set(['1,2']), special: new Map(), portalPairs: {}, wrap: true, wrapVertical: false, target: 0, kind: 'test',
   };
   const graph = boardGraph(b);
   const index = (r: number, c: number) => graph.cells.findIndex(p => p[0] === r && p[1] === c);
@@ -109,7 +141,7 @@ function assertChallenge(b: SteinerBoard) {
   assert(b.terms.length >= 4, 'every level needs at least four seeds');
   assert.equal(b.termSet.size, b.terms.length, 'seeds must not overlap');
   assert(STEINER_FAMILIES.includes(b.kind), 'unknown family ' + b.kind);
-  assert(Number.isFinite(b.target) && b.target >= 28, 'target ' + b.target);
+  assert(Number.isFinite(b.target) && b.target >= (b.wrapVertical ? 24 : 28), 'target ' + b.target);
   for (const [r, c] of b.terms) {
     assert(r >= 0 && c >= 0 && r < b.N && c < b.N);
     assert(!b.walls.has([r, c].join(',')));
@@ -124,13 +156,14 @@ function assertChallenge(b: SteinerBoard) {
   // has to still be the optimum for the board it finally hands over.
   assert.equal(typeof b.wrap, 'boolean');
   if (b.wrap) assert(seamIsLive(b), 'a wrapping board needs at least one open seam row');
-  assert.equal(b.target, solveSteinerExact(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap));
+  assert.equal(b.target, solveSteinerExact(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical));
   assert(naiveGap(b) >= STEINER_MIN_GAP, 'every board must meet its difficulty threshold');
 }
 
 test('the safety fallback is itself a verified challenge', () => {
-  for (const wrap of [false, true]) {
-    const b = fallbackSteiner(solveSteinerExact, wrap);
+  for (const [wrap, wrapVertical] of [[false, false], [true, false], [true, true]]) {
+    const b = fallbackSteiner(solveSteinerExact, wrap, wrapVertical);
+    assert.equal(b.wrapVertical, wrapVertical);
     assertChallenge(b);
     assert.equal(b.wrap, wrap, 'fallback must preserve the scheduled topology');
     assert(naiveGap(b) >= STEINER_MIN_GAP);
@@ -140,7 +173,7 @@ test('the safety fallback is itself a verified challenge', () => {
 test('all 90 archive days are valid, challenging and varied', () => {
   const kinds = new Map<string, number>(), unique = new Set<string>();
   const gaps: number[] = [], seeds = new Set<number>(), sizes = new Set<number>();
-  let wrapped = 0;
+  let wrapped = 0, vertical = 0;
   let maxMs = 0;
   for (let day = 0; day < 90; day++) {
     const date = new Date(Date.UTC(2026, 8, 8 - day)).toISOString().slice(0, 10);
@@ -153,14 +186,17 @@ test('all 90 archive days are valid, challenging and varied', () => {
     gaps.push(naiveGap(b));
     seeds.add(b.terms.length); sizes.add(b.N);
     if (b.wrap) wrapped++;
+    if (b.wrapVertical) vertical++;
+    assert.deepEqual({ wrap: b.wrap, wrapVertical: b.wrapVertical }, topologyForDate(date));
     assert.equal(fingerprint(generateSteiner(date, solveSteinerExact)), fingerprint(b));
   }
-  console.log({ kinds: [...kinds], unique: unique.size, wrapped, minGap: Math.min(...gaps), maxMs });
+  console.log({ kinds: [...kinds], unique: unique.size, wrapped, vertical, minGap: Math.min(...gaps), maxMs });
   assert.equal(kinds.size, STEINER_FAMILIES.length, 'every family should show up in 90 days');
   assert.equal(unique.size, 90, 'no day may reuse another day\'s board');
   assert(seeds.size >= 3 && Math.min(...seeds) >= 4, 'seed counts should vary and never drop below four');
   assert.equal(sizes.size, 2, 'both board sizes should appear');
-  assert.equal(wrapped, 45, 'exactly half of the archive should wrap');
+  assert(wrapped > 15 && wrapped < 55, 'sample should include flat and wrapping boards');
+  assert(vertical > 3 && vertical < wrapped, 'sample should include both wrapping topologies');
   // Both naive strategies must overspend on every daily board.
   const hard = gaps.filter(gap => gap >= STEINER_MIN_GAP).length;
   assert.equal(hard, 90, 'every day must beat both naive strategies by ' + STEINER_MIN_GAP);

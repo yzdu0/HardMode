@@ -3,7 +3,7 @@
 // Portal pairs are zero-cost edges between their endpoints, and a wrapping
 // board joins each row's two ends the same way. Returns the true minimum
 // network cost, or NaN if the terminals are disconnected.
-export function solveSteinerExact(N: number, terms: number[][], walls: Set<string>, special: Map<string, { type: string }>, portalPairs: Record<string, number[][]>, wrap?: boolean) {
+export function solveSteinerExact(N: number, terms: number[][], walls: Set<string>, special: Map<string, { type: string }>, portalPairs: Record<string, number[][]>, wrap?: boolean, wrapVertical?: boolean) {
   const key = (r, c) => r + "," + c;
   const idx = new Map<string, number>(), cells: [number, number][] = [];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
@@ -34,6 +34,10 @@ export function solveSteinerExact(N: number, terms: number[][], walls: Set<strin
       adj[idx.get(ka)].push(idx.get(kb));
       adj[idx.get(kb)].push(idx.get(ka));
     }
+  }
+  if (wrapVertical) for (let c = 0; c < N; c++) {
+    const a = idx.get(key(0, c)), b = idx.get(key(N - 1, c));
+    if (a !== undefined && b !== undefined) { adj[a].push(b); adj[b].push(a); }
   }
   for (const pid of Object.keys(portalPairs || {})) {
     const [a, b] = portalPairs[pid];

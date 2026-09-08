@@ -223,6 +223,15 @@ header h1 span { color: var(--muted); font-weight: 500; }
 }
 .grid.wraps::before { content: "↔ wraps"; left: 0; }
 .grid.wraps::after { content: "wraps ↔"; right: 0; }
+.grid.wraps-vertical {
+  border-top: 3px dashed #7fb069;
+  border-bottom: 3px dashed #7fb069;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.grid.wraps-vertical::before { content: "↔ + ↕ wraps"; }
+.grid.wraps-vertical::after { content: none; }
+body[data-theme="minimal"] .grid.wraps-vertical { border-top-color: #111; border-bottom-color: #111; }
 body[data-theme="minimal"] .grid.wraps { border-left-color: #111; border-right-color: #111; }
 body[data-theme="minimal"] .grid.wraps::before,
 body[data-theme="minimal"] .grid.wraps::after { color: #111; }

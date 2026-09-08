@@ -7,14 +7,14 @@ export interface SteinerBoard {
   walls: Set<string>;
   special: Map<string, Special>;
   portalPairs: Record<string, Cell[]>;
-  // A wrapping board is a cylinder: step off the left edge and you arrive on
-  // the right of the same row. Only ever left-to-right, never top-to-bottom.
+  // Horizontal wrapping is required before vertical wrapping can be enabled.
   wrap: boolean;
+  wrapVertical: boolean;
   kind: string;
   target: number;
 }
 // Bumped whenever the level pool changes, so saved runs never mix generations.
-export const STEINER_REVISION = 'challenge-4';
+export const STEINER_REVISION = 'challenge-5';
 const key = ([r, c]: Cell) => `${r},${c}`;
 const directions: Cell[] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -45,6 +45,10 @@ export function boardGraph(b: SteinerBoard) {
     .filter((i): i is number => i !== undefined));
   if (b.wrap) for (let r = 0; r < b.N; r++) {
     const u = indices.get(key([r, 0])), v = indices.get(key([r, b.N - 1]));
+    if (u !== undefined && v !== undefined) { adjacent[u].push(v); adjacent[v].push(u); }
+  }
+  if (b.wrapVertical) for (let c = 0; c < b.N; c++) {
+    const u = indices.get(key([0, c])), v = indices.get(key([b.N - 1, c]));
     if (u !== undefined && v !== undefined) { adjacent[u].push(v); adjacent[v].push(u); }
   }
   for (const [a, z] of Object.values(b.portalPairs)) {
@@ -147,7 +151,7 @@ export function spanningNetworkCost(b: SteinerBoard): number {
 
 export const naiveNetworkCost = (b: SteinerBoard) => Math.min(greedyNetworkCost(b), spanningNetworkCost(b));
 
-export type ExactSolver = (N: number, terms: Cell[], walls: Set<string>, special: Map<string, Special>, portals: Record<string, Cell[]>, wrap?: boolean) => number;
+export type ExactSolver = (N: number, terms: Cell[], walls: Set<string>, special: Map<string, Special>, portals: Record<string, Cell[]>, wrap?: boolean, wrapVertical?: boolean) => number;
 
 // ---------------------------------------------------------------------------
 // Board drafting helpers shared by every family.
@@ -475,7 +479,7 @@ export const STEINER_FAMILIES = FAMILIES.map(family => family.kind);
 // A board plus the stones the search is still allowed to move.
 interface Sketch { b: SteinerBoard; loose: string[] }
 
-function candidate(seed: string, family: Family, wantsWrap?: boolean): Sketch | null {
+function candidate(seed: string, family: Family, wantsWrap?: boolean, wrapVertical = false): Sketch | null {
   const rng = random(seed);
   const int = (n: number) => Math.floor(rng() * n);
   const d = draft(family.N, int);
@@ -497,7 +501,8 @@ function candidate(seed: string, family: Family, wantsWrap?: boolean): Sketch | 
     const choices = d.all(cell => !d.isWall(cell) && d.special.get(key(cell))?.type !== 'portal' &&
       region(cell) && terms.every(t => {
         const dc = Math.abs(t[1] - cell[1]);
-        return Math.abs(t[0] - cell[0]) + (wrap ? Math.min(dc, d.N - dc) : dc) >= family.apart;
+        const dr = Math.abs(t[0] - cell[0]);
+        return (wrapVertical ? Math.min(dr, d.N - dr) : dr) + (wrap ? Math.min(dc, d.N - dc) : dc) >= family.apart;
       }));
     if (!choices.length) return null;
     const spot = choices[int(choices.length)];
@@ -510,7 +515,7 @@ function candidate(seed: string, family: Family, wantsWrap?: boolean): Sketch | 
   d.scatter('bonus', family.spores, bare);
   const b: SteinerBoard = {
     N: family.N, terms, termSet, walls: d.walls, special: d.special,
-    portalPairs: d.portalPairs, wrap, kind: family.kind, target: 0,
+    portalPairs: d.portalPairs, wrap, wrapVertical, kind: family.kind, target: 0,
   };
   return linked(b) ? { b, loose } : null;
 }
@@ -539,7 +544,7 @@ function sharpen(b: SteinerBoard, loose: string[], solve: ExactSolver, seed: str
     return null;
   };
   const measure = () => {
-    const optimum = solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap);
+    const optimum = solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical);
     return { optimum, gap: naiveNetworkCost(b) - optimum };
   };
   let gap = measure().gap;
@@ -551,7 +556,7 @@ function sharpen(b: SteinerBoard, loose: string[], solve: ExactSolver, seed: str
       const i = int(loose.length), from = loose[i], spot = vacant();
       if (!spot) continue;
       b.walls.delete(from); b.walls.add(spot); loose[i] = spot;
-      const optimum = linked(b) ? solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap) : NaN;
+      const optimum = linked(b) ? solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical) : NaN;
       const next = Number.isFinite(optimum) ? naiveNetworkCost(b) - optimum : -Infinity;
       if (Number.isFinite(optimum) && optimum >= minTarget && next >= gap) {
         gap = next; b.target = optimum;
@@ -606,11 +611,15 @@ const cache = new Map<string, SteinerBoard>();
 // cheaper to glance at eight boards than to grind one that will not yield.
 const SEARCH_FUEL = 130, SCOUT_SPELL = 14;
 
+function minimumTarget(b: SteinerBoard, family: Family) {
+  return Math.max(b.wrapVertical ? 24 : 28, family.minTarget - (b.wrapVertical ? 8 : b.wrap ? 4 : 0));
+}
+
 function forge(sketch: Sketch, family: Family, solve: ExactSolver, seed: string,
     fuel: { left: number }, length: number): number {
   const b = sketch.b;
-  const minTarget = Math.max(28, family.minTarget - (b.wrap ? 4 : 0));
-  b.target = solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap);
+  const minTarget = minimumTarget(b, family);
+  b.target = solve(b.N, b.terms, b.walls, b.special, b.portalPairs, b.wrap, b.wrapVertical);
   if (!Number.isFinite(b.target) || b.target < minTarget) return -Infinity;
   const spell = { left: Math.min(length, fuel.left) };
   const spent = spell.left;
@@ -624,17 +633,18 @@ function forge(sketch: Sketch, family: Family, solve: ExactSolver, seed: string,
 export const STEINER_MIN_GAP = 2;
 const STEINER_GOOD_GAP = 3;
 
-const spares = new Map<boolean, SteinerBoard>();
+const spares = new Map<string, SteinerBoard>();
 // A verified challenge is safer than an easy open-grid fallback or a blank app.
-export function fallbackSteiner(solve: ExactSolver, wrap = false): SteinerBoard {
-  if (spares.has(wrap)) return spares.get(wrap)!;
+export function fallbackSteiner(solve: ExactSolver, wrap = false, wrapVertical = false): SteinerBoard {
+  const topology = `${wrap}|${wrapVertical}`;
+  if (spares.has(topology)) return spares.get(topology)!;
   let spare: SteinerBoard | null = null;
   let backup: SteinerBoard | null = null;
   const pool = wrap ? FAMILIES.filter(f => f.seam) : FAMILIES;
   for (let attempt = 0; attempt < 40 && !spare; attempt++) {
     const family = pool[attempt % pool.length];
     const seed = `${STEINER_REVISION}|spare|${attempt}`;
-    const sketch = candidate(seed, family, wrap);
+    const sketch = candidate(seed, family, wrap, wrapVertical);
     if (!sketch) continue;
     const gap = forge(sketch, family, solve, seed, { left: SEARCH_FUEL }, SEARCH_FUEL);
     if (gap >= STEINER_GOOD_GAP) spare = sketch.b;
@@ -642,8 +652,16 @@ export function fallbackSteiner(solve: ExactSolver, wrap = false): SteinerBoard 
   }
   const chosen = spare || backup;
   if (!chosen) throw new Error('No verified Steiner fallback for this topology');
-  spares.set(wrap, chosen);
+  spares.set(topology, chosen);
   return chosen;
+}
+
+// Separate seed keeps topology independent of board-search retries and layout choices.
+export function topologyForDate(date: string) {
+  const rng = random(`${STEINER_REVISION}|topology|${date}`);
+  const wrap = rng() < 0.4;
+  const wrapVertical = rng() < 0.5 && wrap;
+  return { wrap, wrapVertical };
 }
 
 export function generateSteiner(date: string, solve: ExactSolver): SteinerBoard {
@@ -651,7 +669,7 @@ export function generateSteiner(date: string, solve: ExactSolver): SteinerBoard 
   const rng = random(`${STEINER_REVISION}|${date}`);
   // Decide topology per day, before screening, so easier-to-forge flat boards
   // cannot silently crowd wrapping boards out of the published pool.
-  const wantsWrap = Math.floor(Date.parse(date + 'T00:00:00Z') / 86400000) % 2 === 0;
+  const { wrap: wantsWrap, wrapVertical } = topologyForDate(date);
   const pool = wantsWrap ? FAMILIES.filter(f => f.seam) : FAMILIES;
   const first = Math.floor(rng() * pool.length);
   const fuel = { left: SEARCH_FUEL };
@@ -660,7 +678,7 @@ export function generateSteiner(date: string, solve: ExactSolver): SteinerBoard 
     // Four looks at the day's own architecture, then the neighbouring ones.
     const family = pool[attempt < 4 ? first : (first + 1 + attempt - 4) % pool.length];
     const seed = `${STEINER_REVISION}|${date}|${attempt}`;
-    const sketch = candidate(seed, family, wantsWrap);
+    const sketch = candidate(seed, family, wantsWrap, wrapVertical);
     if (!sketch) continue;
     const found = forge(sketch, family, solve, seed, fuel, SCOUT_SPELL);
     if (found <= gap) continue;
@@ -670,18 +688,18 @@ export function generateSteiner(date: string, solve: ExactSolver): SteinerBoard 
   // Whatever fuel the scouting left goes into the most promising board.
   if (pick && gap < STEINER_GOOD_GAP && fuel.left > 0)
     gap = sharpen(pick.b, pick.loose, solve, `${STEINER_REVISION}|${date}|hone`, fuel,
-      Math.max(28, pickFamily!.minTarget - (pick.b.wrap ? 4 : 0)));
+      minimumTarget(pick.b, pickFamily!));
   // Never hand out the best failed draft: restart with a different architecture
   // and a small bounded search until a board actually clears the difficulty bar.
   for (let retry = 0; gap < STEINER_MIN_GAP && retry < 64; retry++) {
     const family = pool[(first + retry) % pool.length];
     const seed = `${STEINER_REVISION}|${date}|retry|${retry}`;
-    const sketch = candidate(seed, family, wantsWrap);
+    const sketch = candidate(seed, family, wantsWrap, wrapVertical);
     if (!sketch) continue;
     const found = forge(sketch, family, solve, seed, { left: SCOUT_SPELL }, SCOUT_SPELL);
     if (found > gap) { gap = found; pick = sketch; }
   }
-  const chosen = pick && gap >= STEINER_MIN_GAP ? pick.b : fallbackSteiner(solve, wantsWrap);
+  const chosen = pick && gap >= STEINER_MIN_GAP ? pick.b : fallbackSteiner(solve, wantsWrap, wrapVertical);
   cache.set(date, chosen);
   return chosen;
 }
