@@ -40,7 +40,7 @@
   --water: #5fa5db;
   --grout: #a9bb98;
   --seam: #9333ea;
-  --road-free: #f9d89c;
+  --on-road: #6b4400;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
@@ -53,7 +53,7 @@
   --land-fg: #8a9c6b;
   --marsh: #a8ceb8;
   --highland: #c2ac80;
-  --track: #ee9f22;
+  --track: #ffc233;
   --town: #26313f;
   --town-fg: #fff;
   --depot: #3157d5;
@@ -519,7 +519,7 @@ body[data-theme="dark"] {
   --water: #1c4a7d;
   --grout: #0c1017;
   --seam: #c39bff;
-  --road-free: #5b4416;
+  --on-road: #2a1a02;
   --cell-portal: #123a47;
   --cell-portal-fg: #8fdcec;
 
@@ -529,8 +529,8 @@ body[data-theme="dark"] {
   --coast: #414527;
   --land-fg: #7c8d6b;
   --marsh: #1b3d39;
-  --highland: #4b4028;
-  --track: #cf8f1d;
+  --highland: #6b5730;
+  --track: #f2b13a;
   --town: #dfe5f0;
   --town-fg: #0b0d13;
   --depot: #7d9bff;
@@ -593,7 +593,7 @@ body[data-theme="moss"] {
   --water: #86b3c6;
   --grout: #b3c3a1;
   --seam: #8a3fc0;
-  --road-free: #eed7a2;
+  --on-road: #4a3405;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
@@ -604,7 +604,7 @@ body[data-theme="moss"] {
   --land-fg: #99a887;
   --marsh: #a9c9b6;
   --highland: #c5b287;
-  --track: #c8931f;
+  --track: #e5a92c;
   --town: #24301a;
   --town-fg: #fdfdf6;
   --depot: #4a7a2f;
@@ -658,7 +658,7 @@ body[data-theme="terminal"] {
   --water: #02110c;
   --grout: #020705;
   --seam: #8bf5bd;
-  --road-free: #11543b;
+  --on-road: #03170f;
   --cell-portal: #06333f;
   --cell-portal-fg: #7fd8ee;
 
@@ -669,7 +669,7 @@ body[data-theme="terminal"] {
   --land-fg: #3a7359;
   --marsh: #1a4632;
   --highland: #2a5f45;
-  --track: #2fd489;
+  --track: #3ce89a;
   --town: #8bf5bd;
   --town-fg: #030806;
   --depot: #27e58c;
@@ -724,7 +724,7 @@ body[data-theme="minimal"] {
   --water: #111;
   --grout: #111;
   --seam: #111;
-  --road-free: #c4c4c4;
+  --on-road: #fff;
   --cell-portal: #fff;
   --cell-portal-fg: #111;
 
@@ -862,11 +862,15 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 .cell.term, .cell.term.connected, .cell.term.unconnected { background: var(--town); color: var(--town-fg); }
 /* A + square is road that is already there. It wears the road's own colour,
    kept pale so that laying your own over it still reads as a change. */
-.cell.bonus { background: var(--road-free); color: var(--fg); }
+/* A + square is road that is already there, and it is free, so there is never
+   a reason not to be on it. It is drawn as road from the start; the + is what
+   tells it apart, not a shade. */
 .cell.penalty { background: var(--highland); color: var(--fg); }
 .cell.portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 /* The road you lay, drawn over whatever it crosses — exactly as the map draws
    the ground its towns walk over. */
+.cell.bonus, .cell.path { color: var(--on-road); }
+.cell.bonus::before,
 .cell.path::before {
   content: "";
   position: absolute;
@@ -948,7 +952,7 @@ body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="mini
   --coast: #f9efd0;
   --marsh: #e6c98b;          /* soft sand */
   --highland: #cb9560;       /* escarpment */
-  --track: #b4531c;
+  --track: #d8681c;
 }
 body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="minimal"]) [data-biome="snow"] {
   --sea: #6d93b3;            /* open water */
@@ -957,7 +961,7 @@ body:not([data-theme="dark"]):not([data-theme="terminal"]):not([data-theme="mini
   --coast: #e9f0f6;
   --marsh: #d8e3ed;          /* deep snow */
   --highland: #b3cfe4;       /* glacier */
-  --track: #dd6f2a;
+  --track: #f07b2c;
 }
 /* Some days the drought or the freeze breaks and the middle grade comes up
    green — scrub in the desert, thaw on the ice. */
@@ -1050,7 +1054,7 @@ body[data-theme="dark"] [data-biome="volcanic"] {
   font-weight: 800;
 }
 .k-sea { background: var(--sea); }
-.k-road { background: var(--road-free); color: var(--fg); }
+.k-road { background: var(--track); color: var(--on-road); }
 .k-water { background: var(--water); }
 .k-portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 .k-land { background: var(--land); }
