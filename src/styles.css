@@ -39,6 +39,7 @@
      Its water is deeper than the map's, because there it is a wall. */
   --water: #5fa5db;
   --grout: #a9bb98;
+  --seam: #9333ea;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
@@ -290,8 +291,8 @@ header h1 span { color: var(--muted); font-weight: 500; }
 /* A wrapping board is a cylinder: rails down both sides mark where the row's
    two ends meet, and the arrows say which way you may step through. */
 .grid.wraps {
-  border-left: 3px dashed #7fb069;
-  border-right: 3px dashed #7fb069;
+  border-left: 3px dashed var(--seam);
+  border-right: 3px dashed var(--seam);
   padding: 1px 5px;
   margin: 18px -8px 0;
   position: relative;
@@ -303,22 +304,18 @@ header h1 span { color: var(--muted); font-weight: 500; }
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #7fb069;
+  color: var(--seam);
 }
 .grid.wraps::before { content: "↔ wraps"; left: 0; }
 .grid.wraps::after { content: "wraps ↔"; right: 0; }
 .grid.wraps-vertical {
-  border-top: 3px dashed #7fb069;
-  border-bottom: 3px dashed #7fb069;
+  border-top: 3px dashed var(--seam);
+  border-bottom: 3px dashed var(--seam);
   padding-top: 5px;
   padding-bottom: 5px;
 }
 .grid.wraps-vertical::before { content: "↔ + ↕ wraps"; }
 .grid.wraps-vertical::after { content: none; }
-body[data-theme="minimal"] .grid.wraps-vertical { border-top-color: #111; border-bottom-color: #111; }
-body[data-theme="minimal"] .grid.wraps { border-left-color: #111; border-right-color: #111; }
-body[data-theme="minimal"] .grid.wraps::before,
-body[data-theme="minimal"] .grid.wraps::after { color: #111; }
 .cell {
   aspect-ratio: 1;
   border: 1px solid transparent;
@@ -520,6 +517,7 @@ body[data-theme="dark"] {
 
   --water: #1c4a7d;
   --grout: #0c1017;
+  --seam: #c39bff;
   --cell-portal: #123a47;
   --cell-portal-fg: #8fdcec;
 
@@ -592,6 +590,7 @@ body[data-theme="moss"] {
 
   --water: #86b3c6;
   --grout: #b3c3a1;
+  --seam: #8a3fc0;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
@@ -655,6 +654,7 @@ body[data-theme="terminal"] {
 
   --water: #02110c;
   --grout: #020705;
+  --seam: #8bf5bd;
   --cell-portal: #06333f;
   --cell-portal-fg: #7fd8ee;
 
@@ -719,6 +719,7 @@ body[data-theme="minimal"] {
   --stranded-fg: #fff;
   --water: #111;
   --grout: #111;
+  --seam: #111;
   --cell-portal: #fff;
   --cell-portal-fg: #111;
 
@@ -889,6 +890,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   .map .cell.town:not(.depot) { font-size: 0; }
 }
 .board-kind { color: var(--muted); }
+.seam-note { color: var(--seam); font-weight: 700; }
 .map .cell.sea { background: var(--sea); color: var(--sea); cursor: not-allowed; }
 .map .cell.sea.deep { background: var(--sea-deep); color: var(--sea-deep); }
 .map .cell.land { background: var(--land); color: var(--land-fg); }

@@ -452,7 +452,8 @@ import { solveSteinerExact } from "./steiner-solver";
     });
     const cost = currentCost();
     const status = conn.allConnected ? " · <b>CONNECTED ✓</b>" : " · " + conn.reachedCount + "/" + S.terms.length + " linked";
-    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + (showingOptimal ? "Optimal route · Cost <b>" + S.target + "</b>" : "Cost <b>" + cost + "</b>" + (steinerChecked ? " · Target " + S.target : "") + status) + (S.kind ? " · <span style='color:#6b7561'>" + S.kind + (S.wrapVertical ? " ↔ ↕ wraps" : S.wrap ? " ↔ wraps" : "") + "</span>" : "");
+    steinerMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + (showingOptimal ? "Optimal route · Cost <b>" + S.target + "</b>" : "Cost <b>" + cost + "</b>" + (steinerChecked ? " · Target " + S.target : "") + status) + (S.kind ? " · <span class='board-kind'>" + S.kind + "</span>" : "") +
+      (S.wrapVertical ? " · <span class='seam-note'>↔ ↕ wraps</span>" : S.wrap ? " · <span class='seam-note'>↔ wraps</span>" : "");
   }
   let dragMode = null, isDown = false;
   function toggleCell(r, c, mode) {
