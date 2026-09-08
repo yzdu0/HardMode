@@ -472,6 +472,24 @@ body[data-theme="minimal"] #graphleSvg { background: #fff; border: 1px solid #11
 .custombar .btn.small { flex: 0 0 auto; }
 footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align: center; }
 .themerow { margin-top: 10px; display: flex; gap: 6px; justify-content: center; align-items: center; }
+/* Folded away by default: the detail is there for anyone who wants it without
+   putting a paragraph of small print under every board. */
+.privacy { max-width: 46em; margin: 12px auto 0; text-align: left; }
+.privacy > summary {
+  list-style: none;
+  text-align: center;
+  font-weight: 700;
+  padding: 5px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.privacy > summary::-webkit-details-marker { display: none; }
+.privacy > summary::after { content: " ⌄"; }
+.privacy[open] > summary::after { content: " ⌃"; }
+.privacy > summary:hover { color: var(--fg); }
+.privacy p { margin: 0 0 7px; font-size: 11.5px; line-height: 1.55; }
+.privacy p:last-child { margin-bottom: 0; }
+.privacy a { color: inherit; }
 .tbtn {
   border: 1px solid var(--line);
   background: transparent;
