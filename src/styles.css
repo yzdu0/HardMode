@@ -40,12 +40,14 @@
   --water: #5fa5db;
   --grout: #a9bb98;
   --seam: #9333ea;
-  --on-road: #6b4400;
+  --on-road: #313b44;
+  --road: #9aa7b2;
   --cell-portal: #d3f0f6;
   --cell-portal-fg: #1d6b78;
 
   /* Facility map. Bright water, sandy shores, and a warm track for the ground
-     towns actually walk over. */
+     towns actually walk over — warm, where Steiner's road is paved grey,
+     because one is walked over and the other is built. */
   --sea: #b1d9f4;
   --sea-deep: #93c8ec;
   --land: #d8ecaf;
@@ -519,7 +521,8 @@ body[data-theme="dark"] {
   --water: #1c4a7d;
   --grout: #0c1017;
   --seam: #c39bff;
-  --on-road: #2a1a02;
+  --on-road: #10161c;
+  --road: #93a1af;
   --cell-portal: #123a47;
   --cell-portal-fg: #8fdcec;
 
@@ -593,7 +596,8 @@ body[data-theme="moss"] {
   --water: #86b3c6;
   --grout: #b3c3a1;
   --seam: #8a3fc0;
-  --on-road: #4a3405;
+  --on-road: #2c3730;
+  --road: #9aa89c;
   --cell-portal: #cfeae7;
   --cell-portal-fg: #1f5a53;
 
@@ -659,6 +663,7 @@ body[data-theme="terminal"] {
   --grout: #020705;
   --seam: #8bf5bd;
   --on-road: #03170f;
+  --road: #3ce89a;
   --cell-portal: #06333f;
   --cell-portal-fg: #7fd8ee;
 
@@ -725,6 +730,7 @@ body[data-theme="minimal"] {
   --grout: #111;
   --seam: #111;
   --on-road: #fff;
+  --road: #3d3d3d;
   --cell-portal: #fff;
   --cell-portal-fg: #111;
 
@@ -870,6 +876,9 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 /* The road you lay, drawn over whatever it crosses — exactly as the map draws
    the ground its towns walk over. */
 .cell.bonus, .cell.path { color: var(--on-road); }
+/* Road over highland is inset a little, so the ground keeps a frame around it.
+   What a square costs to cross is the one thing a road must not hide. */
+.cell.penalty.path::before { inset: 3px; }
 .cell.bonus::before,
 .cell.path::before {
   content: "";
@@ -877,7 +886,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--track);
+  background: var(--road);
   opacity: 0.9;
 }
 
@@ -913,6 +922,7 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 /* Ground a town walks over on its way to a depot: the score made visible.
    Laid over the terrain rather than replacing it, so a route crossing a marsh
    still shows the marsh it is crossing. */
+.map .cell.highland.track::before, .map .cell.highland.aim-track::before { inset: 2px; }
 .map .cell.track::before,
 .map .cell.aim-track::before {
   content: "";
@@ -1054,7 +1064,7 @@ body[data-theme="dark"] [data-biome="volcanic"] {
   font-weight: 800;
 }
 .k-sea { background: var(--sea); }
-.k-road { background: var(--track); color: var(--on-road); }
+.k-road { background: var(--road); color: var(--on-road); }
 .k-water { background: var(--water); }
 .k-portal { background: var(--cell-portal); color: var(--cell-portal-fg); }
 .k-land { background: var(--land); }

@@ -395,7 +395,7 @@ import { solveSteinerExact } from "./steiner-solver";
       d.setAttribute("role", "gridcell");
       d.tabIndex = r === 0 && c === 0 ? 0 : -1;
       const cellKind = S.termSet.has(k) ? "town" : S.walls.has(k) ? "water" :
-        sp?.type === "bonus" ? "road, free to build" : sp?.type === "penalty" ? "highland, costs three" :
+        sp?.type === "bonus" ? "road already laid, free, always connected" : sp?.type === "penalty" ? "highland, costs three" :
         sp?.type === "portal" ? "portal " + sp.pid : "open land";
       const seam = (S.wrap && (c === 0 || c === GN - 1)) || (S.wrapVertical && (r === 0 || r === GN - 1)) ? ", on the wrapping edge" : "";
       d.setAttribute("aria-label", "Row " + (r + 1) + ", column " + (c + 1) + ", " + cellKind + seam);
@@ -403,8 +403,16 @@ import { solveSteinerExact } from "./steiner-solver";
       cellEls.set(k, d);
     }
   }
+  // Every cell that carries the network. Free squares are always part of it:
+  // they cost nothing, so there is never a reason not to be on one, and the
+  // exact target is computed on the same assumption.
+  function roadCells() {
+    const road = new Set<string>(sel);
+    S.special.forEach((sp, k) => { if (sp.type === "bonus") road.add(k); });
+    return road;
+  }
   function steinerConnectivity() {
-    const active = new Set<string>([...S.termSet, ...sel]);
+    const active = new Set<string>([...S.termSet, ...roadCells()]);
     const jump = new Map<string, string>();
     for (const pid of Object.keys(S.portalPairs)) {
       const [a, b] = S.portalPairs[pid];
@@ -442,7 +450,10 @@ import { solveSteinerExact } from "./steiner-solver";
     (document.getElementById("steinerClear") as HTMLButtonElement).disabled = showingOptimal;
     cellEls.forEach((el, k) => {
       el.classList.toggle("path", shown.has(k) && !S.termSet.has(k));
-      if (!S.termSet.has(k) && !S.walls.has(k)) el.setAttribute("aria-pressed", String(shown.has(k)));
+      // A free square has no pressed state: it is always road.
+      if (!S.termSet.has(k) && !S.walls.has(k) && S.special.get(k)?.type !== "bonus") {
+        el.setAttribute("aria-pressed", String(shown.has(k)));
+      }
     });
     const conn = steinerConnectivity();
     S.terms.forEach(([r, c]) => {
@@ -459,7 +470,8 @@ import { solveSteinerExact } from "./steiner-solver";
   function toggleCell(r, c, mode) {
     if (showingOptimal) return;
     const k = skey(r, c);
-    if (S.termSet.has(k) || S.walls.has(k)) return;
+    // Free squares are road already, so there is nothing to lay or lift there.
+    if (S.termSet.has(k) || S.walls.has(k) || S.special.get(k)?.type === "bonus") return;
     if (mode === true) sel.add(k);
     else if (mode === false) sel.delete(k);
     else { sel.has(k) ? sel.delete(k) : sel.add(k); }
