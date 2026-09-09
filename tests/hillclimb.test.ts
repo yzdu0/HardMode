@@ -2,14 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
-  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, GRAIN, goalValue, ladderValue, march,
+  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, march,
   idx, rowOf, colOf, latOf,
 } from '../src/hillclimb-world.ts';
-
-// Sizes here are world units too, so raising the map's resolution cannot
-// quietly change what these tests are asserting.
-const len = (units: number) => Math.round(units * GRAIN);
-const area = (units: number) => Math.round(units * GRAIN * GRAIN);
 
 const days = (n: number, from = '2026-09-09') => {
   const out: string[] = [];
@@ -94,11 +89,7 @@ test('biomes land where the climate puts them', () => {
   const ice = latsOf([B.icecap]);
   const desert = latsOf([B.desert]);
   assert.ok(rain.length > 200 && mean(rain) < 22, 'rainforest belongs on the equator');
-  // Cold high ground ices over well short of a pole, the way Greenland and the
-  // Patagonian icefields do, so the claim is about where the ice mostly is
-  // rather than about its furthest stray square.
-  assert.ok(ice.length > 200 && mean(ice) > 70, 'ice caps belong at the poles');
-  assert.ok(ice.every(a => a > 40), 'and never in the middle latitudes');
+  assert.ok(ice.length > 200 && Math.min(...ice) > 55, 'ice caps belong at the poles');
   // Deserts sit under the subtropical highs and in rain shadows, so the spread
   // is wide — but the middle of it is nowhere near either pole or the equator.
   assert.ok(desert.length > 200 && mean(desert) > 10 && mean(desert) < 45);
@@ -114,8 +105,8 @@ test('rain falls hardest on the windward side of the ranges', () => {
     for (let c = 0; c < W; c++) {
       const i = idx(r, c);
       if (!w.land[i] || w.metres[i] < 1500) continue;
-      const up = idx(r, ((c - dir * len(4)) % W + W) % W);
-      const down = idx(r, ((c + dir * len(4)) % W + W) % W);
+      const up = idx(r, ((c - dir * 4) % W + W) % W);
+      const down = idx(r, ((c + dir * 4) % W + W) % W);
       if (!w.land[up] || !w.land[down]) continue;
       windward += w.rain[up]; lee += w.rain[down]; pairs++;
     }
@@ -186,9 +177,9 @@ test('the field-note list is exactly the land biomes worth finding', () => {
     for (let i = 0; i < W * H; i++) if (w.land[i]) tally.set(w.biome[i], (tally.get(w.biome[i]) || 0) + 1);
     for (const b of w.checklist) {
       assert.ok(isLandBiome(b), BIOMES[b].name + ' is water');
-      assert.ok((tally.get(b) || 0) >= area(10));
+      assert.ok((tally.get(b) || 0) >= 10);
     }
-    for (const [b, n] of tally) if (n >= area(10)) assert.ok(w.checklist.includes(b), BIOMES[b].name + ' was left off');
+    for (const [b, n] of tally) if (n >= 10) assert.ok(w.checklist.includes(b), BIOMES[b].name + ' was left off');
     assert.ok(w.checklist.length >= 5, 'a world worth exploring needs variety');
   }
 });

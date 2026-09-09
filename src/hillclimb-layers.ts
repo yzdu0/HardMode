@@ -1,4 +1,4 @@
-/* HardMode — HillClimb: the ways a planet can be drawn.
+/* HardMode — Hillclimb: the ways a planet can be drawn.
  *
  * The map the game is played on is only one of them. Once a run is over the
  * player can look at what the map was made of instead: the height the biomes
@@ -7,7 +7,7 @@
  *
  * Kept apart from both pages because both draw them: the game under the run,
  * and the page explaining how a world is made. */
-import { BIOMES, W, H, GRAIN, idx, wrapC } from "./hillclimb-world.ts";
+import { BIOMES, W, H, idx, wrapC } from "./hillclimb-world.ts";
 import type { World } from "./hillclimb-world.ts";
 
 export type Layer = "biome" | "flat" | "height" | "temp" | "rain";
@@ -71,10 +71,7 @@ export function paletteFor(world: World, layer: Layer, dark: boolean): (i: numbe
     const r = Math.floor(i / W), c = i % W;
     const west = world.metres[idx(r, wrapC(c - 1))];
     const east = world.metres[idx(r, wrapC(c + 1))];
-    // The drop between neighbours halves each time the grid is halved, so
-    // the slope is taken per world unit; otherwise the shading would fade
-    // out as the map got finer.
-    const slope = Math.max(-1, Math.min(1, ((west - east) * GRAIN) / 900));
+    const slope = Math.max(-1, Math.min(1, (west - east) / 900));
     const lift = 1 + slope * 0.13 - Math.min(0.22, world.metres[i] / 26000);
     return [red * lift, green * lift, blue * lift];
   };

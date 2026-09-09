@@ -1,4 +1,4 @@
-/* HardMode — HillClimb: what a walk across the day's world adds up to.
+/* HardMode — Hillclimb: what a walk across the day's world adds up to.
  *
  * Kept apart from the page because it is the only part of the game with rules
  * rather than pixels, and because it has to give the same answer twice: once

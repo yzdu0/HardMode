@@ -1,4 +1,4 @@
-/* HardMode — HillClimb: the layers a planet is built from, drawn.
+/* HardMode — Hillclimb: the layers a planet is built from, drawn.
  *
  * The page next to this one explains the generator in words. Words are a poor
  * way to show that the rain shadow really does sit behind the range, so each
