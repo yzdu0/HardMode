@@ -309,13 +309,19 @@ export function generateWorld(day: string): World {
   // ---- temperature ----
   const warmth = currents(land);
   const tempC = new Float32Array(W * H);
-  const wobble = field(rnd, 5, 3, false);
+  const wobble = field(rnd, 5, 4, false);
+  // Climate does not run in straight lines. One broad, slow field bends the
+  // latitude every band is measured against, by up to seven degrees either
+  // way — so the tree line, the rainforest belt and the deserts all wander
+  // together, the way they do on a real map, instead of every biome changing
+  // along the same ruled row.
+  const bend = field(rnd, 2, 5, false);
+  const bentLat = (r: number, i: number) => latOf(r) + (bend[i] - 0.5) * 19;
   for (let r = 0; r < H; r++) {
-    const lat = latOf(r);
-    const dir = windDir(lat);
+    const dir = windDir(latOf(r));
     for (let c = 0; c < W; c++) {
       const i = idx(r, c);
-      let t = baseTemp(lat) + (wobble[i] - 0.5) * 5;
+      let t = baseTemp(bentLat(r, i)) + (wobble[i] - 0.5) * 8;
       if (!land[i]) {
         t += warmth[i];
       } else {
@@ -338,9 +344,7 @@ export function generateWorld(day: string): World {
   // which is what puts a desert behind every range.
   const humid = new Float32Array(W * H);
   for (let r = 0; r < H; r++) {
-    const lat = latOf(r);
-    const dir = windDir(lat);
-    const zone = zonalRain(lat);
+    const dir = windDir(latOf(r));
     let m = 0.5;
     let prevM = 0;
     for (let step = 0; step < 2 * W; step++) {
@@ -357,7 +361,7 @@ export function generateWorld(day: string): World {
         prevM = metres[i];
       }
       // Only the second lap is recorded; the first is there to charge the air.
-      if (step >= W) humid[i] = m * zone;
+      if (step >= W) humid[i] = m * zonalRain(bentLat(r, i));
     }
   }
   const rain = rankOverLand(humid, land);

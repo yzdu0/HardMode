@@ -56,7 +56,7 @@ import type { Run, RunState } from "./hillclimb-run";
     if (themeBar) themeBar.setAttribute("content", THEMES[t].bar);
     for (const k of Object.keys(THEMES)) $(THEMES[k].id).classList.toggle("active", k === t);
     darkMap = THEMES[t].dark;
-    if (world) { buildPixels(); paint(); buildKey(); }
+    if (world) { buildPixels(); paint(); refresh(); }
   }
   for (const k of Object.keys(THEMES)) $(THEMES[k].id).onclick = () => setTheme(k);
 
@@ -65,11 +65,19 @@ import type { Run, RunState } from "./hillclimb-run";
   let run: Run = null;
   let now: RunState = null;           // recomputed after every change, never stored
   let seen: Uint8Array = null;        // ground the expedition has actually looked at
+  // The closing reveal. Every square gets a moment at which its fog lifts,
+  // measured out from the walk itself, so the world unfolds from what you know
+  // rather than switching on all at once. `front` past 1 means it is all out.
+  let liftAt: Float32Array = null;
+  let front = 0;
+  const SOFT = 0.14;                  // how wide the lifting edge is
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   let hintsOpen = false;              // the "where to look" panel, across redraws
 
-  const path = () => run.path;
   const at = () => run.path[run.path.length - 1];
   const settle = () => { now = runState(world, run); };
+  /** The landmarks that ever came up: reached, plus the pair still open. */
+  const shownGoals = () => [...now.found, ...now.live];
 
   /** Everything within sight of any stop. Recomputed from the path, never
    *  stored, so an old save can never disagree with today's world. */
@@ -90,6 +98,32 @@ import type { Run, RunState } from "./hillclimb-run";
   }
 
   // ---------- map ----------
+  /** How far each square is from the nearest place the walk stopped, scaled to
+   *  0..1. Chebyshev, so the front comes out square-ish and even; the east-west
+   *  wrap is honoured so it does not stall at the seam. */
+  function measureLift() {
+    const dist = new Int32Array(W * H).fill(-1);
+    let edge: number[] = [...new Set(run.path)];
+    for (const i of edge) dist[i] = 0;
+    let d = 0, far = 0;
+    while (edge.length) {
+      const next: number[] = [];
+      d++;
+      for (const i of edge) {
+        const r = rowOf(i), c = colOf(i);
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr;
+          if (rr < 0 || rr >= H) continue;
+          const j = idx(rr, wrapC(c + dc));
+          if (dist[j] < 0) { dist[j] = d; next.push(j); far = d; }
+        }
+      }
+      edge = next;
+    }
+    liftAt = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) liftAt[i] = far ? Math.max(0, dist[i]) / far : 0;
+  }
+
   const canvas = $("hcMap") as HTMLCanvasElement;
   const ctx = canvas.getContext("2d");
   const tile = document.createElement("canvas");
@@ -136,10 +170,14 @@ import type { Run, RunState } from "./hillclimb-run";
     const fog = darkMap ? FOG_DARK : FOG_LIGHT;
     const img = tileCtx.createImageData(W, H);
     for (let i = 0; i < W * H; i++) {
-      const show = run.stopped || seen[i];
-      img.data[i * 4] = show ? pixels[i * 3] : fog[0];
-      img.data[i * 4 + 1] = show ? pixels[i * 3 + 1] : fog[1];
-      img.data[i * 4 + 2] = show ? pixels[i * 3 + 2] : fog[2];
+      // 1 where the ground is known, 0 where it is fog, and in between along
+      // the edge of the reveal — which is what stops it looking like a switch.
+      const k = seen[i] ? 1
+        : !liftAt ? 0
+        : Math.max(0, Math.min(1, (front - liftAt[i]) / SOFT));
+      for (let ch = 0; ch < 3; ch++) {
+        img.data[i * 4 + ch] = fog[ch] + (pixels[i * 3 + ch] - fog[ch]) * k;
+      }
       img.data[i * 4 + 3] = 255;
     }
     tileCtx.putImageData(img, 0, 0);
@@ -164,38 +202,35 @@ import type { Run, RunState } from "./hillclimb-run";
     for (const lat of [60, 30, 0, -30, -60]) {
       const gy = ((90 - lat) / 180) * canvas.height;
       ctx.strokeStyle = ink;
-      ctx.globalAlpha = lat === 0 ? 0.3 : 0.16;
+      ctx.globalAlpha = lat === 0 ? 0.2 : 0.13;
       ctx.lineWidth = 1;
-      ctx.setLineDash(lat === 0 ? [] : [4, 5]);
+      ctx.setLineDash(lat === 0 ? [6, 5] : [3, 6]);
       ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(canvas.width, gy); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 0.42;
       ctx.fillStyle = ink;
       ctx.textAlign = "left";
       ctx.fillText(lat === 0 ? "0°" : Math.abs(lat) + "°" + (lat > 0 ? "N" : "S"), cell * 1.2, gy - cell * 2);
     }
     ctx.globalAlpha = 1;
 
-    // The trail. A leg that crosses the seam is drawn as two, one running off
-    // each side, so the line never shoots back across the whole world.
+    /* The walk: one translucent line, so the route shows without hiding the
+       ground it crosses. A leg over the seam is drawn a second time running
+       off the far side, so the line never shoots back across the whole world. */
     ctx.strokeStyle = ink;
-    ctx.globalAlpha = 0.75;
-    ctx.lineWidth = Math.max(1.5, cell * 0.28);
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(2, cell * 0.42);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    for (let k = 1; k < path.length; k++) {
-      const a = path[k - 1], b = path[k];
+    for (let k = 1; k < run.path.length; k++) {
+      const a = run.path[k - 1], b = run.path[k];
       let dc = colOf(b) - colOf(a);
       if (dc > W / 2) dc -= W;
       if (dc < -W / 2) dc += W;
-      ctx.beginPath();
-      ctx.moveTo(x(colOf(a)), y(rowOf(a)));
-      ctx.lineTo(x(colOf(a) + dc), y(rowOf(b)));
-      ctx.stroke();
-      if (colOf(a) + dc < 0 || colOf(a) + dc >= W) {     // the same leg, wrapped
-        const shift = colOf(a) + dc < 0 ? W : -W;
+      const end = colOf(a) + dc;
+      for (const shift of end < 0 ? [0, W] : end >= W ? [0, -W] : [0]) {
         ctx.beginPath();
         ctx.moveTo(x(colOf(a) + shift), y(rowOf(a)));
-        ctx.lineTo(x(colOf(a) + dc + shift), y(rowOf(b)));
+        ctx.lineTo(x(end + shift), y(rowOf(b)));
         ctx.stroke();
       }
     }
@@ -214,41 +249,80 @@ import type { Run, RunState } from "./hillclimb-run";
       }
     };
 
-    if (run.stopped) {
-      // Only worth drawing once it is all visible: every landmark the day
-      // offered, the ones reached marked apart from the ones walked past, and
-      // where the summit you were aiming at turned out to sit.
+    if (run.stopped && front >= 1) {
+      /* Only worth drawing once it is all visible: the landmarks that were on
+         the table, and where the summit you were aiming at turned out to sit.
+         The pool runs deeper than the day does, and marking landmarks that
+         never came up would mark the player down for missing what they were
+         never shown. */
       const held = new Set(now.found);
-      // Only what was ever on the table: the pool runs deeper than the day
-      // does, and marking landmarks that never came up would be marking the
-      // player down for missing something they were never shown.
-      const shown = new Set([...now.found, ...now.live]);
-      world.goals.forEach((goal, g) => {
-        if (!shown.has(g)) return;
-        ctx.fillStyle = held.has(g)
-          ? (darkMap ? "rgba(120,220,150,.5)" : "rgba(47,125,50,.38)")
-          : (darkMap ? "rgba(255,120,60,.5)" : "rgba(214,69,69,.42)");
-        for (const i of goal.cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
-      });
+      for (const g of shownGoals()) {
+        const { cells } = world.goals[g];
+        const good = held.has(g);
+        // Small ones get a tint so an island or a lake is not just four lines.
+        // A landmark the size of a continent needs no help being found, and a
+        // wash that size would only recolour the terrain under it.
+        if (cells.size <= 260) {
+          ctx.fillStyle = good
+            ? (darkMap ? "rgba(120,220,150,.18)" : "rgba(47,125,50,.15)")
+            : (darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)");
+          for (const i of cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
+        }
+        ctx.strokeStyle = good ? (darkMap ? "#7fdca0" : "#2f7d32") : (darkMap ? "#ff9a63" : "#c23b3b");
+        ctx.lineWidth = Math.max(1.2, cell * 0.26);
+        ctx.beginPath();
+        for (const i of cells) {
+          const r = rowOf(i), c = colOf(i);
+          const px = c * cell, py = r * cell;
+          // Only the sides facing out of the landmark, so what is left is its
+          // coastline rather than a grid drawn over it.
+          if (r === 0 || !cells.has(idx(r - 1, c))) { ctx.moveTo(px, py); ctx.lineTo(px + cell, py); }
+          if (r === H - 1 || !cells.has(idx(r + 1, c))) { ctx.moveTo(px, py + cell); ctx.lineTo(px + cell, py + cell); }
+          if (!cells.has(idx(r, wrapC(c - 1)))) { ctx.moveTo(px, py); ctx.lineTo(px, py + cell); }
+          if (!cells.has(idx(r, wrapC(c + 1)))) { ctx.moveTo(px + cell, py); ctx.lineTo(px + cell, py + cell); }
+        }
+        ctx.stroke();
+      }
       mark(world.summit, "▲", back, ink);
     }
-    mark(path()[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
+    mark(run.path[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
     mark(at(), "", ink, back);
   }
 
-  /** Only once the run is over. While it is running the field notes below name
-   *  every kind of ground you have stood on, and a second copy of the same
-   *  colours under the map would be nothing but noise. */
-  function buildKey() {
-    const box = $("hcKey");
-    box.classList.toggle("hidden", !run.stopped);
-    if (!run.stopped) return;
-    box.innerHTML = BIOMES.map((_, i) => i).filter(i => world.biome.includes(i)).map(i =>
-      "<span><i style='background:" + (darkMap ? BIOMES[i].dark : BIOMES[i].colour) + "'></i> " + BIOMES[i].name + "</span>",
-    ).join("") + "<span><i class='k-summit'>▲</i> the summit</span>" +
-      (now.found.length ? "<span><i class='k-reached'></i> landmark reached</span>" : "") +
-      (now.live.length ? "<span><i class='k-missed'></i> landmark missed</span>" : "");
-  }
+  /* What is under the pointer, named where the pointer is. It replaces the
+     legend that used to sit under the map: fifteen colours listed at once is a
+     lot to read, and only one of them is ever the square being asked about.
+     Fogged ground stays fogged — the map must not answer a question the walk
+     has not earned. */
+  const tip = $("hcTip");
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse") return;          // a tap is a move, not a query
+    const box = canvas.getBoundingClientRect();
+    const c = Math.floor(((e.clientX - box.left) / box.width) * W);
+    const r = Math.floor(((e.clientY - box.top) / box.height) * H);
+    if (r < 0 || r >= H || c < 0 || c >= W) { tip.classList.add("hidden"); return; }
+    const i = idx(r, c);
+    if (!(run.stopped || seen[i])) tip.textContent = "unexplored";
+    else {
+      // On the revealed map the outlines are the only thing left unlabelled,
+      // so the pointer is what names them.
+      const goal = run.stopped ? shownGoals().find(g => world.goals[g].cells.has(i)) : undefined;
+      tip.textContent =
+        BIOMES[world.biome[i]].name + (world.land[i] ? " · " + metresLabel(world.metres[i]) : "") +
+        " · " + latLabel(r) +
+        (goal === undefined ? "" :
+          " · " + world.goals[goal].name + (now.found.includes(goal) ? ", reached" : ", missed"));
+    }
+    // Above the pointer, flipped below it near the top edge, and reined in at
+    // the sides — the map clips its own overflow, so a label centred on a
+    // pointer near the edge would lose its first half.
+    tip.classList.remove("hidden");
+    const half = tip.offsetWidth / 2 + 4;
+    tip.style.left = Math.min(Math.max(e.clientX - box.left, half), box.width - half) + "px";
+    tip.style.top = (e.clientY - box.top) + "px";
+    tip.classList.toggle("under", e.clientY - box.top < 34);
+  });
+  canvas.addEventListener("pointerleave", () => tip.classList.add("hidden"));
 
   // ---------- readout ----------
   const metresLabel = (m: number) => m.toLocaleString("en-GB") + " m";
@@ -265,14 +339,13 @@ import type { Run, RunState } from "./hillclimb-run";
       ["Altitude", water ? "at sea level" : metresLabel(world.metres[here])],
       ["Latitude", latLabel(rowOf(here))],
       ["Wind", windName(lat) + ", blowing " + (windDir(lat) > 0 ? "east" : "west")],
-      ["Highest so far", metresLabel(now.best)],
     ];
     $("hcRead").innerHTML = rows.map(([k, v]) =>
       "<div class='hcstat'><span>" + k + "</span><strong>" + v + "</strong></div>").join("");
-    $("hcBestPill").textContent = metresLabel(now.best) + " climbed";
-    $("hcLandmarkPill").textContent = now.found.length + " / " + world.rungs;
     // The move count is the one number a player has to be able to find without
-    // looking for it, so it sits full width between the brief and the map.
+    // looking for it, so it sits full width between the brief and the map. Every
+    // other figure on this page appears exactly once: the climb and the
+    // landmarks in the brief, the ground underfoot in the strip below the map.
     const used = MOVES - now.movesLeft;
     $("hcMoves").innerHTML = run.stopped
       ? "<span class='hcmoves-n'>0</span><span class='hcmoves-label'>moves left · run over</span>" +
@@ -295,7 +368,7 @@ import type { Run, RunState } from "./hillclimb-run";
     canvas.classList.toggle("frozen", run.stopped);
     $("hcHint").classList.toggle("hidden", run.stopped);
     $("hcStop").classList.toggle("hidden", run.stopped);
-    $("hcRestart").classList.toggle("hidden", !run.stopped || day === TODAY);
+    $("hcRestart").classList.toggle("hidden", !run.stopped);
   }
 
   /** What the day is actually asking for — the climb — and then, under it, the
@@ -305,35 +378,25 @@ import type { Run, RunState } from "./hillclimb-run";
   function drawBrief() {
     const box = $("hcBrief");
     const held = new Set(now.found);
-
-    let head: string, note: string;
-    if (run.stopped) {
-      head = "<b>" + metresLabel(now.best) + " of a " + metresLabel(world.summitM) + " summit</b>";
-      note = "That is " + Math.round(now.peakShare * 100) + "% of the highest ground on the planet. " +
-        (now.peakShare >= 0.75 ? "The summit was barely above you." : "The summit is marked on the map below.");
-    } else {
-      head = "<b>Climb as high as you can</b>";
-      note = "Your score is mostly the highest ground you stand on, measured against the true summit of the " +
-        "planet — which you will not see until the moves run out. Everything else is a bonus.";
-    }
-
     // Ticked ones stay on the list so it reads as a checklist filling up, with
-    // the two still open sitting at the end of it. At the finish that same list
+    // the two still open at the end of it. Once the run is over that same list
     // is the whole account: what was reached, and what was left out there.
     const listed = [...now.found, ...now.live];
-    const label = run.stopped
-      ? "Landmarks · " + now.found.length + " of " + world.rungs
-      : now.complete ? "Landmarks · all " + now.found.length + " found"
-      : "Bonus landmarks · " + now.found.length + " of " + world.rungs + " · reach either of the open two";
 
     box.innerHTML =
-      "<p class='hcbrief-line'>" + head + "</p>" +
-      "<p class='hcbrief-hint'>" + note + "</p>" +
-      (listed.length || now.found.length
-        ? "<p class='hcbrief-sub'>" + label + "</p>" +
-          "<ul class='hcgoals'>" + listed.map(g =>
-            "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") + "</ul>"
-        : "") +
+      // Nothing above the score once it is over: the result line under the map
+      // says it all, and the box becomes the scoreboard it was keeping anyway.
+      (run.stopped ? "" : "<p class='hcbrief-line'><b>Climb as high as you can</b></p>") +
+      "<div class='hcscore" + (run.stopped ? " bare" : "") + "'>" +
+        "<div class='hcscore-peak'><span>Highest</span><strong>" + metresLabel(now.best) + "</strong></div>" +
+        (listed.length
+          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks · " +
+            now.found.length + " of " + world.rungs + "</span>" +
+            "<ul class='hcgoals'>" + listed.map(g =>
+              "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") +
+            "</ul></div>"
+          : "") +
+      "</div>" +
       (run.stopped || !now.live.length ? "" :
         "<button id='hcWhere' class='linkbtn' aria-expanded='" + hintsOpen + "' aria-controls='hcWhereBox'>" +
         (hintsOpen ? "Hide where to look" : "Where to look") + "</button>" +
@@ -382,7 +445,7 @@ import type { Run, RunState } from "./hillclimb-run";
     light(next);
     settle();
     if (now.movesLeft <= 0) finish(true);
-    else { save(); paint(); refresh(); buildKey(); }
+    else { save(); paint(); refresh(); }
   }
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -414,7 +477,7 @@ import type { Run, RunState } from "./hillclimb-run";
     settle();
     save();
     buildPixels();
-    paint(); refresh(); buildKey();
+    measureLift();
     $("hcMsg").innerHTML =
       "<b>" + metresLabel(now.best) + "</b> of a " + metresLabel(world.summitM) + " summit — " +
       Math.round(now.peakShare * 100) + "%. " +
@@ -425,7 +488,68 @@ import type { Run, RunState } from "./hillclimb-run";
     // climb is still a climb, and the grade already says so.
     $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
     reportResult(now.grade, fresh);
+
+    // A run restored from storage is already over and has been seen; only a
+    // run that ends here and now gets the reveal and the card.
+    if (!fresh || still()) { front = 1 + SOFT; paint(); refresh(); return; }
+    front = 0;
+    paint(); refresh();
+    lift(() => showScore());
   }
+
+  /**
+   * Ease something from 0 to 1 over `span`, and land on the end state whatever
+   * happens.
+   *
+   * requestAnimationFrame does not fire in a tab nobody is looking at, so an
+   * animation left to it alone can stop halfway — which for the reveal would
+   * mean coming back to a map still under fog with no way to clear it. The
+   * timer is the guarantee; the frames are only what makes it pleasant.
+   */
+  function ease(span: number, onStep: (p: number) => void, then: () => void) {
+    const began = performance.now();
+    let over = false;
+    const land = () => { if (over) return; over = true; onStep(1); then(); };
+    const step = (at: number) => {
+      if (over) return;
+      const p = Math.min(1, (at - began) / span);
+      onStep(1 - Math.pow(1 - p, 3));
+      if (p < 1) requestAnimationFrame(step); else land();
+    };
+    requestAnimationFrame(step);
+    setTimeout(land, span + 200);
+  }
+
+  /** The fog going out, quickly at first and settling at the edges. */
+  function lift(then: () => void) {
+    ease(1500, (p) => { front = p * (1 + SOFT); paint(); }, then);
+  }
+
+  /* The card. The number climbs before the grade lands on it, because a score
+     you watch arrive is worth more than one that is simply there — and because
+     the run itself was twenty-eight moves of not knowing. Everything else on
+     it is three lines and two buttons. */
+  const scoreBox = $("hcScoreBox") as HTMLDialogElement;
+  function showScore() {
+    $("hcScoreDay").textContent = "Hillclimb · " + longLabel(day);
+    $("hcScoreRows").innerHTML = ([
+      ["Climb", metresLabel(now.best) + " · " + Math.round(now.peakShare * 100) + "% of the summit"],
+      ["Landmarks", now.found.length + " of " + world.rungs],
+      ["Field notes", now.biomes.length + " of " + world.checklist.length],
+    ] as [string, string][]).map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+    $("hcScoreGrade").textContent = "Grade " + now.grade;
+    scoreBox.classList.remove("settled");
+    $("hcScoreN").textContent = still() ? String(now.score) : "0";
+    if (typeof scoreBox.showModal === "function" && !scoreBox.open) scoreBox.showModal();
+    if (still()) { scoreBox.classList.add("settled"); return; }
+    ease(1200,
+      (p) => { $("hcScoreN").textContent = String(Math.round(p * now.score)); },
+      () => scoreBox.classList.add("settled"));   // the grade and the rows land
+  }
+  $("hcScoreDone").onclick = () => scoreBox.close();
+  $("hcScoreShare").onclick = () => { scoreBox.close(); $("hcShare").click(); };
+  scoreBox.addEventListener("pointerdown", (e) => { if (e.target === scoreBox) scoreBox.close(); });
+
   $("hcStop").onclick = () => { if (!run.stopped) finish(true); };
   $("hcRestart").onclick = () => { run = newRun(world); save(); start(); };
 
@@ -546,6 +670,8 @@ import type { Run, RunState } from "./hillclimb-run";
     if (!load()) run = newRun(world);
     settle();
     reveal();
+    liftAt = null;
+    front = 0;
     buildPixels();
     $("hcDateLabel").textContent = day === TODAY ? "Today · " + longLabel(day) : longLabel(day);
     ($("hcPrevDay") as HTMLButtonElement).disabled = day <= OLDEST;
@@ -553,7 +679,7 @@ import type { Run, RunState } from "./hillclimb-run";
     $("hcMsg").textContent = ""; $("hcMsg").className = "msg";
     $("hcResults").classList.add("hidden");
     mine = null;
-    paint(); refresh(); buildKey();
+    paint(); refresh();
     if (run.stopped) finish(false); else drawResults();
   }
 

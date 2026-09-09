@@ -21,15 +21,13 @@
         <div>
           <h1><a class="brand-link" href="../"><span>NP-</span>HardMode</a></h1>
         </div>
-        <div class="streak-pill"><span id="hcBestPill">0 m climbed</span></div>
       </div>
-      <div class="daily-bar">
+      <div class="daily-bar solo">
         <div class="daterow">
           <button id="hcPrevDay" class="icon-btn" aria-label="Previous day">←</button>
           <button id="hcDateBtn" class="datebtn" title="Jump to today"><span id="hcDateLabel"></span></button>
           <button id="hcNextDay" class="icon-btn" aria-label="Next day">→</button>
         </div>
-        <div class="today-progress"><span>Landmarks</span><strong id="hcLandmarkPill">0 / 4</strong></div>
       </div>
     </header>
 
@@ -56,9 +54,9 @@
         <div id="hcMoves" class="hcmoves" aria-live="polite"></div>
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
+          <div id="hcTip" class="hctip hidden" aria-hidden="true"></div>
         </div>
-        <p id="hcHint" class="hchint">Tap the map to head that way &mdash; or use the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals.</p>
-        <div id="hcKey" class="mapkey hidden" aria-label="Map key"></div>
+        <p id="hcHint" class="hchint">Tap the map to head that way. Hover a square to name it.</p>
         <div id="hcRead" class="hcread"></div>
 
         <div class="row">
@@ -94,6 +92,16 @@
       </details>
     </footer>
   </div>
+  <dialog id="hcScoreBox" class="scorebox" aria-labelledby="hcScoreN">
+    <p class="scorebox-day" id="hcScoreDay"></p>
+    <p class="scorebox-n" id="hcScoreN">0</p>
+    <p class="scorebox-grade" id="hcScoreGrade"></p>
+    <dl class="scorebox-rows" id="hcScoreRows"></dl>
+    <div class="row">
+      <button id="hcScoreShare" class="btn">Share</button>
+      <button id="hcScoreDone" class="btn primary" autofocus>Done</button>
+    </div>
+  </dialog>
   <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
     <h3 id="shareTitle">Copied to clipboard</h3>
     <pre id="shareBody" tabindex="0"></pre>
