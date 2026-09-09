@@ -140,7 +140,14 @@ import type { Run, RunState } from "./HillClimb-run";
   const tile = document.createElement("canvas");
   tile.width = W; tile.height = H;
   const tileCtx = tile.getContext("2d");
+  const viewTile = document.createElement("canvas");
+  viewTile.width = W; viewTile.height = H;
+  const viewCtx = viewTile.getContext("2d");
   let pixels: Uint8ClampedArray = null;    // rgb per square, before the fog
+  let viewCol = 0;                         // world column at the viewport's left edge
+  let pan: { pointer: number; x: number; col: number } = null;
+  let dragged = false;
+  let wheelCarry = 0;
 
   const hex = (s: string) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
   const FOG_LIGHT = hex("#e8eaef"), FOG_DARK = hex("#171b24");
@@ -180,10 +187,18 @@ import type { Run, RunState } from "./HillClimb-run";
 
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
+    // Rotate at the native one-pixel-per-cell resolution first, then scale the
+    // completed image once. Scaling two slices separately can round their join
+    // onto different device pixels and expose a hairline between them.
+    const first = W - viewCol;
+    viewCtx.clearRect(0, 0, W, H);
+    viewCtx.drawImage(tile, viewCol, 0, first, H, 0, 0, first, H);
+    if (viewCol) viewCtx.drawImage(tile, 0, 0, viewCol, H, first, 0, viewCol, H);
+    ctx.drawImage(viewTile, 0, 0, canvas.width, canvas.height);
 
     const cell = canvas.width / W;
-    const x = (c: number) => (c + 0.5) * cell;
+    const screenCol = (c: number) => wrapC(c - viewCol);
+    const x = (c: number) => (screenCol(c) + 0.5) * cell;
     const y = (r: number) => (r + 0.5) * cell;
     const ink = darkMap ? "#f4f7fa" : "#101114";
     const back = darkMap ? "#0b0d13" : "#ffffff";
@@ -222,11 +237,12 @@ import type { Run, RunState } from "./HillClimb-run";
       let dc = colOf(b) - colOf(a);
       if (dc > W / 2) dc -= W;
       if (dc < -W / 2) dc += W;
-      const end = colOf(a) + dc;
+      const start = screenCol(colOf(a));
+      const end = start + dc;
       for (const shift of end < 0 ? [0, W] : end >= W ? [0, -W] : [0]) {
         ctx.beginPath();
-        ctx.moveTo(x(colOf(a) + shift), y(rowOf(a)));
-        ctx.lineTo(x(end + shift), y(rowOf(b)));
+        ctx.moveTo((start + shift + 0.5) * cell, y(rowOf(a)));
+        ctx.lineTo((end + shift + 0.5) * cell, y(rowOf(b)));
         ctx.stroke();
       }
     }
@@ -258,14 +274,14 @@ import type { Run, RunState } from "./HillClimb-run";
         // wash that size would only recolour the terrain under it.
         if (cells.size <= 260) {
           ctx.fillStyle = darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)";
-          for (const i of cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
+          for (const i of cells) ctx.fillRect(screenCol(colOf(i)) * cell, rowOf(i) * cell, cell, cell);
         }
         ctx.strokeStyle = darkMap ? "#ff9a63" : "#c23b3b";
         ctx.lineWidth = Math.max(1.2, cell * 0.26);
         ctx.beginPath();
         for (const i of cells) {
-          const r = rowOf(i), c = colOf(i);
-          const px = c * cell, py = r * cell;
+          const r = rowOf(i), c = colOf(i), sc = screenCol(c);
+          const px = sc * cell, py = r * cell;
           // Only the sides facing out of the landmark, so what is left is its
           // coastline rather than a grid drawn over it.
           if (r === 0 || !cells.has(idx(r - 1, c))) { ctx.moveTo(px, py); ctx.lineTo(px + cell, py); }
@@ -321,10 +337,51 @@ import type { Run, RunState } from "./HillClimb-run";
      Fogged ground stays fogged — the map must not answer a question the walk
      has not earned. */
   const tip = $("hcTip");
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !e.isPrimary) return;
+    pan = { pointer: e.pointerId, x: e.clientX, col: viewCol };
+    dragged = false;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add("panning");
+  });
   canvas.addEventListener("pointermove", (e) => {
+    if (!pan || pan.pointer !== e.pointerId) return;
+    const box = canvas.getBoundingClientRect();
+    const dx = e.clientX - pan.x;
+    if (Math.abs(dx) >= 4) dragged = true;
+    if (dragged) {
+      viewCol = wrapC(pan.col - Math.round((dx / box.width) * W));
+      tip.classList.add("hidden");
+      paint();
+      e.preventDefault();
+    }
+  });
+  const endPan = (e: PointerEvent) => {
+    if (!pan || pan.pointer !== e.pointerId) return;
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    pan = null;
+    canvas.classList.remove("panning");
+  };
+  canvas.addEventListener("pointerup", endPan);
+  canvas.addEventListener("pointercancel", endPan);
+  canvas.addEventListener("wheel", (e) => {
+    const delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!delta) return;
+    const cellWidth = canvas.getBoundingClientRect().width / W;
+    wheelCarry += delta / cellWidth;
+    const columns = Math.trunc(wheelCarry);
+    if (columns) {
+      viewCol = wrapC(viewCol + columns);
+      wheelCarry -= columns;
+      paint();
+    }
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener("pointermove", (e) => {
+    if (pan) return;
     if (e.pointerType !== "mouse") return;          // a tap is a move, not a query
     const box = canvas.getBoundingClientRect();
-    const c = Math.floor(((e.clientX - box.left) / box.width) * W);
+    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * W) + viewCol);
     const r = Math.floor(((e.clientY - box.top) / box.height) * H);
     if (r < 0 || r >= H || c < 0 || c >= W) { tip.classList.add("hidden"); return; }
     const i = idx(r, c);
@@ -436,9 +493,10 @@ import type { Run, RunState } from "./HillClimb-run";
      directions. It reads the same on a phone and a desktop, and it puts the
      decision on the map — which is the only thing worth looking at. */
   canvas.addEventListener("click", (e) => {
+    if (dragged) { dragged = false; return; }
     if (run.stopped) return;
     const box = canvas.getBoundingClientRect();
-    const c = Math.floor(((e.clientX - box.left) / box.width) * W);
+    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * W) + viewCol);
     const r = Math.floor(((e.clientY - box.top) / box.height) * H);
     let dc = c - colOf(at());
     if (dc > W / 2) dc -= W;                 // the short way round the world
@@ -753,6 +811,7 @@ import type { Run, RunState } from "./HillClimb-run";
   archiveDate.onchange = () => { if (archiveDate.value) goTo(archiveDate.value); };
 
   function start() {
+    viewCol = 0;
     const stored = saved();
     const seed = dropSeed(stored);
     world = generateWorld(day, seed);

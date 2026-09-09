@@ -1352,8 +1352,8 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .hcmap-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--raised); line-height: 0; }
 /* The map is the control, so it takes a pointer — except while the run is
    over or a rung is waiting on an answer. */
-#hcMap { display: block; width: 100%; image-rendering: pixelated; cursor: crosshair; }
-#hcMap.frozen { cursor: default; }
+#hcMap { display: block; width: 100%; image-rendering: pixelated; cursor: grab; touch-action: none; }
+#hcMap.panning { cursor: grabbing; }
 
 /* One line under it, because nothing about a canvas says "tap me". */
 .hchint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
@@ -1412,11 +1412,21 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .scorebox-rows dd { margin: 0; font-weight: 750; }
 /* The points column, so the card adds up in front of you. */
 .scorebox-pts { text-align: right; font-variant-numeric: tabular-nums; }
+.scorebox-more {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  opacity: 0;
+  transition: opacity .32s ease .16s;
+}
+.scorebox-more a { color: var(--fg); font-weight: 750; }
 .scorebox.settled .scorebox-grade { opacity: 1; transform: none; }
 .scorebox.settled .scorebox-rows { opacity: 1; }
+.scorebox.settled .scorebox-more { opacity: 1; }
 .scorebox .row { margin-top: 16px; }
 @media (prefers-reduced-motion: reduce) {
-  .scorebox-grade, .scorebox-rows { opacity: 1; transform: none; transition: none; }
+  .scorebox-grade, .scorebox-rows, .scorebox-more { opacity: 1; transform: none; transition: none; }
 }
 
 /* HillClimb's header carries no pills — the brief holds the score and the bar
