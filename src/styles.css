@@ -1535,7 +1535,7 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .hillclimb-page .hcscale i { border: 0; }
 
 /* Every control except the date navigator sits visibly off its surface. */
-.hillclimb-page button:not(.datebtn):not(.icon-btn),
+.hillclimb-page button:not(.datebtn, .icon-btn),
 .hillclimb-page a.learn-btn {
   border: 0;
   background: var(--line);
