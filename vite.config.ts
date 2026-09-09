@@ -24,6 +24,7 @@ export default defineConfig({
       input: {
         index: "index.html",
         hillclimb: "hillclimb/index.html",
+        hillclimbWorld: "hillclimb/world/index.html",
       },
     },
   },

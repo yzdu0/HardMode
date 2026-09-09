@@ -26,6 +26,11 @@ import type { Run, RunState } from "./hillclimb-run";
     at.setDate(at.getDate() + n);
     return todayKey(at);
   }
+  function shortLabel(key: string) {
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const [, m, d] = key.split("-").map(Number);
+    return months[m - 1] + " " + d;
+  }
   function longLabel(key: string) {
     const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const [y, m, d] = key.split("-").map(Number);
@@ -565,7 +570,11 @@ import type { Run, RunState } from "./hillclimb-run";
 
   // ---------- storage ----------
   function save() {
-    try { localStorage.setItem(storeKey(), JSON.stringify(run)); } catch (_) {}
+    // The grade rides along with the run. The archive needs it for thirty days
+    // at once, and working it out from scratch would mean generating thirty
+    // planets to draw one row of buttons.
+    const record = run.stopped ? { ...run, grade: now.grade, score: now.score } : run;
+    try { localStorage.setItem(storeKey(), JSON.stringify(record)); } catch (_) {}
   }
   function saved(): any {
     try { return JSON.parse(localStorage.getItem(storeKey()) || "null"); } catch (_) { return null; }
@@ -680,9 +689,51 @@ import type { Run, RunState } from "./hillclimb-run";
     const open = $("hcHelpBox").classList.toggle("hidden") === false;
     $("hcHelpBtn").setAttribute("aria-expanded", String(open));
   };
-  $("hcPrevDay").onclick = () => { if (day > OLDEST) { day = addDays(day, -1); start(); } };
-  $("hcNextDay").onclick = () => { if (day < TODAY) { day = addDays(day, 1); start(); } };
-  $("hcDateBtn").onclick = () => { if (day !== TODAY) { day = TODAY; start(); } };
+  /* The archive: a month of planets, and how each one went. A day already
+     walked shows its grade, so the strip doubles as a record of the run of
+     them rather than only a way to get back to one. */
+  const archive = $("hcArchive");
+  const archiveDate = $("hcArchiveDate") as HTMLInputElement;
+  const ARCHIVE_DAYS = 30;
+  function gradeOn(key: string): string {
+    try {
+      const d = JSON.parse(localStorage.getItem("hm-" + key + "-hillclimb-" + HILLCLIMB_REVISION) || "null");
+      return d && d.stopped && typeof d.grade === "string" ? d.grade : "";
+    } catch (_) { return ""; }
+  }
+  function renderArchive() {
+    archiveDate.value = day;
+    archiveDate.min = OLDEST;
+    archiveDate.max = TODAY;
+    archiveDate.setAttribute("aria-label", "Pick a day");
+    const list = $("hcArchiveList");
+    list.innerHTML = "";
+    for (let i = 0; i < ARCHIVE_DAYS; i++) {
+      const key = addDays(TODAY, -i);
+      const grade = gradeOn(key);
+      const b = document.createElement("button");
+      b.className = "archive-item" + (key === day ? " current" : "");
+      b.innerHTML = shortLabel(key) + "<br><span class='dot'>" + (grade || "·") + "</span>";
+      b.title = longLabel(key) + (grade ? ", grade " + grade : ", not played");
+      b.onclick = () => goTo(key);
+      list.appendChild(b);
+    }
+  }
+  function showArchive(open: boolean) {
+    archive.classList.toggle("hidden", !open);
+    $("hcDateBtn").setAttribute("aria-expanded", String(open));
+    if (open) renderArchive();
+  }
+  function goTo(key: string) {
+    if (key < OLDEST || key > TODAY) return;
+    day = key;
+    showArchive(false);
+    start();
+  }
+  $("hcPrevDay").onclick = () => goTo(addDays(day, -1));
+  $("hcNextDay").onclick = () => goTo(addDays(day, 1));
+  $("hcDateBtn").onclick = () => showArchive(archive.classList.contains("hidden"));
+  archiveDate.onchange = () => { if (archiveDate.value) goTo(archiveDate.value); };
 
   function start() {
     const stored = saved();
@@ -700,6 +751,7 @@ import type { Run, RunState } from "./hillclimb-run";
     front = 0;
     buildPixels();
     $("hcDateLabel").textContent = day === TODAY ? "Today · " + longLabel(day) : longLabel(day);
+    if (!archive.classList.contains("hidden")) renderArchive();
     ($("hcPrevDay") as HTMLButtonElement).disabled = day <= OLDEST;
     ($("hcNextDay") as HTMLButtonElement).disabled = day >= TODAY;
     $("hcMsg").textContent = ""; $("hcMsg").className = "msg";

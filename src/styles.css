@@ -1446,3 +1446,22 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 /* Hillclimb's header carries no pills — the brief holds the score and the bar
    holds the moves — so the date row has the width to itself. */
 .daily-bar.solo { grid-template-columns: 1fr; }
+
+/* The world-generation page: a long read with the layers drawn into it. */
+a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.atlas h3 { margin: 28px 0 8px; font-size: 17px; letter-spacing: -.02em; }
+.atlas p { margin: 0 0 11px; font-size: 14.5px; line-height: 1.62; max-width: 40em; }
+.atlas .help-copy { color: var(--fg); }
+.atlas-day { color: var(--muted); font-size: 13px !important; }
+.atlas-fig { margin: 0 0 12px; }
+.atlas-fig canvas {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  image-rendering: pixelated;
+}
+.atlas-fig figcaption { margin-top: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.atlas .mapkey { margin-bottom: 14px; }
+.tutlink { margin: 12px 0 0 !important; }
+.tutlink .learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }

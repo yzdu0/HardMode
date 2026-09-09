@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="How Hillclimb builds a planet: height, sea level, ocean currents, the winds that carry rain inland, and the biomes that fall out of what is left." />
+<meta name="theme-color" content="#f5f6f8" />
+<title>How the world is made · Hillclimb</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png" />
+<link rel="manifest" href="../../site.webmanifest" />
+<link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+<script>try{var __t=localStorage.getItem("hm-theme");if(["dark","minimal","moss","terminal"].indexOf(__t)>=0)document.body.setAttribute("data-theme",__t);}catch(e){}</script>
+  <div class="app">
+    <header class="site-header">
+      <div class="brand-row">
+        <div><h1><a class="brand-link" href="../../">NP-<span>HardMode</span></a></h1></div>
+      </div>
+    </header>
+
+    <main>
+      <section class="view atlas" aria-label="How the world is made">
+        <div class="puzzle-heading">
+          <h2>How the world is made</h2>
+          <a class="learn-btn" href="../">Back to Hillclimb</a>
+        </div>
+
+        <p class="help-copy">Every day&rsquo;s planet is built from the date and nothing else, in the order a real one would be: height, then a sea to put it in, then the currents that turn in that sea, then the winds that carry its water inland. The biomes are not placed. They are what is left once the temperature and the rainfall have been worked out square by square.</p>
+        <p class="help-copy">None of it is a simulation. It is the shape of the thing rather than the physics, and that is the point: the shape is enough that a player who knows how Earth is laid out can reason about what is over the horizon before spending a move on it.</p>
+        <p class="atlas-day">Everything below is drawn from <b id="atlasDay"></b>, the real planet for that day.</p>
+
+        <h3>1. Height</h3>
+        <figure class="atlas-fig"><canvas id="atlasHeight"></canvas>
+          <figcaption>Height alone, before there is any sea. Dark is low, white is high.</figcaption></figure>
+        <p>Two layers of noise. The first is ordinary layered value noise, coarse to fine, which gives round continent-sized blobs and nothing that looks like a mountain. The second is the same noise folded about its middle, which turns those blobs into long creases; it is scaled by the first, so the creases only bite where the ground is already high. That is why ranges run through the middle of a landmass instead of out to sea.</p>
+        <p>The noise lattice is periodic east to west, so the map joins itself at the seam with no visible edge. The vertical lattice is not: the top and bottom of the map are the poles, not a wrap.</p>
+
+        <h3>2. Sea level</h3>
+        <p>The sea is not a fixed height. It is set at the value that leaves about a third of the world above it, whatever the noise happened to do. Two days with wildly different height fields still get comparable coastlines, and no day comes out as one drowned puddle or one unbroken continent.</p>
+
+        <h3>3. Ocean currents</h3>
+        <p>Every ocean basin turns. Warm water runs poleward up one side of it and cold water runs back down the other; on Earth that is the Gulf Stream against the Benguela. Here each sea square simply asks how far the land is to its east and to its west. Ocean hugging a western shore is on the poleward-flowing side and runs warm; ocean hugging an eastern shore runs cold. Nothing actually spins, but the coasts end up on the right sides, and the effect is strongest around forty degrees where the real gyres are.</p>
+
+        <h3>4. Temperature</h3>
+        <figure class="atlas-fig"><canvas id="atlasTemp"></canvas>
+          <figcaption>Annual mean temperature. Blue is below freezing, red is tropical.</figcaption></figure>
+        <p>Sunshine minus latitude, about 33&deg;C on the equator falling to nearly &minus;30&deg;C at the poles. Then height is taken off it at roughly 6&deg;C a kilometre, which is why a tropical peak can carry snow. Then the coast takes its weather from whatever water is upwind of it, less and less of it the further inland you go.</p>
+        <p>One more field bends the latitude that every band is measured against, by up to nine degrees either way. Without it the tree line, the deserts and the rainforest belt would all change along the same ruled row and the world would come out in stripes.</p>
+
+        <h3>5. Wind and rain</h3>
+        <figure class="atlas-fig"><canvas id="atlasRain"></canvas>
+          <figcaption>Rainfall over land, driest to wettest.</figcaption></figure>
+        <p>Air walks each row in the direction that latitude&rsquo;s wind blows: trade winds run west below thirty degrees, the westerlies run east between thirty and sixty, the polar easterlies run west again above that. It goes twice round, so by the time it is recorded it is already carrying whatever it picked up on the way.</p>
+        <p>Over sea it takes water up, faster where the sea is warm. Over land it drops it, and hardest where the ground climbs. That single rule is what puts a wet slope on one side of every range and a desert behind it. On top of it sits the zonal pattern: wet where the trades converge on the equator, dry under the subtropical highs about a quarter of the way to the pole, wet again where the westerlies pile storms into the mid-latitudes, dry over the poles.</p>
+
+        <h3>6. Biomes</h3>
+        <figure class="atlas-fig"><canvas id="atlasBiome"></canvas>
+          <figcaption>What falls out of it: the map you actually play on.</figcaption></figure>
+        <p>Nothing here is placed. Each square is handed its temperature and its rainfall and asked what it must be. Below about &minus;13&deg;C it is ice cap. High and cold is snowfield, then bare mountain: above the treeline is a matter of height and cold together, which is why bare rock starts near sea level in the far north and needs four thousand metres on the equator. Below freezing is tundra, and cold but not frozen is boreal forest if it rains and tundra if it does not.</p>
+        <p>Temperate ground runs forest, grassland, shrubland, desert as it dries. Hot ground runs rainforest, seasonal forest, savannah, desert the same way. Rainfall is ranked against the rest of the planet rather than measured absolutely, so a dry world still has its wet quarter and a wet one still has its deserts.</p>
+        <div id="atlasKey" class="mapkey" aria-label="Biome key"></div>
+
+        <h3>7. Landmarks, and where you land</h3>
+        <p>The landmarks are read off the finished map: an archipelago is three or more small islands close together, an inland sea is water with no way out, a volcanic island is one that rises far more steeply than its size suggests. The rest are the biomes themselves. Each kind holds every one of its instances, so any desert is the desert.</p>
+        <p>The ground is the same for everybody, because it comes from the date. Where you are dropped is not: that comes from your own browser, and the chain of landmarks is built around wherever it puts you, so the route is yours even though the world is shared. Drops are kept between nine and twenty moves from the summit, since the drop is the one thing that differs between players and so had better be the thing that differs least.</p>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-links">
+        <a class="editor-link" href="../">Play Hillclimb <span aria-hidden="true">&#8599;</span></a>
+        <a class="editor-link" href="../../">The daily graph puzzles <span aria-hidden="true">&#8599;</span></a>
+      </div>
+    </footer>
+  </div>
+  <script type="module" src="/src/hillclimb-atlas.ts"></script>
+</body>
+</html>
