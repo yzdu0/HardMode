@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/hillclimb-world.ts';
+import { generateWorld, movesTo, movesBetween, march, W, H, MOVES, STRIDE, TOUCH, LIVE, GRAIN, idx, rowOf, colOf, wrapC, B } from '../src/hillclimb-world.ts';
+
+// Distances here are world units, not squares, so the resolution can change
+// underneath these tests without changing what they mean.
+const len = (units: number) => Math.round(units * GRAIN);
 import { newRun, runState, touching, touchedOrder, livePair } from '../src/hillclimb-run.ts';
 import type { Run } from '../src/hillclimb-run.ts';
 import type { World } from '../src/hillclimb-world.ts';
@@ -232,7 +236,7 @@ function planted(w: World, n: number): World {
     ...w,
     rungs: n,
     goals: Array.from({ length: n }, (_, k) => {
-      const cell = idx(r, wrapC(colOf(w.spawn) + 10 * (k + 1)));
+      const cell = idx(r, wrapC(colOf(w.spawn) + len(10) * (k + 1)));
       return { id: 'p' + k, name: 'landmark ' + k, hint: 'planted for the test', cells: new Set([cell]), centre: cell };
     }),
   };

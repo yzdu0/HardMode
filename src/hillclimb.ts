@@ -1,4 +1,4 @@
-/* HardMode — Hillclimb.
+/* HardMode — HillClimb.
  *
  * The world lives in hillclimb-world.ts; everything here is the expedition:
  * where you have been, what you could see from there, and what it added up to.
@@ -6,7 +6,7 @@
  * The rules of a run live in hillclimb-run.ts, which is where the arithmetic
  * is tested. This file draws it. */
 import {
-  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
+  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, GRAIN, HILLCLIMB_REVISION,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
 } from "./hillclimb-world";
 import { newRun, runState } from "./hillclimb-run";
@@ -182,6 +182,10 @@ import type { Run, RunState } from "./hillclimb-run";
     ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
 
     const cell = canvas.width / W;
+    // Furniture is sized in world units rather than squares, so raising the
+    // map's resolution sharpens the ground without shrinking the trail, the
+    // markers or the latitude labels drawn over it.
+    const unit = cell * GRAIN;
     const x = (c: number) => (c + 0.5) * cell;
     const y = (r: number) => (r + 0.5) * cell;
     const ink = darkMap ? "#f4f7fa" : "#101114";
@@ -192,7 +196,7 @@ import type { Run, RunState } from "./hillclimb-run";
     // is, thirty is where the deserts are, and the bands are where the wind
     // changes direction. So the guides are drawn over the fog as well as over
     // the ground, and they are the only furniture on the map.
-    ctx.font = "600 " + Math.max(9, Math.round(cell * 2.6)) + "px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.font = "600 " + Math.max(9, Math.round(unit * 2.6)) + "px -apple-system, Helvetica, Arial, sans-serif";
     ctx.textBaseline = "middle";
     for (const lat of [60, 30, 0, -30, -60]) {
       const gy = ((90 - lat) / 180) * canvas.height;
@@ -205,7 +209,7 @@ import type { Run, RunState } from "./hillclimb-run";
       ctx.globalAlpha = 0.42;
       ctx.fillStyle = ink;
       ctx.textAlign = "left";
-      ctx.fillText(lat === 0 ? "0°" : Math.abs(lat) + "°" + (lat > 0 ? "N" : "S"), cell * 1.2, gy - cell * 2);
+      ctx.fillText(lat === 0 ? "0°" : Math.abs(lat) + "°" + (lat > 0 ? "N" : "S"), unit * 1.2, gy - unit * 2);
     }
     ctx.globalAlpha = 1;
 
@@ -214,7 +218,7 @@ import type { Run, RunState } from "./hillclimb-run";
        off the far side, so the line never shoots back across the whole world. */
     ctx.strokeStyle = ink;
     ctx.globalAlpha = 0.45;
-    ctx.lineWidth = Math.max(2, cell * 0.42);
+    ctx.lineWidth = Math.max(2, unit * 0.42);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
     for (let k = 1; k < run.path.length; k++) {
       const a = run.path[k - 1], b = run.path[k];
@@ -232,10 +236,10 @@ import type { Run, RunState } from "./hillclimb-run";
     ctx.globalAlpha = 1;
 
     const mark = (i: number, glyph: string, fill: string, ring: string) => {
-      const cx = x(colOf(i)), cy = y(rowOf(i)), rad = Math.max(4, cell * 1.5);
+      const cx = x(colOf(i)), cy = y(rowOf(i)), rad = Math.max(4, unit * 1.5);
       ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
       ctx.fillStyle = fill; ctx.fill();
-      ctx.lineWidth = Math.max(1.4, cell * 0.35); ctx.strokeStyle = ring; ctx.stroke();
+      ctx.lineWidth = Math.max(1.4, unit * 0.35); ctx.strokeStyle = ring; ctx.stroke();
       if (glyph) {
         ctx.fillStyle = ring;
         ctx.font = "700 " + Math.round(rad * 1.5) + "px -apple-system, Helvetica, Arial, sans-serif";
@@ -264,7 +268,7 @@ import type { Run, RunState } from "./hillclimb-run";
           for (const i of cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
         }
         ctx.strokeStyle = good ? (darkMap ? "#7fdca0" : "#2f7d32") : (darkMap ? "#ff9a63" : "#c23b3b");
-        ctx.lineWidth = Math.max(1.2, cell * 0.26);
+        ctx.lineWidth = Math.max(1.2, unit * 0.26);
         ctx.beginPath();
         for (const i of cells) {
           const r = rowOf(i), c = colOf(i);
@@ -565,7 +569,7 @@ import type { Run, RunState } from "./hillclimb-run";
      it is three lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
   function showScore() {
-    $("hcScoreDay").textContent = "Hillclimb · " + longLabel(day);
+    $("hcScoreDay").textContent = "HillClimb · " + longLabel(day);
     // The arithmetic, so the number that just counted up can be read back off
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
@@ -705,7 +709,7 @@ import type { Run, RunState } from "./hillclimb-run";
   shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
   $("hcShare").onclick = () => {
     openShare(
-      "Hillclimb " + day + "\n" +
+      "HillClimb " + day + "\n" +
       now.score + " · grade " + now.grade + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
       "🧭 " + now.found.length + "/" + world.rungs + " landmarks · +" + now.landmarkBonus + "\n" +

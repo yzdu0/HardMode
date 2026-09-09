@@ -1,4 +1,4 @@
-/* HardMode — Hillclimb.
+/* HardMode — HillClimb.
  *
  * One planet a day, and twenty-eight steps to learn it. The world is generated
  * from the date alone, so everybody walks the same ground, and it is generated
@@ -14,22 +14,36 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-export const HILLCLIMB_REVISION = 'world-4';
+export const HILLCLIMB_REVISION = 'world-5';
+
+/**
+ * How finely the world is cut into squares. Raising it draws the same planet
+ * in finer grain: the continents, the journey and the sight radius stay the
+ * size they were, there are simply more squares in them.
+ *
+ * Everything below is written in world units rather than squares, so that
+ * holds by construction. A length in squares is GRAIN of them and an area is
+ * GRAIN squared; both are 1 at DETAIL 2, the resolution this was first drawn
+ * at, so the numbers in the source still read as the sizes they always meant.
+ */
+export const DETAIL = 4;
+export const GRAIN = DETAIL / 2;
+/** A length in squares, from a length in world units. */
+const len = (units: number) => Math.round(units * GRAIN);
+/** An area in squares, from an area in world units. */
+const area = (units: number) => Math.round(units * GRAIN * GRAIN);
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
-// Two degrees of latitude to the row: fine enough for a coastline to have
-// inlets and for a range to have a pass through it, coarse enough to stay
-// legible at four pixels a square.
-export const W = 160;
-export const H = 92;
+export const W = 80 * DETAIL;
+export const H = 46 * DETAIL;
 
 // A move is a day's travel, and the budget reaches about five-sixths of the way
 // round the planet — enough to cross an ocean and come back, never enough to
 // see all of it. The sight radius keeps consecutive stops overlapping, so the
 // trail you leave is a continuous corridor rather than a string of islands.
 export const MOVES = 28;
-export const STRIDE = 5;
-export const SIGHT = 8;
+export const STRIDE = len(5);
+export const SIGHT = len(8);
 
 // How many landmarks a day's budget is expected to allow. Scores are measured
 // against this, and the pool below runs deeper so that there is always another
@@ -41,12 +55,10 @@ export const GOALS_MAX = 4;
 // one first is a real gamble rather than a menu.
 export const LIVE = 2;
 
-// What counts as an island for the purpose of an archipelago. The floor is
-// what matters: without one, most of the islands in a day's archipelago were
-// single squares, too small to stand on meaningfully or to carry a biome.
-const ISLE_MIN = 4;
-const ISLE_MAX = 90;
-const ISLE_APART = 34;
+// The largest a landmass may be and still count as one of the islands in an
+// archipelago. Anything bigger is a place in its own right, not part of a
+// chain. There is deliberately no lower limit: a speck is part of a chain too.
+const ISLE_MAX = area(90);
 
 // Where ground stops counting as warm and starts counting as cold, in annual
 // mean °C. It is the line the two rainfall scales are split at.
@@ -57,7 +69,7 @@ const COLD = 6;
    the drag itself varies. The last matters most. A drag that changes more
    slowly than the terrain only slides continents about; it is the drag varying
    faster than what it moves that folds a coast back on itself. */
-const WARP_PUSH = 40;
+const WARP_PUSH = len(40);
 const WARP_FLOOR = 0.25;
 const WARP_SCALE = 8;
 
@@ -276,24 +288,44 @@ function quantile(data: ArrayLike<number>, share: number): number {
 }
 
 /** Average a field over the land within a short reach, wrapping east to west.
+ *
  *  Rain arrives as a per-square figure off a per-square slope, and a crinkled
  *  coastline makes that flicker; a climate is a region, so it is smoothed to
- *  one before anything is decided from it. */
+ *  one before anything is decided from it.
+ *
+ *  Two passes of a sliding sum rather than one square window. It is the same
+ *  answer — the sum over a box is the sum of its rows' sums, and so is the
+ *  count of land in it — at a cost that grows with the reach instead of with
+ *  its square, which at this resolution is most of a tenth of a second.
+ */
 function spreadOverLand(values: Float32Array, land: Uint8Array, reach: number): Float32Array {
-  const out = new Float32Array(values.length);
-  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
-    const i = idx(r, c);
-    if (!land[i]) continue;
+  const rowSum = new Float32Array(W * H), rowNum = new Float32Array(W * H);
+  for (let r = 0; r < H; r++) {
     let sum = 0, n = 0;
-    for (let dr = -reach; dr <= reach; dr++) {
-      const rr = r + dr;
-      if (rr < 0 || rr >= H) continue;
-      for (let dc = -reach; dc <= reach; dc++) {
-        const j = idx(rr, wrapC(c + dc));
-        if (land[j]) { sum += values[j]; n++; }
-      }
+    for (let d = -reach; d <= reach; d++) {
+      const j = idx(r, wrapC(d));
+      if (land[j]) { sum += values[j]; n++; }
     }
-    out[i] = sum / n;
+    for (let c = 0; c < W; c++) {
+      rowSum[idx(r, c)] = sum; rowNum[idx(r, c)] = n;
+      const gone = idx(r, wrapC(c - reach)), come = idx(r, wrapC(c + reach + 1));
+      if (land[gone]) { sum -= values[gone]; n--; }
+      if (land[come]) { sum += values[come]; n++; }
+    }
+  }
+  // Down the columns the poles are edges rather than a wrap, so the window is
+  // clipped at them instead of being carried round.
+  const out = new Float32Array(W * H);
+  for (let c = 0; c < W; c++) {
+    let sum = 0, n = 0;
+    for (let r = 0; r <= Math.min(H - 1, reach); r++) { sum += rowSum[idx(r, c)]; n += rowNum[idx(r, c)]; }
+    for (let r = 0; r < H; r++) {
+      const i = idx(r, c);
+      if (land[i] && n) out[i] = sum / n;
+      const gone = r - reach, come = r + reach + 1;
+      if (gone >= 0) { sum -= rowSum[idx(gone, c)]; n -= rowNum[idx(gone, c)]; }
+      if (come < H) { sum += rowSum[idx(come, c)]; n += rowNum[idx(come, c)]; }
+    }
   }
   return out;
 }
@@ -481,7 +513,7 @@ export function generateWorld(day: string, drop = ''): World {
   // Weather answers to the height of a region, not of a square. Taking the
   // lapse rate off the raw map made every crinkle in a warped coastline its
   // own climate, and the biomes came out as mosaic rather than as belts.
-  const upland = spreadOverLand(Float32Array.from(metres), land, 4);
+  const upland = spreadOverLand(Float32Array.from(metres), land, len(5));
   for (let r = 0; r < H; r++) {
     const dir = windDir(latOf(r));
     for (let c = 0; c < W; c++) {
@@ -492,9 +524,10 @@ export function generateWorld(day: string, drop = ''): World {
       } else {
         // A coast takes its weather from the water upwind of it, and the
         // further inland you go the less of that reaches you.
-        for (let d = 1; d <= 7; d++) {
+        const reach = len(7);
+        for (let d = 1; d <= reach; d++) {
           const j = idx(r, wrapC(c - dir * d));
-          if (!land[j]) { t += warmth[j] * (1 - d / 8) * 0.8; break; }
+          if (!land[j]) { t += warmth[j] * (1 - d / (reach + 1)) * 0.8; break; }
         }
         t -= (upland[i] / 1000) * 6.3;                 // lapse rate
       }
@@ -516,13 +549,17 @@ export function generateWorld(day: string, drop = ''): World {
       const c = wrapC(dir > 0 ? step : -step);
       const i = idx(r, c);
       if (!land[i]) {
-        const evap = 0.10 + 0.010 * Math.max(0, tempC[i]);
+        const evap = (0.10 + 0.010 * Math.max(0, tempC[i])) / GRAIN;
         m += (1 - m) * evap;
         prevM = 0;
       } else {
+        // The 0.42 is per kilometre climbed and the climb is split across
+        // however many steps the grid gives it, so that term needs no scaling:
+        // the same slope sheds the same rain. The flat 0.07 and the decay are
+        // per step, so they do, or a finer grid would dry the air twice over.
         const rise = Math.max(0, metres[i] - prevM) / 1000;
-        const fall = m * clamp01(0.07 + 0.42 * rise);
-        m = Math.max(0, m - fall) * 0.988;
+        const fall = m * clamp01(0.07 / GRAIN + 0.42 * rise);
+        m = Math.max(0, m - fall) * Math.pow(0.988, 1 / GRAIN);
         prevM = metres[i];
       }
       // Only the second lap is recorded; the first is there to charge the air.
@@ -537,7 +574,7 @@ export function generateWorld(day: string, drop = ''): World {
    * is. Deserts came out at a third the share of the ice, which is the wrong
    * way round for a planet. Ranked apart, "dry" means dry for somewhere that
    * temperature, which is what the words are supposed to mean. */
-  const damp = spreadOverLand(humid, land, 3);
+  const damp = spreadOverLand(humid, land, len(3));
   const chilly = new Uint8Array(W * H);
   const temperate = new Uint8Array(W * H);
   for (let i = 0; i < W * H; i++) {
@@ -577,7 +614,7 @@ export function generateWorld(day: string, drop = ''): World {
 
   const counts = new Map<number, number>();
   for (let i = 0; i < biome.length; i++) if (land[i]) counts.set(biome[i], (counts.get(biome[i]) || 0) + 1);
-  const checklist = [...counts.entries()].filter(([, n]) => n >= 10).map(([b]) => b).sort((a, b) => a - b);
+  const checklist = [...counts.entries()].filter(([, n]) => n >= area(10)).map(([b]) => b).sort((a, b) => a - b);
 
   const terrain: Terrain = { land, biome, metres, depth, summit, summitM };
   // The landmarks do not depend on where anybody lands, so they are worked out
@@ -686,7 +723,7 @@ function candidates(t: Terrain): Candidate[] {
     for (let b = 0; b < isles.length; b++) {
       if (b === a || used.has(b)) continue;
       const cb = centreOf(isles[b]);
-      if (dxWrap(colOf(ca), colOf(cb)) <= 10 && Math.abs(rowOf(ca) - rowOf(cb)) <= 8) group.push(b);
+      if (dxWrap(colOf(ca), colOf(cb)) <= len(10) && Math.abs(rowOf(ca) - rowOf(cb)) <= len(8)) group.push(b);
     }
     if (group.length >= 3) {
       group.forEach(g => used.add(g));
@@ -700,12 +737,12 @@ function candidates(t: Terrain): Candidate[] {
   const openSea = seaComps.reduce((a, b) => (b.length > a.length ? b : a), [] as number[]);
   add('inlandsea', 'an inland sea',
     'Water with no way out to the ocean. It will be ringed by land on every side.',
-    seaComps.filter(g => g !== openSea && g.length >= 12).flat());
+    seaComps.filter(g => g !== openSea && g.length >= area(12)).flat());
 
   // Volcanic islands: small, and far taller than an island that size should be.
   const volcanic: number[] = [];
   for (const g of landComps) {
-    if (g.length > 70) continue;
+    if (g.length > area(70)) continue;
     let peak = 0;
     for (const i of g) if (t.metres[i] > peak) peak = t.metres[i];
     if (peak < 1900) continue;
@@ -716,22 +753,22 @@ function candidates(t: Terrain): Candidate[] {
 
   add('desert', 'a desert',
     'Under the subtropical highs, a quarter of the way to the pole, or in the dry lee of a range.',
-    belt([B.desert], 120));
+    belt([B.desert], area(120)));
   add('rainforest', 'a rainforest',
     'On the equator, where the trade winds meet, or on any coast the wind hits first.',
-    belt([B.rainforest], 90));
+    belt([B.rainforest], area(90)));
   add('range', 'a mountain range',
     'Bare rock and snow above the treeline. Once you are on high ground, stay on it.',
-    belt([B.alpine, B.snowline], 40));
+    belt([B.alpine, B.snowline], area(40)));
   add('icecap', 'the ice cap',
     'Straight for a pole, either one. The cold is not the problem; the distance is.',
-    belt([B.icecap], 60));
+    belt([B.icecap], area(60)));
   add('taiga', 'boreal forest',
     'The cold forest belt, between the tundra and the temperate ground below it.',
-    belt([B.taiga], 140));
+    belt([B.taiga], area(140)));
   add('savannah', 'a savannah',
     'Between the rainforest and the desert: hot ground with a wet season and a dry one.',
-    belt([B.savannah], 120));
+    belt([B.savannah], area(120)));
   return found;
 }
 
@@ -746,26 +783,41 @@ const MIN_LEG = 3;
 // and nobody starts on its doorstep or on the far side of the planet from it.
 const DROP_NEAR = 9, DROP_FAR = 20;
 
-/** Moves from every square to the nearest square of `cells`. One pass, so the
- *  drop can ask about all of a planet's landmarks without walking each one. */
-function spreadFrom(cells: Iterable<number>): Uint8Array {
-  const away = new Uint8Array(W * H).fill(255);
-  let edge: number[] = [];
-  for (const i of cells) if (away[i] === 255) { away[i] = 0; edge.push(i); }
-  for (let d = 1; edge.length; d++) {
-    const next: number[] = [];
-    for (const i of edge) {
-      const r = rowOf(i), c = colOf(i);
-      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-        const rr = r + dr;
-        if (rr < 0 || rr >= H) continue;
-        const j = idx(rr, wrapC(c + dc));
-        if (away[j] === 255) { away[j] = Math.min(254, d); next.push(j); }
-      }
+/**
+ * Which squares lie within `radius` of any of `cells`, measured the way a move
+ * is: Chebyshev, wrapping east to west.
+ *
+ * A full distance field would answer this too, and used to, but it cost a
+ * breadth-first sweep of the whole map for every kind of landmark on the
+ * planet — the single most expensive thing about generating one. A Chebyshev
+ * dilation is separable, so two passes of a sliding count give the same answer
+ * for the price of reading each square twice.
+ */
+function within(cells: Iterable<number>, radius: number): Uint8Array {
+  const hit = new Uint8Array(W * H);
+  for (const i of cells) hit[i] = 1;
+  const wide = new Uint8Array(W * H);
+  for (let r = 0; r < H; r++) {
+    let n = 0;
+    for (let d = -radius; d <= radius; d++) n += hit[idx(r, wrapC(d))];
+    for (let c = 0; c < W; c++) {
+      wide[idx(r, c)] = n ? 1 : 0;
+      n -= hit[idx(r, wrapC(c - radius))];
+      n += hit[idx(r, wrapC(c + radius + 1))];
     }
-    edge = next;
   }
-  return away;
+  const near = new Uint8Array(W * H);
+  for (let c = 0; c < W; c++) {
+    let n = 0;
+    for (let r = 0; r <= Math.min(H - 1, radius); r++) n += wide[idx(r, c)];
+    for (let r = 0; r < H; r++) {
+      near[idx(r, c)] = n ? 1 : 0;
+      const gone = r - radius, come = r + radius + 1;
+      if (gone >= 0) n -= wide[idx(gone, c)];
+      if (come < H) n += wide[idx(come, c)];
+    }
+  }
+  return near;
 }
 
 /** Somewhere to be dropped: land, out of the ice, on a coast where possible, a
@@ -775,9 +827,14 @@ function spreadFrom(cells: Iterable<number>): Uint8Array {
 function pickSpawn(
   rnd: () => number, land: Uint8Array, biome: Uint8Array, summit: number, marks: Candidate[],
 ): number {
-  const reach = marks.map(m => spreadFrom(m.cells));
+  /* A landmark is a real walk away when no route touches it in fewer than
+     MIN_LEG moves: that is MIN_LEG - 1 strides plus the touch radius, because
+     reaching one means coming within TOUCH of it. It has to be measured the
+     way the chain measures it, or a drop can pass here and fail there and a
+     landmark ends up underfoot before the first move. */
+  const underfoot = marks.map(m => within(m.cells, (MIN_LEG - 1) * STRIDE + TOUCH));
   const worthLeaving = (i: number) =>
-    reach.filter(away => Math.ceil(away[i] / STRIDE) >= MIN_LEG).length >= Math.min(2, marks.length);
+    underfoot.filter(near => !near[i]).length >= Math.min(2, marks.length);
   const coastal: number[] = [], inland: number[] = [], anywhere: number[] = [];
   for (let r = 2; r < H - 2; r++) {
     if (Math.abs(latOf(r)) > 62) continue;
@@ -812,7 +869,7 @@ const GOAL_WEIGHT: Record<string, number> = {
 function summitGoal(summit: number): Landmark {
   const cells = new Set<number>();
   const sr = rowOf(summit), sc = colOf(summit);
-  for (let dr = -3; dr <= 3; dr++) for (let dc = -3; dc <= 3; dc++) {
+  for (let dr = -len(3); dr <= len(3); dr++) for (let dc = -len(3); dc <= len(3); dc++) {
     const r = sr + dr;
     if (r >= 0 && r < H) cells.add(idx(r, wrapC(sc + dc)));
   }
@@ -867,8 +924,18 @@ function pickGoals(
     // Under MIN_LEG it is not a walk at all, so those are dropped rather than
     // fallen back to; only a world with nothing else left will offer one, and
     // that beats offering nothing.
-    const worth = affordable.filter(g => reach(g) >= MIN_LEG);
-    const usable = worth.length ? worth : affordable;
+    /* The rungs that are live at the start are both offered before a move is
+       made, so both have to be a walk from the drop, not merely from the rung
+       before them. This has to be applied before the chain distance below, not
+       after: filtering by the chain first can leave a single candidate that
+       happens to be underfoot, and then there is nothing left to prefer. */
+    let choices = affordable;
+    if (ladder.length < LIVE) {
+      const offSite = choices.filter(g => march(spawn, g.cells).cost >= MIN_LEG);
+      if (offSite.length) choices = offSite;
+    }
+    const worth = choices.filter(g => reach(g) >= MIN_LEG);
+    const usable = worth.length ? worth : choices;
     const fair = usable.filter(g => reach(g) >= 4 && reach(g) <= 11);
     const pool = fair.length ? fair : [usable.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
     const weights = pool.map(g => GOAL_WEIGHT[g.id] ?? 2);
