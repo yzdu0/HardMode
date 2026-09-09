@@ -281,8 +281,20 @@ export interface Landmark {
   centre: number;
 }
 
-export function generateWorld(day: string): World {
+/**
+ * The day's planet, and a place on it to be dropped.
+ *
+ * The ground comes from the date alone, so everybody is walking the same world
+ * and can compare what they found on it. Where you are dropped comes from
+ * `drop` instead — a per-player value — so no two people start in the same
+ * place, and the day is a world to explore rather than a route to memorise.
+ *
+ * The landmark chain is built from wherever that drop lands, not from a fixed
+ * point, or its move budget would only hold for one starting square.
+ */
+export function generateWorld(day: string, drop = ''): World {
   const rnd = random('hillclimb-' + HILLCLIMB_REVISION + '-' + day);
+  const dice = random('hillclimb-drop-' + HILLCLIMB_REVISION + '-' + day + '-' + drop);
 
   // ---- height ----
   // One broad field decides where the continents are; a ridged field creases
@@ -396,8 +408,8 @@ export function generateWorld(day: string): World {
   for (let i = 0; i < biome.length; i++) if (land[i]) counts.set(biome[i], (counts.get(biome[i]) || 0) + 1);
   const checklist = [...counts.entries()].filter(([, n]) => n >= 10).map(([b]) => b).sort((a, b) => a - b);
 
-  const spawn = pickSpawn(rnd, land, biome, summit);
-  const { goals, rungs } = pickGoals(rnd, { land, biome, metres, depth, summit, summitM }, spawn);
+  const spawn = pickSpawn(dice, land, biome, summit);
+  const { goals, rungs } = pickGoals(dice, { land, biome, metres, depth, summit, summitM }, spawn);
 
   return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs, checklist };
 }
@@ -516,12 +528,12 @@ function candidates(t: Terrain): Candidate[] {
 
   for (const g of biomeComp([B.desert], 70)) found.push({
     id: 'desert', name: 'a great desert',
-    hint: 'Under the subtropical highs, a quarter of the way to the pole — or in the dry lee of a range.',
+    hint: 'Under the subtropical highs, a quarter of the way to the pole, or in the dry lee of a range.',
     cells: g,
   });
   for (const g of biomeComp([B.rainforest], 55)) found.push({
     id: 'rainforest', name: 'a rainforest',
-    hint: 'On the equator, where the trade winds meet — or on any coast the wind hits first.',
+    hint: 'On the equator, where the trade winds meet, or on any coast the wind hits first.',
     cells: g,
   });
   for (const g of biomeComp([B.alpine, B.snowline], 18)) found.push({
@@ -537,7 +549,7 @@ function candidates(t: Terrain): Candidate[] {
   for (let i = 0; i < W * H; i++) if (t.land[i] && t.biome[i] === B.icecap) caps.push(i);
   if (caps.length >= 30) found.push({
     id: 'icecap', name: 'the ice cap',
-    hint: 'Straight for a pole — either one. The cold is not the problem; the distance is.',
+    hint: 'Straight for a pole, either one. The cold is not the problem; the distance is.',
     cells: caps,
   });
   for (const g of biomeComp([B.taiga], 90)) found.push({
@@ -547,28 +559,38 @@ function candidates(t: Terrain): Candidate[] {
   });
   for (const g of biomeComp([B.savannah], 80)) found.push({
     id: 'savannah', name: 'a savannah',
-    hint: 'Between the rainforest and the desert — hot ground with a wet season and a dry one.',
+    hint: 'Between the rainforest and the desert: hot ground with a wet season and a dry one.',
     cells: g,
   });
   return found;
 }
 
+// How far from the summit a drop may be, in moves. Since the drop is now the
+// one thing that differs between players, it has to be the thing that differs
+// least in difficulty: everybody starts a real journey from the high ground,
+// and nobody starts on its doorstep or on the far side of the planet from it.
+const DROP_NEAR = 9, DROP_FAR = 20;
+
 /** Somewhere to be dropped: land, out of the ice, on a coast where possible,
- *  and never already standing on the summit. */
+ *  and a comparable journey from the summit however the dice fall. */
 function pickSpawn(rnd: () => number, land: Uint8Array, biome: Uint8Array, summit: number): number {
-  const coastal: number[] = [], inland: number[] = [];
+  const coastal: number[] = [], inland: number[] = [], anywhere: number[] = [];
   for (let r = 2; r < H - 2; r++) {
     if (Math.abs(latOf(r)) > 62) continue;
     for (let c = 0; c < W; c++) {
       const i = idx(r, c);
       if (!land[i] || biome[i] === B.icecap || biome[i] === B.snowline) continue;
-      if (movesBetween(i, summit) < 7) continue;
+      anywhere.push(i);
+      const away = movesBetween(i, summit);
+      if (away < DROP_NEAR || away > DROP_FAR) continue;
       const shore = !land[idx(r - 1, c)] || !land[idx(r + 1, c)] ||
         !land[idx(r, wrapC(c - 1))] || !land[idx(r, wrapC(c + 1))];
       (shore ? coastal : inland).push(i);
     }
   }
-  const pool = coastal.length >= 20 ? coastal : inland.length ? inland : coastal;
+  // A coast if the world has one at the right range, inland if not, and on a
+  // world where nothing at all sits in the band, anywhere on it will do.
+  const pool = coastal.length >= 20 ? coastal : inland.length ? inland : coastal.length ? coastal : anywhere;
   if (!pool.length) return summit;               // a world with no usable land
   return pool[Math.floor(rnd() * pool.length)];
 }
@@ -632,7 +654,11 @@ function pickGoals(rnd: () => number, t: Terrain, spawn: number): { goals: Landm
     // could finish even by spending every move on it would be scored out of a
     // number no one can hit. Which also fixes what the top is worth — clearing
     // it means the whole budget went on landmarks and none of it on climbing.
-    let affordable = left.filter(g => spent + reach(g) <= MOVES);
+    // A move of slack for each leg already walked. The chain is costed as if
+    // the walk finishes standing on the near edge of every landmark, but
+    // reaching one only means coming within TOUCH of it, and stopping a couple
+    // of squares short can cost a move on the leg after.
+    let affordable = left.filter(g => spent + reach(g) <= MOVES - ladder.length);
     if (affordable.length && ladder.length < GOALS_MAX) rungs = ladder.length + 1;
     // Past the budget, or past the number a day is scored out of, the chain
     // carries on nearest-first anyway: those entries are the ones standing

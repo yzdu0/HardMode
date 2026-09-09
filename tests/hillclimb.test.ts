@@ -13,7 +13,9 @@ const days = (n: number, from = '2026-09-09') => {
   return out;
 };
 const SAMPLE = days(40);
-const worlds = SAMPLE.map(generateWorld);
+// Never `SAMPLE.map(generateWorld)`: map hands the callback an index, and
+// generateWorld's second argument is the drop seed.
+const worlds = SAMPLE.map(d => generateWorld(d));
 const isLandBiome = (b: number) => !BIOMES[b].water;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
 

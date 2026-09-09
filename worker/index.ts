@@ -37,7 +37,7 @@ export const BUCKETS: Record<Game, readonly string[]> = {
   color: ["3", "2", "1"],                   // stars
   graphle: ["1", "2", "3", "4", "5", "6", "X"],
   facility: ["0", "1", "2", "3+"],          // travel over the target
-  hillclimb: ["A", "B", "C", "D"],          // grade for the day's expedition
+  hillclimb: ["S", "A", "B", "C", "D"],     // grade for the day's expedition
   treedle: ["1", "2", "3", "4", "5", "6", "X"],
 };
 

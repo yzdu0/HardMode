@@ -388,9 +388,9 @@ import type { Run, RunState } from "./hillclimb-run";
       // says it all, and the box becomes the scoreboard it was keeping anyway.
       (run.stopped ? "" : "<p class='hcbrief-line'><b>Climb as high as you can</b></p>") +
       "<div class='hcscore" + (run.stopped ? " bare" : "") + "'>" +
-        "<div class='hcscore-peak'><span>Highest</span><strong>" + metresLabel(now.best) + "</strong></div>" +
+        "<div class='hcscore-peak'><span>Highest so far</span><strong>" + metresLabel(now.best) + "</strong></div>" +
         (listed.length
-          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks · " +
+          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks (Bonus) · " +
             now.found.length + " of " + world.rungs + "</span>" +
             "<ul class='hcgoals'>" + listed.map(g =>
               "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") +
@@ -401,7 +401,7 @@ import type { Run, RunState } from "./hillclimb-run";
         "<button id='hcWhere' class='linkbtn' aria-expanded='" + hintsOpen + "' aria-controls='hcWhereBox'>" +
         (hintsOpen ? "Hide where to look" : "Where to look") + "</button>" +
         "<div id='hcWhereBox' class='kindbox" + (hintsOpen ? "" : " hidden") + "'>" +
-        now.live.map(g => "<p><b>" + world.goals[g].name + "</b> — " + world.goals[g].hint + "</p>").join("") +
+        now.live.map(g => "<p><b>" + world.goals[g].name + "</b> · " + world.goals[g].hint + "</p>").join("") +
         "</div>");
 
     const where = $("hcWhere");
@@ -467,7 +467,7 @@ import type { Run, RunState } from "./hillclimb-run";
   // ---------- the end of a run ----------
   function verdict(share: number, found: boolean) {
     if (share >= 0.95) return "You stood on the roof of the world.";
-    if (share >= 0.75) return "A serious summit — the true peak was barely above you.";
+    if (share >= 0.75) return "A serious summit. The true peak was barely above you.";
     if (share >= 0.5) return "Halfway up the planet. The high ground was further in than it looked.";
     if (share >= 0.25) return found ? "The budget went on the landmarks, and the mountains kept theirs." : "Low ground all the way. Next time follow the rising land rather than the coast.";
     return "Barely off the beach. The ranges sit inland; the coast will not take you up.";
@@ -479,11 +479,11 @@ import type { Run, RunState } from "./hillclimb-run";
     buildPixels();
     measureLift();
     $("hcMsg").innerHTML =
-      "<b>" + metresLabel(now.best) + "</b> of a " + metresLabel(world.summitM) + " summit — " +
-      Math.round(now.peakShare * 100) + "%. " +
-      now.found.length + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") + ", " +
-      now.biomes.length + " of " + world.checklist.length + " biomes logged. " +
-      "<b>Grade " + now.grade + "</b> — " + verdict(now.peakShare, now.found.length > 0);
+      "<b>" + now.score + ", grade " + now.grade + "</b> · " + now.climb + " for " + metresLabel(now.best) +
+      " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
+      now.found.length + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") + ", +" +
+      now.biomeBonus + " for " + now.biomes.length + " of " + world.checklist.length + " biomes. " +
+      verdict(now.peakShare, now.found.length > 0);
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
     $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
@@ -532,11 +532,14 @@ import type { Run, RunState } from "./hillclimb-run";
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
   function showScore() {
     $("hcScoreDay").textContent = "Hillclimb · " + longLabel(day);
+    // The arithmetic, so the number that just counted up can be read back off
+    // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
-      ["Climb", metresLabel(now.best) + " · " + Math.round(now.peakShare * 100) + "% of the summit"],
-      ["Landmarks", now.found.length + " of " + world.rungs],
-      ["Field notes", now.biomes.length + " of " + world.checklist.length],
-    ] as [string, string][]).map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+      ["Climb", metresLabel(now.best) + " of " + metresLabel(world.summitM), String(now.climb)],
+      ["Landmarks", now.found.length + " of " + world.rungs, "+" + now.landmarkBonus],
+      ["Field notes", now.biomes.length + " of " + world.checklist.length, "+" + now.biomeBonus],
+    ] as [string, string, string][]).map(([k, v, n]) =>
+      "<dt>" + k + "</dt><dd>" + v + "</dd><dd class='scorebox-pts'>" + n + "</dd>").join("");
     $("hcScoreGrade").textContent = "Grade " + now.grade;
     scoreBox.classList.remove("settled");
     $("hcScoreN").textContent = still() ? String(now.score) : "0";
@@ -551,25 +554,41 @@ import type { Run, RunState } from "./hillclimb-run";
   scoreBox.addEventListener("pointerdown", (e) => { if (e.target === scoreBox) scoreBox.close(); });
 
   $("hcStop").onclick = () => { if (!run.stopped) finish(true); };
-  $("hcRestart").onclick = () => { run = newRun(world); save(); start(); };
+  // Clearing the day's record is what mints a new drop: start() takes its seed
+  // from storage, so with nothing there it draws a fresh one and the planet is
+  // rebuilt around a different landing.
+  $("hcRestart").onclick = () => {
+    try { localStorage.removeItem(storeKey()); } catch (_) {}
+    scoreBox.close();
+    start();
+  };
 
   // ---------- storage ----------
   function save() {
     try { localStorage.setItem(storeKey(), JSON.stringify(run)); } catch (_) {}
   }
-  function load(): boolean {
-    try {
-      const d = JSON.parse(localStorage.getItem(storeKey()) || "null");
-      if (!d || !Array.isArray(d.path) || d.path[0] !== world.spawn) return false;
-      // A path from a world that has since changed shape is worse than none.
-      if (d.path.length > MOVES + 1 || d.path.some((i: unknown) => typeof i !== "number" || i < 0 || i >= W * H)) return false;
-      run = { path: d.path, stopped: Boolean(d.stopped) };
-      return true;
-    } catch (_) { return false; }
+  function saved(): any {
+    try { return JSON.parse(localStorage.getItem(storeKey()) || "null"); } catch (_) { return null; }
+  }
+  /** Where this browser was dropped on this day. Everyone walks the same
+   *  planet; the drop is the part that is yours, so it is kept with the run
+   *  and the world is rebuilt around it rather than the other way about. */
+  const DROP = /^[a-z0-9]{6,32}$/;
+  function dropSeed(d: any): string {
+    if (d && typeof d.seed === "string" && DROP.test(d.seed)) return d.seed;
+    return Array.from({ length: 12 }, () =>
+      "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+  }
+  function adopt(d: any, seed: string): boolean {
+    if (!d || !Array.isArray(d.path) || d.path[0] !== world.spawn) return false;
+    // A path from a world that has since changed shape is worse than none.
+    if (d.path.length > MOVES + 1 || d.path.some((i: unknown) => typeof i !== "number" || i < 0 || i >= W * H)) return false;
+    run = { path: d.path, stopped: Boolean(d.stopped), seed };
+    return true;
   }
 
   // ---------- the day's tally ----------
-  const ORDER = ["A", "B", "C", "D"];
+  const ORDER = ["S", "A", "B", "C", "D"];
   let statsOn = true;
   let mine: string = null;
   function playerId() {
@@ -649,10 +668,10 @@ import type { Run, RunState } from "./hillclimb-run";
   $("hcShare").onclick = () => {
     openShare(
       "Hillclimb " + day + "\n" +
-      "⛰ " + metresLabel(now.best) + " — " + Math.round(now.peakShare * 100) + "% of the summit\n" +
-      "🧭 " + now.found.length + "/" + world.rungs + " landmarks\n" +
-      "🗺 " + now.biomes.length + "/" + world.checklist.length + " biomes · " +
-        (MOVES - now.movesLeft) + " moves\n" +
+      now.score + " · grade " + now.grade + "\n" +
+      "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
+      "🧭 " + now.found.length + "/" + world.rungs + " landmarks · +" + now.landmarkBonus + "\n" +
+      "🗺 " + now.biomes.length + "/" + world.checklist.length + " biomes · +" + now.biomeBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 
@@ -666,8 +685,15 @@ import type { Run, RunState } from "./hillclimb-run";
   $("hcDateBtn").onclick = () => { if (day !== TODAY) { day = TODAY; start(); } };
 
   function start() {
-    world = generateWorld(day);
-    if (!load()) run = newRun(world);
+    const stored = saved();
+    const seed = dropSeed(stored);
+    world = generateWorld(day, seed);
+    if (!adopt(stored, seed)) {
+      run = newRun(world, seed);
+      // Written before a single move, or a reload would draw a new drop and
+      // move the player somewhere else on a planet they had started reading.
+      save();
+    }
     settle();
     reveal();
     liftAt = null;

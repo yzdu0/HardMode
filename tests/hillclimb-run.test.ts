@@ -12,7 +12,9 @@ const days = (n: number, from = '2026-09-09') => {
   return out;
 };
 const SAMPLE = days(40);
-const worlds = SAMPLE.map(generateWorld);
+// Never `SAMPLE.map(generateWorld)`: map hands the callback an index, and
+// generateWorld's second argument is the drop seed.
+const worlds = SAMPLE.map(d => generateWorld(d));
 
 /** The page's own move, so these tests walk on exactly the squares a player can. */
 const step = (here: number, dr: number, dc: number) =>
@@ -65,20 +67,41 @@ test('a move is a whole stride, so every landmark must be landable beside', () =
 });
 
 test('the day is scored out of a number the budget can actually reach', () => {
-  // The generator chains the landmarks along a route it has checked fits, so
-  // taking them in the order they come on offer always clears the day.
-  for (const w of worlds) {
+  // Every drop, not just one: the planet is the same for everybody but the
+  // landing is not, and each landing gets its own chain, so each chain has to
+  // fit its own budget. Taking them in the order they come on offer clears it.
+  for (const day of SAMPLE) for (const drop of ['', 'aaaaaa', 'bbbbbb', 'cccccc', 'dddddd']) {
+    const w = generateWorld(day, drop);
     assert.ok(w.rungs >= 1 && w.rungs <= w.goals.length);
-    const run = newRun(w);
+    const run = newRun(w, drop);
     let got = 0;
     for (const goal of w.goals.slice(0, w.rungs)) {
       if (!walkTo(run, goal.cells, MOVES)) break;
       got++;
     }
     assert.equal(got, w.rungs,
-      w.day + ': only ' + got + ' of ' + w.rungs + ' rungs reachable in ' + MOVES + ' moves');
+      day + '/' + drop + ': only ' + got + ' of ' + w.rungs + ' rungs in ' + MOVES + ' moves');
+    // Brushing one of the pool's deeper entries on the way is a bonus, not a
+    // bug: the landmark bonus simply tops out.
     assert.ok(runState(w, run).found.length >= w.rungs);
   }
+});
+
+test("the planet is the day's, and the drop is the player's", () => {
+  const base = generateWorld('2026-09-09');
+  const drops = ['aaaaaa', 'bbbbbb', 'cccccc', 'dddddd', 'eeeeee', 'ffffff'].map(d => generateWorld('2026-09-09', d));
+  for (const w of drops) {
+    // Same ground for everyone, down to the square. That is the shared thing.
+    assert.deepEqual([...w.biome], [...base.biome]);
+    assert.equal(w.summit, base.summit);
+    // A different landing, and a chain built around it.
+    assert.equal(w.land[w.spawn], 1);
+    const away = movesBetween(w.spawn, w.summit);
+    assert.ok(away >= 9 && away <= 20, 'a drop ' + away + ' moves from the summit is not a comparable day');
+  }
+  assert.ok(new Set(drops.map(w => w.spawn)).size >= 4, 'drops should land in different places');
+  // The same drop always lands in the same place, or a reload would move you.
+  assert.equal(generateWorld('2026-09-09', 'aaaaaa').spawn, drops[0].spawn);
 });
 
 test('always taking the nearer of the two is almost always right', () => {
@@ -219,6 +242,18 @@ test('score rises with every landmark, and a full sweep tops the bonus', () => {
     scores.push(runState(w, run).score);
   }
   for (let i = 1; i < scores.length; i++) assert.ok(scores[i] > scores[i - 1], 'landmark ' + i + ' added nothing');
+  // And each one pays more than the one before it. Measured on the landmark
+  // bonus itself: the total also moves with whatever biomes the detour crossed.
+  const paid: number[] = [];
+  for (let n = 0; n <= w.goals.length; n++) {
+    const run = newRun(w);
+    for (let g = 0; g < n; g++) walkTo(run, w.goals[g].cells, MOVES);
+    paid.push(runState(w, run).landmarkBonus);
+  }
+  for (let i = 2; i < paid.length; i++) {
+    assert.ok(paid[i] - paid[i - 1] > paid[i - 1] - paid[i - 2],
+      'landmark ' + i + ' paid no more than the one before');
+  }
 });
 
 test('touching is a square of the right size', () => {

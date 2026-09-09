@@ -1422,7 +1422,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 }
 .scorebox-rows {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   gap: 4px 14px;
   margin: 16px 0 0;
   padding-top: 14px;
@@ -1434,6 +1434,8 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 }
 .scorebox-rows dt { color: var(--muted); font-weight: 650; }
 .scorebox-rows dd { margin: 0; font-weight: 750; }
+/* The points column, so the card adds up in front of you. */
+.scorebox-pts { text-align: right; font-variant-numeric: tabular-nums; }
 .scorebox.settled .scorebox-grade { opacity: 1; transform: none; }
 .scorebox.settled .scorebox-rows { opacity: 1; }
 .scorebox .row { margin-top: 16px; }
