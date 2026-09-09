@@ -38,7 +38,10 @@ import type { Run, RunState } from "./HillClimb-run";
     const [y, m, d] = key.split("-").map(Number);
     return d + " " + months[m - 1] + " " + y;
   }
-  const ACCESS_DAYS = 4; // today, plus the three days immediately before it
+  // Production keeps the compact four-day archive. Local development exposes
+  // a full month so terrain, climate and landmarks can be compared quickly.
+  const LOCAL_TESTING = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  const ACCESS_DAYS = LOCAL_TESTING ? 30 : 4;
   const TODAY = todayKey();
   const OLDEST = addDays(TODAY, -(ACCESS_DAYS - 1));
   let day = TODAY;
@@ -765,7 +768,7 @@ import type { Run, RunState } from "./HillClimb-run";
     const open = $("hcHelpBox").classList.toggle("hidden") === false;
     $("hcHelpBtn").setAttribute("aria-expanded", String(open));
   };
-  /* The archive: the four available planets, and how each one went. A day already
+  /* The archive: the available planets, and how each one went. A day already
      walked shows its grade, so the strip doubles as a record of the run of
      them rather than only a way to get back to one. */
   const archive = $("hcArchive");

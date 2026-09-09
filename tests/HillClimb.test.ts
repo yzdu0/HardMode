@@ -48,10 +48,10 @@ test('height and sea level agree everywhere', () => {
   }
 });
 
-test('every world is mostly ocean, but never all of it', () => {
+test('every world is one-third land', () => {
   for (const w of worlds) {
     const land = [...w.land].reduce((a: number, b) => a + b, 0) / (W * H);
-    assert.ok(land > 0.2 && land < 0.45, SAMPLE[worlds.indexOf(w)] + ' is ' + land + ' land');
+    assert.ok(land > 0.32 && land < 0.34, SAMPLE[worlds.indexOf(w)] + ' is ' + land + ' land');
   }
 });
 

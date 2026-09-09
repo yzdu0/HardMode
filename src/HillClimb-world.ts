@@ -14,7 +14,7 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-export const HILLCLIMB_REVISION = 'world-4';
+export const HILLCLIMB_REVISION = 'world-5';
 const HILLCLIMB_SEED = 'HillClimb'.toLowerCase();
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
@@ -562,7 +562,7 @@ export function generateWorld(day: string, drop = ''): World {
     base[i] = noiseAt(shape, read, c + dc);
     ridge[i] = noiseAt(crease, read, c + dc, true);
   }
-  const sea = quantile(base, 0.60);   // four squares of land in every ten
+  const sea = quantile(base, 0.67);   // one square of land in every three
 
   const metres = new Int16Array(W * H);
   const depth = new Float32Array(W * H);
