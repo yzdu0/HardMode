@@ -62,6 +62,12 @@ export const LANDMARK_POINT = 3;
 export const gradeFor = (score: number) =>
   score >= 140 ? "S" : score >= 120 ? "A" : score >= 90 ? "B" : score >= 60 ? "C" : "D";
 
+/** Five-square share bar: D fills one square and each grade up fills one more. */
+export function gradeSquares(grade: string): string {
+  const filled = Math.max(0, 'DCBAS'.indexOf(grade) + 1);
+  return '🟩'.repeat(filled) + '⬜'.repeat(5 - filled);
+}
+
 export interface RunState {
   found: number[];       // landmarks collected, in the order reached
   live: number[];        // the two now on offer

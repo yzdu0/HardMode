@@ -9,7 +9,7 @@ import {
   generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
 } from "./HillClimb-world";
-import { newRun, runState } from "./HillClimb-run";
+import { gradeSquares, newRun, runState } from "./HillClimb-run";
 import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
 import type { World } from "./HillClimb-world";
@@ -754,7 +754,7 @@ import type { Run, RunState } from "./HillClimb-run";
   $("hcShare").onclick = () => {
     openShare(
       "HillClimb " + day + "\n" +
-      now.score + " · grade " + now.grade + "\n" +
+      now.score + " · " + gradeSquares(now.grade) + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
       "🧭 " + now.found.length + "/" + world.goals.length + " landmarks · +" + now.landmarkBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/HillClimb-world.ts';
-import { newRun, runState, touching, touchedOrder, livePair, gradeFor } from '../src/HillClimb-run.ts';
+import { newRun, runState, touching, touchedOrder, livePair, gradeFor, gradeSquares } from '../src/HillClimb-run.ts';
 import type { Run } from '../src/HillClimb-run.ts';
 import type { World } from '../src/HillClimb-world.ts';
 
@@ -346,4 +346,12 @@ test('grades use the published score thresholds', () => {
   assert.equal(gradeFor(120), 'A');
   assert.equal(gradeFor(139), 'A');
   assert.equal(gradeFor(140), 'S');
+});
+
+test('the share bar fills one square per grade', () => {
+  assert.equal(gradeSquares('D'), '🟩⬜⬜⬜⬜');
+  assert.equal(gradeSquares('C'), '🟩🟩⬜⬜⬜');
+  assert.equal(gradeSquares('B'), '🟩🟩🟩⬜⬜');
+  assert.equal(gradeSquares('A'), '🟩🟩🟩🟩⬜');
+  assert.equal(gradeSquares('S'), '🟩🟩🟩🟩🟩');
 });
