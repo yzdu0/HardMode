@@ -3,10 +3,12 @@
   "name": "nphard",
   "compatibility_date": "2026-09-07",
 
-  // Only /api/* reaches this script; static files answer before it runs. It
-  // still works with no database attached — the endpoints report themselves
-  // switched off and the page hides its results panels — so a provisioning
-  // failure costs the stats, never the puzzles.
+  // Static files answer before this script. The legacy lowercase HillClimb
+  // route is sent through it for a canonical redirect; API requests reach it
+  // after failing to match a static asset. It still works with no database
+  // attached — the endpoints report themselves switched off and the page
+  // hides its results panels — so a provisioning failure costs the stats,
+  // never the puzzles.
   "main": "worker/index.ts",
 
   // The built site. Without this file at all, wrangler treats the first deploy
@@ -16,6 +18,7 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
+    "run_worker_first": ["/hillclimb", "/hillclimb/*"],
 
     // Not "single-page-application". Assets are built with a relative base
     // (vite.config.ts) so the same output also works from a subpath on GitHub

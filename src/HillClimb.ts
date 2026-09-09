@@ -521,7 +521,7 @@ import type { Run, RunState } from "./HillClimb-run";
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
     $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
-    reportResult(now.grade, fresh);
+    reportResult(String(now.score), fresh);
 
     // A run restored from storage is already over and has been seen; only a
     // run that ends here and now gets the reveal and the card.
@@ -626,7 +626,6 @@ import type { Run, RunState } from "./HillClimb-run";
   }
 
   // ---------- the day's tally ----------
-  const ORDER = ["S", "A", "B", "C", "D"];
   let statsOn = true;
   let mine: string = null;
   function playerId() {
@@ -664,12 +663,16 @@ import type { Run, RunState } from "./HillClimb-run";
     } catch (_) { /* offline, or no database attached */ }
     const slot = data && data.enabled !== false && data.games ? data.games.HillClimb : null;
     if (!slot || !slot.total) { statsOn = Boolean(slot); box.classList.add("hidden"); return; }
-    const most = Math.max(...ORDER.map(b => slot.buckets[b] || 0), 1);
+    const scores = Object.keys(slot.buckets)
+      .filter(score => /^(0|[1-9]\d*)$/.test(score))
+      .sort((a, b) => Number(b) - Number(a));
+    if (!scores.length) { box.classList.add("hidden"); return; }
+    const most = Math.max(...scores.map(score => slot.buckets[score] || 0), 1);
     box.querySelector(".results-head").textContent =
-      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today · grade";
-    box.querySelector(".results-bars").innerHTML = ORDER.map(b => {
-      const n = slot.buckets[b] || 0;
-      return '<div class="results-row' + (mine === b ? " mine" : "") + '"><span>' + b +
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today · score";
+    box.querySelector(".results-bars").innerHTML = scores.map(score => {
+      const n = slot.buckets[score] || 0;
+      return '<div class="results-row' + (mine === score ? " mine" : "") + '"><span>' + score +
         '</span><i style="width:' + Math.max(6, Math.round((n / most) * 100)) + '%">' + n + "</i></div>";
     }).join("");
     box.classList.remove("hidden");

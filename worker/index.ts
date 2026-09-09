@@ -30,20 +30,27 @@ interface Env {
 export const GAMES = ["steiner", "color", "graphle", "facility", "HillClimb", "treedle"] as const;
 export type Game = (typeof GAMES)[number];
 
-// What a finished puzzle is worth, per game. Anything outside these sets is a
-// client that has drifted from the server, so it is rejected rather than stored.
+// What a finished puzzle is worth, per game. HillClimb is the exception: its
+// exact numeric score is stored instead of a fixed bucket, so its list is empty
+// here and validated separately below.
 export const BUCKETS: Record<Game, readonly string[]> = {
   steiner: ["0", "1", "2", "3+"],          // cost over the target
   color: ["3", "2", "1"],                   // stars
   graphle: ["1", "2", "3", "4", "5", "6", "X"],
   facility: ["0", "1", "2", "3+"],          // travel over the target
-  HillClimb: ["S", "A", "B", "C", "D"],     // grade for the day's expedition
+  HillClimb: [],                              // exact score, 0–152
   treedle: ["1", "2", "3", "4", "5", "6", "X"],
 };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PLAYER = /^[a-z0-9]{8,40}$/;
+const HILLCLIMB_SCORE = /^(0|[1-9]\d{0,2})$/;
+const HILLCLIMB_SCORE_MAX = 152; // 100 climb + 40 landmarks + 12 field notes
 const ARCHIVE_DAYS = 90;
+
+const validBucket = (game: Game, bucket: string) => game === "HillClimb"
+  ? HILLCLIMB_SCORE.test(bucket) && Number(bucket) <= HILLCLIMB_SCORE_MAX
+  : BUCKETS[game].includes(bucket);
 
 const dayNumber = (day: string) => Math.floor(Date.parse(day + "T00:00:00Z") / 86400000);
 
@@ -56,7 +63,7 @@ export function readResult(body: unknown, today: string): { row?: ResultRow; why
   if (typeof day !== "string" || !DAY.test(day)) return { why: "bad day" };
   if (typeof game !== "string" || !(GAMES as readonly string[]).includes(game)) return { why: "bad game" };
   if (typeof player !== "string" || !PLAYER.test(player)) return { why: "bad player" };
-  if (typeof bucket !== "string" || !BUCKETS[game as Game].includes(bucket)) return { why: "bad bucket" };
+  if (typeof bucket !== "string" || !validBucket(game as Game, bucket)) return { why: "bad bucket" };
   // Only days the archive actually offers, give or take the date line. A board
   // is picked by the player's own calendar while the server keeps UTC, so
   // between the two midnights anyone east of UTC is a day ahead of the server
@@ -77,7 +84,13 @@ export function tally(rows: { game: string; bucket: string; n: number }[]) {
   }
   for (const { game, bucket, n } of rows) {
     const slot = games[game];
-    if (!slot || !(bucket in slot.buckets)) continue;   // a bucket we retired
+    if (!slot) continue;
+    if (game === "HillClimb") {
+      // Old rows contain only a grade. They remain in the database, but cannot
+      // honestly be placed in an exact-score distribution.
+      if (!validBucket(game, bucket)) continue;
+      if (!(bucket in slot.buckets)) slot.buckets[bucket] = 0;
+    } else if (!(bucket in slot.buckets)) continue;    // a bucket we retired
     slot.buckets[bucket] += n;
     slot.total += n;
   }
@@ -112,6 +125,10 @@ const edgeCache = () => (caches as unknown as { default: Cache }).default;
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/hillclimb" || url.pathname.startsWith("/hillclimb/")) {
+      url.pathname = "/HillClimb" + url.pathname.slice("/hillclimb".length);
+      return Response.redirect(url, 308);
+    }
     if (!url.pathname.startsWith("/api/")) {
       // Static assets normally answer before the worker runs; this is the
       // fallback for anything that slips through.
@@ -126,10 +143,15 @@ export default {
       if (!parsed.row) return json({ error: parsed.why }, { status: 400 });
       const { day, game, player, bucket } = parsed.row;
       await ready(env.STATS);
-      // First result for this player and day wins; later ones are ignored.
-      await env.STATS.prepare(
-        "INSERT OR IGNORE INTO results (day, game, player, bucket) VALUES (?, ?, ?, ?)"
-      ).bind(day, game, player, bucket).run();
+      // First result for this player and day wins. During the HillClimb score
+      // rollout only, replace a legacy grade for that same result with the
+      // exact score now supplied by the client.
+      const sql = game === "HillClimb"
+        ? "INSERT INTO results (day, game, player, bucket) VALUES (?, ?, ?, ?) " +
+          "ON CONFLICT(day, game, player) DO UPDATE SET bucket = excluded.bucket " +
+          "WHERE results.bucket IN ('S', 'A', 'B', 'C', 'D')"
+        : "INSERT OR IGNORE INTO results (day, game, player, bucket) VALUES (?, ?, ?, ?)";
+      await env.STATS.prepare(sql).bind(day, game, player, bucket).run();
       // Drop the cached tally for that day, or a player who has just finished
       // would read a minute-old histogram that does not include them.
       await edgeCache().delete(statsKey(url.origin, day));

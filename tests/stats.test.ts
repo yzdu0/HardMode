@@ -1,10 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readResult, tally, GAMES, BUCKETS } from '../worker/index.ts';
+import worker, { readResult, tally, GAMES, BUCKETS } from '../worker/index.ts';
 
 const TODAY = '2026-09-08';
 const ok = (over: Record<string, unknown> = {}) =>
   ({ day: TODAY, game: 'graphle', player: 'abcd1234efgh', bucket: '3', ...over });
+
+test('the old lowercase HillClimb URL redirects to its canonical casing', async () => {
+  const home = await worker.fetch(new Request('https://nphard.app/hillclimb/'), {});
+  assert.equal(home.status, 308);
+  assert.equal(home.headers.get('location'), 'https://nphard.app/HillClimb/');
+
+  const subpage = await worker.fetch(new Request('https://nphard.app/hillclimb/world/?date=2026-09-09'), {});
+  assert.equal(subpage.status, 308);
+  assert.equal(subpage.headers.get('location'), 'https://nphard.app/HillClimb/world/?date=2026-09-09');
+});
 
 test('a well-formed result is accepted', () => {
   const { row, why } = readResult(ok(), TODAY);
@@ -14,6 +24,7 @@ test('a well-formed result is accepted', () => {
 
 test('every game accepts exactly its own buckets and no others', () => {
   for (const game of GAMES) {
+    if (game === 'HillClimb') continue;
     for (const bucket of BUCKETS[game]) {
       assert(readResult(ok({ game, bucket }), TODAY).row, game + ' should accept ' + bucket);
     }
@@ -23,6 +34,16 @@ test('every game accepts exactly its own buckets and no others', () => {
       assert.equal(readResult(ok({ game, bucket }), TODAY).row, undefined,
         game + ' should refuse ' + bucket);
     }
+  }
+});
+
+test('HillClimb stores exact scores rather than grades', () => {
+  for (const bucket of ['0', '1', '55', '115', '152']) {
+    assert(readResult(ok({ game: 'HillClimb', bucket }), TODAY).row, 'score ' + bucket + ' should be accepted');
+  }
+  for (const bucket of ['S', 'A', '-1', '01', '153', '999', '55.5']) {
+    assert.equal(readResult(ok({ game: 'HillClimb', bucket }), TODAY).row, undefined,
+      bucket + ' is not an exact valid score');
   }
 });
 
@@ -72,6 +93,9 @@ test('the tally covers every game and ignores rows it cannot place', () => {
     { game: 'graphle', bucket: '3', n: 5 },
     { game: 'graphle', bucket: 'X', n: 2 },
     { game: 'steiner', bucket: '0', n: 4 },
+    { game: 'HillClimb', bucket: '117', n: 3 },
+    { game: 'HillClimb', bucket: '82', n: 2 },
+    { game: 'HillClimb', bucket: 'A', n: 9 }, // legacy grade: its exact score is unknowable
     { game: 'graphle', bucket: '9', n: 99 },   // a bucket that no longer exists
     { game: 'chess', bucket: '1', n: 99 },     // a game that never did
   ]);
@@ -80,10 +104,13 @@ test('the tally covers every game and ignores rows it cannot place', () => {
   assert.deepEqual(games.graphle.buckets, { '1': 0, '2': 0, '3': 5, '4': 0, '5': 0, '6': 0, X: 2 });
   assert.equal(games.steiner.total, 4);
   assert.equal(games.facility.total, 0, 'a game nobody finished still reports zero');
+  assert.equal(games.HillClimb.total, 5, 'only exact HillClimb scores belong in its distribution');
+  assert.deepEqual(games.HillClimb.buckets, { '82': 2, '117': 3 });
   // Every declared bucket is present, so the page never has to guess a shape.
   // Membership, not order: integer-like keys are reordered by the language, so
   // the payload cannot carry display order and the page supplies its own.
   for (const game of GAMES) {
+    if (game === 'HillClimb') continue;
     assert.deepEqual(Object.keys(games[game].buckets).sort(), [...BUCKETS[game]].sort());
   }
 });
