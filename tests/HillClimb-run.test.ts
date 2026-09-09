@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/HillClimb-world.ts';
-import { newRun, runState, touching, touchedOrder, livePair } from '../src/HillClimb-run.ts';
+import { newRun, runState, touching, touchedOrder, livePair, gradeFor } from '../src/HillClimb-run.ts';
 import type { Run } from '../src/HillClimb-run.ts';
 import type { World } from '../src/HillClimb-world.ts';
 
@@ -335,4 +335,15 @@ test('touching is a square of the right size', () => {
   assert.ok(touching(cells, idx(40 + TOUCH, 40 - TOUCH)));
   assert.ok(!touching(cells, idx(40 + TOUCH + 1, 40)));
   assert.ok(touching(new Set([idx(40, 0)]), idx(40, W - TOUCH)), 'and it wraps');
+});
+
+test('grades use the published score thresholds', () => {
+  assert.equal(gradeFor(59), 'D');
+  assert.equal(gradeFor(60), 'C');
+  assert.equal(gradeFor(89), 'C');
+  assert.equal(gradeFor(90), 'B');
+  assert.equal(gradeFor(119), 'B');
+  assert.equal(gradeFor(120), 'A');
+  assert.equal(gradeFor(139), 'A');
+  assert.equal(gradeFor(140), 'S');
 });

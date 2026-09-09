@@ -59,6 +59,8 @@ export function touchedOrder(world: World, path: number[]): number[] {
    chasing the chain is the part of a day you actually choose, and it should
    pay like it. */
 export const LANDMARK_POINT = 3;
+export const gradeFor = (score: number) =>
+  score >= 140 ? "S" : score >= 120 ? "A" : score >= 90 ? "B" : score >= 60 ? "C" : "D";
 
 export interface RunState {
   found: number[];       // landmarks collected, in the order reached
@@ -100,6 +102,6 @@ export function runState(world: World, run: Run): RunState {
        two different achievements and one day can hold both. S is for the day
        that does: it takes a real climb and most of the chain, and the budget
        will not stretch to both unless the route was very good indeed. */
-    grade: score >= 115 ? "S" : score >= 90 ? "A" : score >= 55 ? "B" : score >= 30 ? "C" : "D",
+    grade: gradeFor(score),
   };
 }
