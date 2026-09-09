@@ -1,4 +1,4 @@
-/* HardMode — Hillclimb: what a walk across the day's world adds up to.
+/* HardMode — HillClimb: what a walk across the day's world adds up to.
  *
  * Kept apart from the page because it is the only part of the game with rules
  * rather than pixels, and because it has to give the same answer twice: once
@@ -8,8 +8,8 @@
  * Nothing is stored but where the walk has been. Everything below is derived
  * from that and the world, so a restored run and a live one cannot drift
  * apart. */
-import { LIVE, MOVES, ladderValue, touching } from "./hillclimb-world.ts";
-import type { World } from "./hillclimb-world.ts";
+import { LIVE, MOVES, ladderValue, touching } from "./HillClimb-world.ts";
+import type { World } from "./HillClimb-world.ts";
 
 export interface Run {
   path: number[];        // every square stopped on, starting at the drop
@@ -33,16 +33,19 @@ export function livePair(world: World, had: Set<number>): number[] {
   return out;
 }
 
-/** Which landmarks the walk has collected, in the order it reached them.
- *  Only ones that were on offer at the time count — wandering across a
- *  landmark that has not come up yet is scenery, not a find. One stop standing
- *  where both live ones meet takes both, and the pair refills behind it. */
+/** Which landmarks the walk has collected, in the order they unlock.
+ *  A landmark first counts only while it is on offer. Once it comes up, though,
+ *  any earlier stop beside it counts immediately: the player has already done
+ *  the exploring. One find can therefore refill the pair and instantly collect
+ *  a newly unlocked landmark from the ground already covered. */
 export function touchedOrder(world: World, path: number[]): number[] {
   const order: number[] = [];
   const had = new Set<number>();
+  const visited: number[] = [];
   for (const stop of path) {
+    visited.push(stop);
     for (;;) {
-      const g = livePair(world, had).find(i => touching(world.goals[i].cells, stop));
+      const g = livePair(world, had).find(i => visited.some(at => touching(world.goals[i].cells, at)));
       if (g === undefined) break;
       had.add(g);
       order.push(g);

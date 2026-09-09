@@ -1,4 +1,4 @@
-/* HardMode — Hillclimb.
+/* HardMode — HillClimb.
  *
  * One planet a day, and twenty-eight steps to learn it. The world is generated
  * from the date alone, so everybody walks the same ground, and it is generated
@@ -15,6 +15,7 @@
  * whole game. */
 
 export const HILLCLIMB_REVISION = 'world-4';
+const HILLCLIMB_SEED = 'HillClimb'.toLowerCase();
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
 // Two degrees of latitude to the row: fine enough for a coastline to have
@@ -412,8 +413,8 @@ export interface Landmark {
  * point, or its move budget would only hold for one starting square.
  */
 export function generateWorld(day: string, drop = ''): World {
-  const rnd = random('hillclimb-' + HILLCLIMB_REVISION + '-' + day);
-  const dice = random('hillclimb-drop-' + HILLCLIMB_REVISION + '-' + day + '-' + drop);
+  const rnd = random(HILLCLIMB_SEED + '-' + HILLCLIMB_REVISION + '-' + day);
+  const dice = random(HILLCLIMB_SEED + '-drop-' + HILLCLIMB_REVISION + '-' + day + '-' + drop);
 
   // ---- height ----
   // One broad field decides where the continents are; a ridged field creases
@@ -431,7 +432,7 @@ export function generateWorld(day: string, drop = ''): World {
   // stop following the coasts they belong to.
   const shape = noiseOf(rnd, 3, 7);
   const crease = noiseOf(rnd, 4, 6);
-  const drift = random('hillclimb-warp-' + HILLCLIMB_REVISION + '-' + day);
+  const drift = random(HILLCLIMB_SEED + '-warp-' + HILLCLIMB_REVISION + '-' + day);
   const pushX = noiseOf(drift, WARP_SCALE, 3);
   const pushY = noiseOf(drift, WARP_SCALE, 3);
   const pushHard = noiseOf(drift, 2, 2);

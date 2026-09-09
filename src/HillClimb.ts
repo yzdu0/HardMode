@@ -1,19 +1,19 @@
-/* HardMode — Hillclimb.
+/* HardMode — HillClimb.
  *
- * The world lives in hillclimb-world.ts; everything here is the expedition:
+ * The world lives in HillClimb-world.ts; everything here is the expedition:
  * where you have been, what you could see from there, and what it added up to.
  *
- * The rules of a run live in hillclimb-run.ts, which is where the arithmetic
+ * The rules of a run live in HillClimb-run.ts, which is where the arithmetic
  * is tested. This file draws it. */
 import {
   generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
-} from "./hillclimb-world";
-import { newRun, runState } from "./hillclimb-run";
-import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./hillclimb-layers";
-import type { Layer } from "./hillclimb-layers";
-import type { World } from "./hillclimb-world";
-import type { Run, RunState } from "./hillclimb-run";
+} from "./HillClimb-world";
+import { newRun, runState } from "./HillClimb-run";
+import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
+import type { Layer } from "./HillClimb-layers";
+import type { World } from "./HillClimb-world";
+import type { Run, RunState } from "./HillClimb-run";
 
 (function () {
   "use strict";
@@ -43,7 +43,7 @@ import type { Run, RunState } from "./hillclimb-run";
   let day = TODAY;
 
   const $ = (id: string) => document.getElementById(id);
-  const storeKey = () => "hm-" + day + "-hillclimb-" + HILLCLIMB_REVISION;
+  const storeKey = () => "hm-" + day + "-HillClimb-" + HILLCLIMB_REVISION;
 
   // ---------- theme ----------
   const THEMES = {
@@ -565,7 +565,7 @@ import type { Run, RunState } from "./hillclimb-run";
      it is three lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
   function showScore() {
-    $("hcScoreDay").textContent = "Hillclimb · " + longLabel(day);
+    $("hcScoreDay").textContent = "HillClimb · " + longLabel(day);
     // The arithmetic, so the number that just counted up can be read back off
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
@@ -648,7 +648,7 @@ import type { Run, RunState } from "./hillclimb-run";
         try {
           await fetch("/api/result", {
             method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ day, game: "hillclimb", bucket, player }),
+            body: JSON.stringify({ day, game: "HillClimb", bucket, player }),
           });
         } catch (_) { /* the run is already over; the tally is not worth an error */ }
       }
@@ -662,7 +662,7 @@ import type { Run, RunState } from "./hillclimb-run";
       const res = await fetch("/api/stats?date=" + encodeURIComponent(day), { cache: "no-store" });
       if (res.ok) data = await res.json();
     } catch (_) { /* offline, or no database attached */ }
-    const slot = data && data.enabled !== false && data.games ? data.games.hillclimb : null;
+    const slot = data && data.enabled !== false && data.games ? data.games.HillClimb : null;
     if (!slot || !slot.total) { statsOn = Boolean(slot); box.classList.add("hidden"); return; }
     const most = Math.max(...ORDER.map(b => slot.buckets[b] || 0), 1);
     box.querySelector(".results-head").textContent =
@@ -705,7 +705,7 @@ import type { Run, RunState } from "./hillclimb-run";
   shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
   $("hcShare").onclick = () => {
     openShare(
-      "Hillclimb " + day + "\n" +
+      "HillClimb " + day + "\n" +
       now.score + " · grade " + now.grade + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
       "🧭 " + now.found.length + "/" + world.rungs + " landmarks · +" + now.landmarkBonus + "\n" +
@@ -726,7 +726,7 @@ import type { Run, RunState } from "./hillclimb-run";
   const ARCHIVE_DAYS = 30;
   function gradeOn(key: string): string {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + key + "-hillclimb-" + HILLCLIMB_REVISION) || "null");
+      const d = JSON.parse(localStorage.getItem("hm-" + key + "-HillClimb-" + HILLCLIMB_REVISION) || "null");
       return d && d.stopped && typeof d.grade === "string" ? d.grade : "";
     } catch (_) { return ""; }
   }

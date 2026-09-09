@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/hillclimb-world.ts';
-import { newRun, runState, touching, touchedOrder, livePair } from '../src/hillclimb-run.ts';
-import type { Run } from '../src/hillclimb-run.ts';
-import type { World } from '../src/hillclimb-world.ts';
+import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/HillClimb-world.ts';
+import { newRun, runState, touching, touchedOrder, livePair } from '../src/HillClimb-run.ts';
+import type { Run } from '../src/HillClimb-run.ts';
+import type { World } from '../src/HillClimb-world.ts';
 
 const days = (n: number, from = '2026-09-09') => {
   const out: string[] = [];
@@ -113,16 +113,16 @@ test('always taking the nearer of the two is almost always right', () => {
   for (const day of sample) {
     const w = generateWorld(day);
     const run = newRun(w);
-    let got = 0;
-    while (got < w.rungs) {
-      const live = livePair(w, new Set(runState(w, run).found));
+    let found = runState(w, run).found;
+    while (found.length < w.rungs) {
+      const live = livePair(w, new Set(found));
       if (!live.length) break;
       const here = run.path[run.path.length - 1];
       const near = live.reduce((a, b) => (movesTo(here, w.goals[b].cells) < movesTo(here, w.goals[a].cells) ? b : a));
       if (!walkTo(run, w.goals[near].cells, MOVES)) break;
-      got++;
+      found = runState(w, run).found;
     }
-    if (got >= w.rungs) cleared++;
+    if (found.length >= w.rungs) cleared++;
   }
   assert.ok(cleared >= sample.length * 0.85,
     'the near option cleared the day only ' + cleared + ' times in ' + sample.length);
@@ -160,6 +160,18 @@ test('a landmark that has not come up yet is scenery, not a find', () => {
       w.day + ': a landmark not yet offered was credited');
   }
   assert.ok(checked > 10, 'only checked ' + checked + ' worlds');
+});
+
+test('a newly unlocked landmark counts if it was visited earlier', () => {
+  const w = planted(worlds[0], 3);
+  const locked = w.goals[2].centre;
+  const unlocksIt = w.goals[0].centre;
+
+  // The third landmark is scenery at the first stop. Reaching the first goal
+  // then opens a slot for it, at which point the earlier visit should count
+  // without making the player walk back.
+  assert.deepEqual(touchedOrder(w, [w.spawn, locked]), []);
+  assert.deepEqual(touchedOrder(w, [w.spawn, locked, unlocksIt]), [0, 2]);
 });
 
 test('any instance of a landmark counts, not one chosen patch of it', () => {

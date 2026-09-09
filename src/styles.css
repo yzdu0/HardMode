@@ -1222,7 +1222,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
   .row .btn { padding-inline: 7px; }
 }
 
-/* ---------- Hillclimb ----------
+/* ---------- HillClimb ----------
    One canvas the width of the column, a pad beside a readout, and two lines of
    chips. Nothing on this page is drawn twice: the map carries the terrain, the
    readout carries the numbers, and the chips carry the names. */
@@ -1443,7 +1443,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
   .scorebox-grade, .scorebox-rows { opacity: 1; transform: none; transition: none; }
 }
 
-/* Hillclimb's header carries no pills — the brief holds the score and the bar
+/* HillClimb's header carries no pills — the brief holds the score and the bar
    holds the moves — so the date row has the width to itself. */
 .daily-bar.solo { grid-template-columns: 1fr; }
 

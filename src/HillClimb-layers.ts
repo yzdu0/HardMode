@@ -1,4 +1,4 @@
-/* HardMode — Hillclimb: the ways a planet can be drawn.
+/* HardMode — HillClimb: the ways a planet can be drawn.
  *
  * The map the game is played on is only one of them. Once a run is over the
  * player can look at what the map was made of instead: the height the biomes
@@ -7,8 +7,8 @@
  *
  * Kept apart from both pages because both draw them: the game under the run,
  * and the page explaining how a world is made. */
-import { BIOMES, W, H, idx, wrapC } from "./hillclimb-world.ts";
-import type { World } from "./hillclimb-world.ts";
+import { BIOMES, W, H, idx, wrapC } from "./HillClimb-world.ts";
+import type { World } from "./HillClimb-world.ts";
 
 export type Layer = "biome" | "flat" | "height" | "temp" | "rain";
 

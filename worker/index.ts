@@ -27,7 +27,7 @@ interface Env {
 
 // Treedle is retired from the site but stays here: its rows are already stored,
 // and a client left open on an old tab should not have its result refused.
-export const GAMES = ["steiner", "color", "graphle", "facility", "hillclimb", "treedle"] as const;
+export const GAMES = ["steiner", "color", "graphle", "facility", "HillClimb", "treedle"] as const;
 export type Game = (typeof GAMES)[number];
 
 // What a finished puzzle is worth, per game. Anything outside these sets is a
@@ -37,7 +37,7 @@ export const BUCKETS: Record<Game, readonly string[]> = {
   color: ["3", "2", "1"],                   // stars
   graphle: ["1", "2", "3", "4", "5", "6", "X"],
   facility: ["0", "1", "2", "3+"],          // travel over the target
-  hillclimb: ["S", "A", "B", "C", "D"],     // grade for the day's expedition
+  HillClimb: ["S", "A", "B", "C", "D"],     // grade for the day's expedition
   treedle: ["1", "2", "3", "4", "5", "6", "X"],
 };
 

@@ -1,12 +1,12 @@
-/* HardMode — Hillclimb: the layers a planet is built from, drawn.
+/* HardMode — HillClimb: the layers a planet is built from, drawn.
  *
  * The page next to this one explains the generator in words. Words are a poor
  * way to show that the rain shadow really does sit behind the range, so each
  * step of the pipeline is also drawn from a real world: the same date, the same
  * code the game runs, four views of what it produced. */
-import { generateWorld, BIOMES, W, H } from "./hillclimb-world";
-import { pixelsFor } from "./hillclimb-layers";
-import type { Layer } from "./hillclimb-layers";
+import { generateWorld, BIOMES, W, H } from "./HillClimb-world";
+import { pixelsFor } from "./HillClimb-layers";
+import type { Layer } from "./HillClimb-layers";
 
 (function () {
   "use strict";

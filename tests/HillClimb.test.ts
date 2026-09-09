@@ -4,7 +4,7 @@ import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
   BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, march,
   idx, rowOf, colOf, latOf,
-} from '../src/hillclimb-world.ts';
+} from '../src/HillClimb-world.ts';
 
 const days = (n: number, from = '2026-09-09') => {
   const out: string[] = [];
