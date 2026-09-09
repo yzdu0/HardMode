@@ -28,7 +28,6 @@
         </div>
 
         <p class="help-copy">The map is a 160&nbsp;&times;&nbsp;92 grid on a cylinder: east and west wrap, north and south are the poles. Row <i>r</i> has latitude 90&nbsp;&minus;&nbsp;180(<i>r</i>&nbsp;+&nbsp;0.5)/92. Everything below is computed from the date alone, in this order. Nothing is placed by hand; the biomes are whatever the temperature and rainfall come to.</p>
-        <p class="atlas-day">The figures are drawn from <b id="atlasDay"></b>, using the game&rsquo;s own code.</p>
 
         <h3>1. Height</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight"></canvas>
@@ -38,7 +37,7 @@
         <p><i>shape</i> gives rounded continents. <i>crease</i> is the same noise folded about its midpoint, which produces ridge lines rather than blobs; it is later multiplied by height above sea level, so it only bites where the ground is already high.</p>
         <p>Each octave&rsquo;s lattice is periodic east&ndash;west, so the seam is invisible, and carries a random vertical offset.</p>
 
-        <h3>2. The warp</h3>
+        <h3>2. Domain warping</h3>
         <p>When genereating the height at a given coordinate, a displacement is also considered, which warps the heightmap:</p>
         <p class="atlas-eq"><i>h</i>(<i>r</i>,&thinsp;<i>c</i>) = <i>shape</i>(<i>r</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>y</sub></i>,&nbsp; <i>c</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>x</sub></i>) &nbsp;&nbsp; where <i>k</i> = 40&thinsp;(0.25 + 0.75&thinsp;<i>a</i>)</p>
         <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are two more noise fields in the range &plusmn;0.5, and <i>a</i> is a third, very broad one that varies how hard the displacement pulls from place to place.</p>
@@ -56,7 +55,7 @@
 
         <h3>5. Temperature</h3>
         <figure class="atlas-fig"><canvas id="atlasTemp"></canvas>
-          <figcaption>Annual mean temperature. Blue is below freezing, red is tropical.</figcaption></figure>
+          <figcaption>Annual mean temperature.</figcaption></figure>
         <p class="atlas-eq"><i>T</i> = 33 &minus; 54&thinsp;(|lat*|/90)<sup>1.8</sup> &minus; 6.3&thinsp;&middot;&thinsp;<i>upland</i>/1000 + &Delta;<i>T</i><sub>coast</sub> + noise</p>
         <p>33&thinsp;&deg;C at the equator falling to &minus;21&thinsp;&deg;C at the poles, minus a lapse rate of 6.3&thinsp;&deg;C per kilometre. <i>upland</i> is elevation averaged over a nine-square radius, not the square&rsquo;s own height: climate responds to the height of a region, and using raw height made every crinkle in a warped coastline its own climate. Land within seven squares downwind of sea takes a share of that sea&rsquo;s current offset, falling off with distance.</p>
         <p>lat* is latitude displaced by up to &plusmn;9.5&deg; by a broad noise field. Without it every climate band would change along the same row and the planet would come out in stripes.</p>
@@ -71,7 +70,7 @@
 
         <h3>7. Biomes</h3>
         <figure class="atlas-fig"><canvas id="atlasBiome"></canvas>
-          <figcaption>The result: the map the game is played on.</figcaption></figure>
+          <figcaption></figcaption></figure>
         <p>Rainfall is averaged over a three-square radius, then converted to a rank between 0 and 1 &mdash; separately for land above 6&thinsp;&deg;C and land below it. The split matters. Cold air carries little water, so cold ground is dry ground; ranked against the whole world, the polar half of the land occupies the bottom of the scale and the warm half is never dry enough to be desert. Ranked apart, <i>dry</i> means dry for that temperature, and the proportions come out close to Earth&rsquo;s: deserts about 16% of land, permanent ice about 15%.</p>
         <p>Each land square then takes the first rule that matches, with <i>T</i> in &deg;C, <i>z</i> in metres and <i>m</i> the rainfall rank:</p>
         <table class="atlas-table">
