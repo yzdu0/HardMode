@@ -418,7 +418,7 @@ import type { Run, RunState } from "./HillClimb-run";
         "<div class='hcscore-peak'><span>Highest so far</span><strong>" + metresLabel(now.best) + "</strong></div>" +
         (listed.length
           ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks (Bonus) · " +
-            now.found.length + " of " + world.rungs + "</span>" +
+            now.found.length + " of " + world.goals.length + " found</span>" +
             "<ul class='hcgoals'>" + listed.map(g =>
               "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") +
             "</ul></div>"
@@ -508,7 +508,7 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcMsg").innerHTML =
       "<b>" + now.score + ", grade " + now.grade + "</b> · " + now.climb + " for " + metresLabel(now.best) +
       " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
-      now.found.length + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") + ". " +
+      now.found.length + " of " + world.goals.length + " landmark" + (world.goals.length === 1 ? "" : "s") + ". " +
       verdict(now.peakShare, now.found.length > 0);
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
@@ -562,7 +562,7 @@ import type { Run, RunState } from "./HillClimb-run";
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
       ["Climb", metresLabel(now.best) + " of " + metresLabel(world.summitM), String(now.climb)],
-      ["Landmarks", now.found.length + " of " + world.rungs, "+" + now.landmarkBonus],
+      ["Landmarks", now.found.length + " of " + world.goals.length, "+" + now.landmarkBonus],
     ] as [string, string, string][]).map(([k, v, n]) =>
       "<dt>" + k + "</dt><dd>" + v + "</dd><dd class='scorebox-pts'>" + n + "</dd>").join("");
     $("hcScoreGrade").textContent = "Grade " + now.grade;
@@ -702,7 +702,7 @@ import type { Run, RunState } from "./HillClimb-run";
       "HillClimb " + day + "\n" +
       now.score + " · grade " + now.grade + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
-      "🧭 " + now.found.length + "/" + world.rungs + " landmarks · +" + now.landmarkBonus + "\n" +
+      "🧭 " + now.found.length + "/" + world.goals.length + " landmarks · +" + now.landmarkBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 

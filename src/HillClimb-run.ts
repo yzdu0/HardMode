@@ -58,7 +58,7 @@ export function touchedOrder(world: World, path: number[]): number[] {
 /* What the bonuses are worth. The nth landmark reached pays n times the first:
    chasing the chain is the part of a day you actually choose, and it should
    pay like it. */
-export const LANDMARK_POINT = 4;
+export const LANDMARK_POINT = 3;
 
 export interface RunState {
   found: number[];       // landmarks collected, in the order reached
@@ -83,11 +83,11 @@ export function runState(world: World, run: Run): RunState {
      summit. The landmarks are added on top of it — what you picked up on the
      way — so the arithmetic can be read off the card.
 
-     Landmarks count out of what the budget was built to allow, not the whole
-     pool: the pool runs deeper only so the pair on offer never thins to one,
-     and a player who routes well enough to beat it simply tops that part out. */
+     Every landmark in the day's pool counts. The pool runs past what the
+     obvious route can reach, so an unusually efficient walk is rewarded rather
+     than silently capped. */
   const climb = Math.round(100 * peakShare);
-  const landmarkBonus = LANDMARK_POINT * ladderValue(Math.min(found.length, world.rungs));
+  const landmarkBonus = LANDMARK_POINT * ladderValue(found.length);
   const score = climb + landmarkBonus;
 
   return {

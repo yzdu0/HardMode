@@ -322,6 +322,7 @@ test('score rises with every landmark, and a full sweep tops the bonus', () => {
     for (let g = 0; g < n; g++) walkTo(run, w.goals[g].cells, MOVES);
     paid.push(runState(w, run).landmarkBonus);
   }
+  assert.deepEqual(paid, [0, 3, 9, 18, 30], 'landmarks should add +3, +6, +9, +12');
   for (let i = 2; i < paid.length; i++) {
     assert.ok(paid[i] - paid[i - 1] > paid[i - 1] - paid[i - 2],
       'landmark ' + i + ' paid no more than the one before');

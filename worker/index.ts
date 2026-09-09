@@ -38,14 +38,14 @@ export const BUCKETS: Record<Game, readonly string[]> = {
   color: ["3", "2", "1"],                   // stars
   graphle: ["1", "2", "3", "4", "5", "6", "X"],
   facility: ["0", "1", "2", "3+"],          // travel over the target
-  HillClimb: [],                              // exact score, 0–244
+  HillClimb: [],                              // exact score, 0–235
   treedle: ["1", "2", "3", "4", "5", "6", "X"],
 };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PLAYER = /^[a-z0-9]{8,40}$/;
 const HILLCLIMB_SCORE = /^(0|[1-9]\d{0,2})$/;
-const HILLCLIMB_SCORE_MAX = 244; // 100 climb + all currently possible landmarks
+const HILLCLIMB_SCORE_MAX = 235; // 100 climb + all nine currently possible landmarks
 const ARCHIVE_AGE_MAX = 90;
 const HILLCLIMB_AGE_MAX = 4; // three prior local days, plus date-line tolerance
 
