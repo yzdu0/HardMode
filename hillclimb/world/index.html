@@ -27,50 +27,69 @@
           <a class="learn-btn" href="../">Back to Hillclimb</a>
         </div>
 
-        <p class="help-copy">Every day&rsquo;s planet is built from the date and nothing else, in the order a real one would be: height, then a sea to put it in, then the currents that turn in that sea, then the winds that carry its water inland. The biomes are not placed. They are what is left once the temperature and the rainfall have been worked out square by square.</p>
-        <p class="help-copy">None of it is a simulation. It is the shape of the thing rather than the physics, and that is the point: the shape is enough that a player who knows how Earth is laid out can reason about what is over the horizon before spending a move on it.</p>
-        <p class="atlas-day">Everything below is drawn from <b id="atlasDay"></b>, the real planet for that day.</p>
+        <p class="help-copy">The map is a 160&nbsp;&times;&nbsp;92 grid on a cylinder: east and west wrap, north and south are the poles. Row <i>r</i> has latitude 90&nbsp;&minus;&nbsp;180(<i>r</i>&nbsp;+&nbsp;0.5)/92. Everything below is computed from the date alone, in this order. Nothing is placed by hand; the biomes are whatever the temperature and rainfall come to.</p>
+        <p class="atlas-day">The figures are drawn from <b id="atlasDay"></b>, using the game&rsquo;s own code.</p>
 
         <h3>1. Height</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight"></canvas>
-          <figcaption>Height alone, warped, before there is any sea. Dark is low, white is high.</figcaption></figure>
-        <p>Two layers of noise. The first is ordinary layered value noise, coarse to fine, which gives round continent-sized blobs and nothing that looks like a mountain. The second is the same noise folded about its middle, which turns those blobs into long creases; it is scaled by the first, so the creases only bite where the ground is already high. That is why ranges run through the middle of a landmass instead of out to sea.</p>
-        <p>The noise lattice is periodic east to west, so the map joins itself at the seam with no visible edge. The vertical lattice is not: the top and bottom of the map are the poles, not a wrap.</p>
-        <p>Each layer&rsquo;s lattice also gets a random vertical offset. Without one, every layer would put a lattice row exactly on the north pole, the equator and the south pole of every planet ever made, and those three latitudes would quietly end up with more land than their share. Sliding each layer independently makes that cancel.</p>
+          <figcaption>Height before any sea. Dark is low, white is high.</figcaption></figure>
+        <p>Two fields of layered value noise, each a sum of octaves at halving amplitude:</p>
+        <p class="atlas-eq"><i>shape</i> = &Sigma;<sub><i>o</i>=0..6</sub> 2<sup>&minus;<i>o</i></sup> &middot; noise<sub><i>o</i></sub> &nbsp;&nbsp;&nbsp; <i>crease</i> = &Sigma;<sub><i>o</i>=0..5</sub> 2<sup>&minus;<i>o</i></sup> &middot; (1 &minus; |2&thinsp;noise<sub><i>o</i></sub> &minus; 1|)</p>
+        <p><i>shape</i> gives rounded continents. <i>crease</i> is the same noise folded about its midpoint, which produces ridge lines rather than blobs; it is later multiplied by height above sea level, so it only bites where the ground is already high.</p>
+        <p>Each octave&rsquo;s lattice is periodic east&ndash;west, so the seam is invisible, and carries a random vertical offset. Without that offset every octave would put a lattice row exactly on the north pole, the equator and the south pole of every planet. A row on a lattice row is read from it directly; a row between two is their average, and an average has a narrower spread. A sea level set by percentile turns that into a permanent surplus of land at those three latitudes. Offsetting each octave independently cancels it: measured over 1200 planets, the pole-to-equator difference in land falls from about five points to one.</p>
 
         <h3>2. The warp</h3>
-        <p>Layered noise on its own makes rounded, potato-shaped continents. Real coastlines are not rounded, so before either layer is read, the point being read is moved. Two more noise fields say how far to drag each square, and the height is taken from wherever it lands instead of from where it sits.</p>
-        <p>That alone would only slide the continents about. The effect comes from the drag varying <i>faster</i> than the terrain it is dragging: neighbouring squares get pulled different ways, the field folds over itself, and what comes out is marbled rather than smooth. Coasts acquire fjords and spits, headlands trail off into chains of islands, and inlets cut back on themselves. It roughly triples the number of small islands on a planet without changing how much land there is, which is why archipelagos and inland seas are common enough to be worth asking anybody to find.</p>
-        <p>A third, very broad field scales how hard the drag pulls. One part of a world shatters into an archipelago while another keeps a clean continental shore. Both height layers are dragged by exactly the same amount, or the ranges would stop following the coasts they belong to.</p>
+        <p>Both fields are read at a displaced point rather than at the square itself:</p>
+        <p class="atlas-eq"><i>h</i>(<i>r</i>,&thinsp;<i>c</i>) = <i>shape</i>(<i>r</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>y</sub></i>,&nbsp; <i>c</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>x</sub></i>) &nbsp;&nbsp; where <i>k</i> = 40&thinsp;(0.25 + 0.75&thinsp;<i>a</i>)</p>
+        <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are two more noise fields in the range &plusmn;0.5, and <i>a</i> is a third, very broad one that varies how hard the displacement pulls from place to place.</p>
+        <p>The displacement fields use a tighter lattice than the terrain they displace. That is what makes the difference: a displacement varying more slowly than the terrain would only translate continents, while one varying faster folds the field over itself. Measured effect, holding land area fixed: small islands roughly double, and the landmarks that depend on them stop being rare &mdash; archipelagos appear on 49 days in 80 rather than 30, inland seas on 57 rather than 40, volcanic islands at all.</p>
 
         <h3>3. Sea level</h3>
-        <p>The sea is not a fixed height. It is set at the value that leaves four squares in every ten above it, whatever the noise happened to do. Two days with wildly different height fields still get comparable coastlines, and no day comes out as one drowned puddle or one unbroken continent. Because that level sits near the middle of the field rather than out in its tail, it is also the least fussy place to put it: how much land a latitude gets stops depending on the latitude.</p>
+        <p>Sea level is the 60th percentile of <i>h</i>, so land is 40% of every planet regardless of what the noise did. Height above it is scaled to metres by</p>
+        <p class="atlas-eq">metres = 7700 &middot; (<i>above</i> &middot; (0.42 + 1.5&thinsp;&middot;&thinsp;<i>crease</i>))<sup>1.55</sup></p>
+        <p>with <i>above</i> the height above sea level normalised to 0&ndash;1. The exponent concentrates the high ground: most land is low, and summits are rare.</p>
 
         <h3>4. Ocean currents</h3>
-        <p>Every ocean basin turns. Warm water runs poleward up one side of it and cold water runs back down the other; on Earth that is the Gulf Stream against the Benguela. Here each sea square simply asks how far the land is to its east and to its west. Ocean hugging a western shore is on the poleward-flowing side and runs warm; ocean hugging an eastern shore runs cold. Nothing actually spins, but the coasts end up on the right sides, and the effect is strongest around forty degrees where the real gyres are.</p>
+        <p>Each sea square measures the distance to land to its east (<i>e</i>) and west (<i>w</i>) and takes a temperature offset</p>
+        <p class="atlas-eq">&Delta;<i>T</i> = 6.5 &middot; exp(&minus;((|lat| &minus; 38)/24)<sup>2</sup>) &middot; (<i>e</i> &minus; <i>w</i>)/(<i>e</i> + <i>w</i>)</p>
+        <p>Sea against a western shore is on the poleward-flowing side of its basin and runs warm; sea against an eastern shore runs cold. The Gaussian confines the effect to the mid-latitudes, where the real gyres are. Nothing rotates; the coasts simply end up on the correct sides.</p>
 
         <h3>5. Temperature</h3>
         <figure class="atlas-fig"><canvas id="atlasTemp"></canvas>
           <figcaption>Annual mean temperature. Blue is below freezing, red is tropical.</figcaption></figure>
-        <p>Sunshine minus latitude, about 33&deg;C on the equator falling to nearly &minus;30&deg;C at the poles. Then height is taken off it at roughly 6&deg;C a kilometre, which is why a tropical peak can carry snow. Then the coast takes its weather from whatever water is upwind of it, less and less of it the further inland you go.</p>
-        <p>One more field bends the latitude that every band is measured against, by up to nine degrees either way. Without it the tree line, the deserts and the rainforest belt would all change along the same ruled row and the world would come out in stripes.</p>
+        <p class="atlas-eq"><i>T</i> = 33 &minus; 54&thinsp;(|lat*|/90)<sup>1.8</sup> &minus; 6.3&thinsp;&middot;&thinsp;<i>upland</i>/1000 + &Delta;<i>T</i><sub>coast</sub> + noise</p>
+        <p>33&thinsp;&deg;C at the equator falling to &minus;21&thinsp;&deg;C at the poles, minus a lapse rate of 6.3&thinsp;&deg;C per kilometre. <i>upland</i> is elevation averaged over a nine-square radius, not the square&rsquo;s own height: climate responds to the height of a region, and using raw height made every crinkle in a warped coastline its own climate. Land within seven squares downwind of sea takes a share of that sea&rsquo;s current offset, falling off with distance.</p>
+        <p>lat* is latitude displaced by up to &plusmn;9.5&deg; by a broad noise field. Without it every climate band would change along the same row and the planet would come out in stripes.</p>
 
         <h3>6. Wind and rain</h3>
         <figure class="atlas-fig"><canvas id="atlasRain"></canvas>
           <figcaption>Rainfall over land, driest to wettest.</figcaption></figure>
-        <p>Air walks each row in the direction that latitude&rsquo;s wind blows: trade winds run west below thirty degrees, the westerlies run east between thirty and sixty, the polar easterlies run west again above that. It goes twice round, so by the time it is recorded it is already carrying whatever it picked up on the way.</p>
-        <p>Over sea it takes water up, faster where the sea is warm. Over land it drops it, and hardest where the ground climbs. That single rule is what puts a wet slope on one side of every range and a desert behind it. On top of it sits the zonal pattern: wet where the trades converge on the equator, dry under the subtropical highs about a quarter of the way to the pole, wet again where the westerlies pile storms into the mid-latitudes, dry over the poles.</p>
+        <p>Wind direction is set by latitude: westward below 30&deg; (trade winds), eastward from 30&deg; to 60&deg; (westerlies), westward above 60&deg; (polar easterlies). A parcel of air with water content <i>m</i> traverses each row twice in that direction, so it arrives at the seam already loaded. Per square:</p>
+        <p class="atlas-eq">over sea: &nbsp; <i>m</i> &larr; <i>m</i> + (1 &minus; <i>m</i>)(0.10 + 0.010&thinsp;<i>T</i>)</p>
+        <p class="atlas-eq">over land: &nbsp; <i>m</i> &larr; 0.988&thinsp;&middot;&thinsp;<i>m</i>&thinsp;(1 &minus; min(1, 0.07 + 0.42&thinsp;&Delta;<i>z</i>))</p>
+        <p>&Delta;<i>z</i> is the climb in kilometres from the previous square. The 0.42 term is the whole of orography: rain falls on the windward slope, and the air that crosses the crest has less left. Recorded rainfall is <i>m</i> scaled by a zonal factor &mdash; wet where the trades converge on the equator, dry under the subtropical highs near 27&deg;, wet again in the mid-latitude storm belt near 50&deg;, dry over the poles.</p>
 
         <h3>7. Biomes</h3>
         <figure class="atlas-fig"><canvas id="atlasBiome"></canvas>
-          <figcaption>What falls out of it: the map you actually play on.</figcaption></figure>
-        <p>Nothing here is placed. Each square is handed its temperature and its rainfall and asked what it must be. Below about &minus;13&deg;C it is ice cap. High and cold is snowfield, then bare mountain: above the treeline is a matter of height and cold together, which is why bare rock starts near sea level in the far north and needs four thousand metres on the equator. Below freezing is tundra, and cold but not frozen is boreal forest if it rains and tundra if it does not.</p>
-        <p>Temperate ground runs forest, grassland, shrubland, desert as it dries. Hot ground runs rainforest, seasonal forest, savannah, desert the same way. Rainfall is ranked against the rest of the planet rather than measured absolutely, so a dry world still has its wet quarter and a wet one still has its deserts.</p>
+          <figcaption>The result: the map the game is played on.</figcaption></figure>
+        <p>Rainfall is averaged over a three-square radius, then converted to a rank between 0 and 1 &mdash; separately for land above 6&thinsp;&deg;C and land below it. The split matters. Cold air carries little water, so cold ground is dry ground; ranked against the whole world, the polar half of the land occupies the bottom of the scale and the warm half is never dry enough to be desert. Ranked apart, <i>dry</i> means dry for that temperature, and the proportions come out close to Earth&rsquo;s: deserts about 16% of land, permanent ice about 14%.</p>
+        <p>Each land square then takes the first rule that matches, with <i>T</i> in &deg;C, <i>z</i> in metres and <i>m</i> the rainfall rank:</p>
+        <table class="atlas-table">
+          <tr><th>condition</th><th>biome</th></tr>
+          <tr><td><i>T</i> &le; &minus;12 and <i>z</i> &ge; 1600</td><td>snowfield</td></tr>
+          <tr><td><i>T</i> &le; 0.5 and <i>z</i> &ge; 900</td><td>bare mountain</td></tr>
+          <tr><td><i>T</i> &le; &minus;13</td><td>ice cap</td></tr>
+          <tr><td><i>T</i> &le; &minus;2</td><td>tundra</td></tr>
+          <tr><td><i>T</i> &le; 6</td><td><i>m</i> &ge; 0.42 boreal forest, else tundra</td></tr>
+          <tr><td><i>T</i> &le; 19</td><td><i>m</i> &ge; 0.62 forest, &ge; 0.42 grassland, &ge; 0.24 shrubland, else desert</td></tr>
+          <tr><td>otherwise</td><td><i>m</i> &ge; 0.70 rainforest, &ge; 0.52 seasonal forest, &ge; 0.30 savannah, else desert</td></tr>
+        </table>
+        <p>Sea freezes below &minus;12&thinsp;&deg;C; otherwise it is shallow within the top 12% of depth and open ocean below that.</p>
         <div id="atlasKey" class="mapkey" aria-label="Biome key"></div>
 
-        <h3>8. Landmarks, and where you land</h3>
-        <p>The landmarks are read off the finished map: an archipelago is three or more small islands close together, an inland sea is water with no way out, a volcanic island is one that rises far more steeply than its size suggests. The rest are the biomes themselves. Each kind holds every one of its instances, so any desert is the desert.</p>
-        <p>The ground is the same for everybody, because it comes from the date. Where you are dropped is not: that comes from your own browser, and the chain of landmarks is built around wherever it puts you, so the route is yours even though the world is shared. Drops are kept between nine and twenty moves from the summit, since the drop is the one thing that differs between players and so had better be the thing that differs least.</p>
+        <h3>8. Landmarks and the drop</h3>
+        <p>Landmarks are read off the finished map. An archipelago is three or more landmasses of 18 squares or fewer within 10 columns and 8 rows of one another; an inland sea is a body of water not connected to the largest one; a volcanic island is a landmass of 70 squares or fewer reaching 1900&thinsp;m. The rest are the biomes themselves. Each kind holds every instance of itself on the planet, so any desert is the desert.</p>
+        <p>The terrain comes from the date, so it is the same for everyone. The drop comes from a value stored in your browser, and the chain of landmarks is built around wherever it lands: each leg is costed by walking it, and the chain stops when the next leg would not fit in 28 moves. Drops are restricted to between 9 and 20 moves from the summit, so the one thing that differs between players is also the thing that differs least in difficulty.</p>
       </section>
     </main>
 

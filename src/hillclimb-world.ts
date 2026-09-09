@@ -14,7 +14,7 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-export const HILLCLIMB_REVISION = 'world-3';
+export const HILLCLIMB_REVISION = 'world-4';
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
 // Two degrees of latitude to the row: fine enough for a coastline to have
@@ -40,6 +40,10 @@ export const GOALS_MAX = 4;
 // next one on the natural route, and the one past it — so taking the further
 // one first is a real gamble rather than a menu.
 export const LIVE = 2;
+
+// Where ground stops counting as warm and starts counting as cold, in annual
+// mean °C. It is the line the two rainfall scales are split at.
+const COLD = 6;
 
 /* The domain warp on the height field: how far a square may be dragged before
    it is read, how much of that the calmest ground still gets, and how tightly
@@ -71,7 +75,7 @@ export interface BiomeDef {
 export const BIOMES: BiomeDef[] = [
   { id: 'ocean',      name: 'open ocean',        water: true, colour: '#8cc0e8', dark: '#16324a' },
   { id: 'shallow',    name: 'shallow sea',       water: true, colour: '#b6dcf4', dark: '#1d4763' },
-  { id: 'seaice',     name: 'sea ice',           water: true, colour: '#e2eef6', dark: '#48606f' },
+  { id: 'seaice',     name: 'sea ice',           water: true, colour: '#d3e4ef', dark: '#3d5566' },
   { id: 'icecap',     name: 'ice cap',                        colour: '#f7fafc', dark: '#dbe4ea' },
   { id: 'snowline',   name: 'snowfield',                      colour: '#ffffff', dark: '#f0f5f8' },
   { id: 'alpine',     name: 'bare mountain',                  colour: '#c8c1b6', dark: '#7b7268' },
@@ -264,6 +268,29 @@ function quantile(data: ArrayLike<number>, share: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(share * sorted.length))];
 }
 
+/** Average a field over the land within a short reach, wrapping east to west.
+ *  Rain arrives as a per-square figure off a per-square slope, and a crinkled
+ *  coastline makes that flicker; a climate is a region, so it is smoothed to
+ *  one before anything is decided from it. */
+function spreadOverLand(values: Float32Array, land: Uint8Array, reach: number): Float32Array {
+  const out = new Float32Array(values.length);
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const i = idx(r, c);
+    if (!land[i]) continue;
+    let sum = 0, n = 0;
+    for (let dr = -reach; dr <= reach; dr++) {
+      const rr = r + dr;
+      if (rr < 0 || rr >= H) continue;
+      for (let dc = -reach; dc <= reach; dc++) {
+        const j = idx(rr, wrapC(c + dc));
+        if (land[j]) { sum += values[j]; n++; }
+      }
+    }
+    out[i] = sum / n;
+  }
+  return out;
+}
+
 /** Rank each land value against the others and rewrite it as 0..1. Rainfall
  *  totals swing wildly between one world and the next; ranking them means a
  *  dry planet still has its wet quarter and its dry quarter, and the biome
@@ -295,7 +322,7 @@ export function windName(lat: number): string {
 }
 
 /** Sunshine minus latitude. Roughly Earth's sea-level profile. */
-const baseTemp = (lat: number) => 33 - 62 * Math.pow(Math.abs(lat) / 90, 1.35);
+const baseTemp = (lat: number) => 33 - 54 * Math.pow(Math.abs(lat) / 90, 1.8);
 
 /** Rainfall before the land has had its say: wet on the equator where the
  *  trades converge, dry under the subtropical highs, wet again where the
@@ -436,14 +463,18 @@ export function generateWorld(day: string, drop = ''): World {
   // ---- temperature ----
   const warmth = currents(land);
   const tempC = new Float32Array(W * H);
-  const wobble = field(rnd, 5, 4, false);
+  const wobble = field(rnd, 3, 2, false);
   // Climate does not run in straight lines. One broad, slow field bends the
   // latitude every band is measured against, by up to seven degrees either
   // way — so the tree line, the rainforest belt and the deserts all wander
   // together, the way they do on a real map, instead of every biome changing
   // along the same ruled row.
-  const bend = field(rnd, 2, 5, false);
+  const bend = field(rnd, 2, 3, false);
   const bentLat = (r: number, i: number) => latOf(r) + (bend[i] - 0.5) * 19;
+  // Weather answers to the height of a region, not of a square. Taking the
+  // lapse rate off the raw map made every crinkle in a warped coastline its
+  // own climate, and the biomes came out as mosaic rather than as belts.
+  const upland = spreadOverLand(Float32Array.from(metres), land, 4);
   for (let r = 0; r < H; r++) {
     const dir = windDir(latOf(r));
     for (let c = 0; c < W; c++) {
@@ -458,7 +489,7 @@ export function generateWorld(day: string, drop = ''): World {
           const j = idx(r, wrapC(c - dir * d));
           if (!land[j]) { t += warmth[j] * (1 - d / 8) * 0.8; break; }
         }
-        t -= (metres[i] / 1000) * 6.3;                 // lapse rate
+        t -= (upland[i] / 1000) * 6.3;                 // lapse rate
       }
       tempC[i] = t;
     }
@@ -491,7 +522,23 @@ export function generateWorld(day: string, drop = ''): World {
       if (step >= W) humid[i] = m * zonalRain(bentLat(r, i));
     }
   }
-  const rain = rankOverLand(humid, land);
+  /* Ranked within temperature class, not against all land at once.
+   *
+   * Cold air carries little water, so cold ground is dry ground: rank the
+   * whole world together and the polar half of the land fills the bottom of
+   * the scale, leaving the warm half too wet to be desert however parched it
+   * is. Deserts came out at a third the share of the ice, which is the wrong
+   * way round for a planet. Ranked apart, "dry" means dry for somewhere that
+   * temperature, which is what the words are supposed to mean. */
+  const damp = spreadOverLand(humid, land, 3);
+  const chilly = new Uint8Array(W * H);
+  const temperate = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    if (!land[i]) continue;
+    if (tempC[i] <= COLD) chilly[i] = 1; else temperate[i] = 1;
+  }
+  const rainCold = rankOverLand(damp, chilly);
+  const rain = rankOverLand(damp, temperate);
 
   // ---- biomes ----
   const biome = new Uint8Array(W * H);
@@ -499,20 +546,22 @@ export function generateWorld(day: string, drop = ''): World {
     const t = tempC[i];
     if (!land[i]) {
       // Water this cold, averaged over a year, is water with a lid on it.
-      biome[i] = t <= -8 ? B.seaice : depth[i] < 0.12 ? B.shallow : B.ocean;
+      biome[i] = t <= -12 ? B.seaice : depth[i] < 0.12 ? B.shallow : B.ocean;
       continue;
     }
     const m = rain[i], h = metres[i];
     // Above the treeline is a matter of height and cold together, which is why
     // bare rock starts near sea level in the far north and needs four thousand
     // metres on the equator.
-    if (t <= -9 && h >= 800) biome[i] = B.snowline;
-    else if (t <= 0.5 && h >= 700) biome[i] = B.alpine;
+    // Permanent snow is a summit, not a latitude: it wants real height as well
+    // as real cold, or half of every polar continent comes out white.
+    if (t <= -12 && h >= 1600) biome[i] = B.snowline;
+    else if (t <= 0.5 && h >= 900) biome[i] = B.alpine;
     else if (t <= -13) biome[i] = B.icecap;
     else if (t <= -2) biome[i] = B.tundra;
-    else if (t <= 6) biome[i] = m >= 0.40 ? B.taiga : B.tundra;
-    else if (t <= 19) biome[i] = m >= 0.66 ? B.forest : m >= 0.40 ? B.grassland : m >= 0.20 ? B.shrubland : B.desert;
-    else biome[i] = m >= 0.74 ? B.rainforest : m >= 0.54 ? B.monsoon : m >= 0.28 ? B.savannah : B.desert;
+    else if (t <= COLD) biome[i] = rainCold[i] >= 0.42 ? B.taiga : B.tundra;
+    else if (t <= 19) biome[i] = m >= 0.62 ? B.forest : m >= 0.42 ? B.grassland : m >= 0.24 ? B.shrubland : B.desert;
+    else biome[i] = m >= 0.70 ? B.rainforest : m >= 0.52 ? B.monsoon : m >= 0.30 ? B.savannah : B.desert;
   }
 
   // ---- the two things worth walking to ----

@@ -142,11 +142,24 @@ test('exactly two landmarks are on offer, all the way down', () => {
 });
 
 test('a landmark that has not come up yet is scenery, not a find', () => {
-  const w = worlds.find(x => x.goals.length > LIVE);
   // Standing on the third one before either of the first two is reached
-  // collects nothing: it was never on the table.
-  const deep = [...w.goals[LIVE].cells][0];
-  assert.deepEqual(touchedOrder(w, [w.spawn, deep]).filter(g => g === LIVE), []);
+  // collects nothing: it was never on the table. The square has to be clear of
+  // the two that are, or reaching one of those promotes the third on the spot
+  // and the walk fairly takes both.
+  let checked = 0;
+  for (const w of worlds) {
+    if (w.goals.length <= LIVE) continue;
+    // The drop must not be sitting on one of the two either, or reaching that
+    // one promotes the third before the walk has taken a step.
+    if (touching(w.goals[0].cells, w.spawn) || touching(w.goals[1].cells, w.spawn)) continue;
+    const apart = [...w.goals[LIVE].cells].find(i =>
+      !touching(w.goals[0].cells, i) && !touching(w.goals[1].cells, i));
+    if (apart === undefined) continue;
+    checked++;
+    assert.deepEqual(touchedOrder(w, [w.spawn, apart]).filter(g => g === LIVE), [],
+      w.day + ': a landmark not yet offered was credited');
+  }
+  assert.ok(checked > 10, 'only checked ' + checked + ' worlds');
 });
 
 test('any instance of a landmark counts, not one chosen patch of it', () => {
