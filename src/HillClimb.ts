@@ -246,25 +246,21 @@ import type { Run, RunState } from "./HillClimb-run";
     };
 
     if (run.stopped && front >= 1) {
-      /* Only worth drawing once it is all visible: the landmarks that were on
-         the table, and where the summit you were aiming at turned out to sit.
-         The pool runs deeper than the day does, and marking landmarks that
-         never came up would mark the player down for missing what they were
-         never shown. */
+      /* Only worth drawing once it is all visible: unreached landmarks that
+         were on the table, and where the summit you were aiming at turned out
+         to sit. Reached areas need no overlay; the walk already records them. */
       const held = new Set(now.found);
       for (const g of shownGoals()) {
+        if (held.has(g)) continue;
         const { cells } = world.goals[g];
-        const good = held.has(g);
         // Small ones get a tint so an island or a lake is not just four lines.
         // A landmark the size of a continent needs no help being found, and a
         // wash that size would only recolour the terrain under it.
         if (cells.size <= 260) {
-          ctx.fillStyle = good
-            ? (darkMap ? "rgba(120,220,150,.18)" : "rgba(47,125,50,.15)")
-            : (darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)");
+          ctx.fillStyle = darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)";
           for (const i of cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
         }
-        ctx.strokeStyle = good ? (darkMap ? "#7fdca0" : "#2f7d32") : (darkMap ? "#ff9a63" : "#c23b3b");
+        ctx.strokeStyle = darkMap ? "#ff9a63" : "#c23b3b";
         ctx.lineWidth = Math.max(1.2, cell * 0.26);
         ctx.beginPath();
         for (const i of cells) {
