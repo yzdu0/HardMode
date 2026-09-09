@@ -1482,3 +1482,23 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .atlas-table th { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .atlas-table td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .atlas-table td:first-child { white-space: nowrap; color: var(--muted); }
+
+/* What the finished map is showing. A row of quiet toggles under it, and for
+   the layers that are numbers rather than names, the ramp itself with its two
+   ends labelled: a temperature map cannot be read without one. */
+.hclayers { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.hclayer {
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hclayer:hover { border-color: var(--hover-line); color: var(--fg); }
+.hclayer.on { border-color: var(--fg); background: var(--fg); color: var(--page); }
+.hcscale { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 650; }
+.hcscale i { flex: 1; height: 8px; border-radius: 999px; border: 1px solid var(--line); }
+.hcscale.hidden { display: none; }

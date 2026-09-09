@@ -32,14 +32,14 @@
 
         <h3>1. Height</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight"></canvas>
-          <figcaption>Height before any sea. Dark is low, white is high.</figcaption></figure>
-        <p>Two fields of layered value noise, each a sum of octaves at halving amplitude:</p>
+          <figcaption>Heightmap generated from noise</figcaption></figure>
+        <p>Firstly, two fields of layered value noise, each a sum of octaves at halving amplitude:</p>
         <p class="atlas-eq"><i>shape</i> = &Sigma;<sub><i>o</i>=0..6</sub> 2<sup>&minus;<i>o</i></sup> &middot; noise<sub><i>o</i></sub> &nbsp;&nbsp;&nbsp; <i>crease</i> = &Sigma;<sub><i>o</i>=0..5</sub> 2<sup>&minus;<i>o</i></sup> &middot; (1 &minus; |2&thinsp;noise<sub><i>o</i></sub> &minus; 1|)</p>
         <p><i>shape</i> gives rounded continents. <i>crease</i> is the same noise folded about its midpoint, which produces ridge lines rather than blobs; it is later multiplied by height above sea level, so it only bites where the ground is already high.</p>
-        <p>Each octave&rsquo;s lattice is periodic east&ndash;west, so the seam is invisible, and carries a random vertical offset. Without that offset every octave would put a lattice row exactly on the north pole, the equator and the south pole of every planet. A row on a lattice row is read from it directly; a row between two is their average, and an average has a narrower spread. A sea level set by percentile turns that into a permanent surplus of land at those three latitudes. Offsetting each octave independently cancels it: measured over 1200 planets, the pole-to-equator difference in land falls from about five points to one.</p>
+        <p>Each octave&rsquo;s lattice is periodic east&ndash;west, so the seam is invisible, and carries a random vertical offset.</p>
 
         <h3>2. The warp</h3>
-        <p>Both fields are read at a displaced point rather than at the square itself:</p>
+        <p>When genereating the height at a :</p>
         <p class="atlas-eq"><i>h</i>(<i>r</i>,&thinsp;<i>c</i>) = <i>shape</i>(<i>r</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>y</sub></i>,&nbsp; <i>c</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>x</sub></i>) &nbsp;&nbsp; where <i>k</i> = 40&thinsp;(0.25 + 0.75&thinsp;<i>a</i>)</p>
         <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are two more noise fields in the range &plusmn;0.5, and <i>a</i> is a third, very broad one that varies how hard the displacement pulls from place to place.</p>
         <p>The displacement fields use a tighter lattice than the terrain they displace. That is what makes the difference: a displacement varying more slowly than the terrain would only translate continents, while one varying faster folds the field over itself. Measured effect, holding land area fixed: small islands roughly double, and the landmarks that depend on them stop being rare &mdash; archipelagos appear on 49 days in 80 rather than 30, inland seas on 57 rather than 40, volcanic islands at all.</p>

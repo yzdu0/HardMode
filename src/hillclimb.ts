@@ -10,6 +10,8 @@ import {
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
 } from "./hillclimb-world";
 import { newRun, runState } from "./hillclimb-run";
+import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./hillclimb-layers";
+import type { Layer } from "./hillclimb-layers";
 import type { World } from "./hillclimb-world";
 import type { Run, RunState } from "./hillclimb-run";
 
@@ -78,6 +80,9 @@ import type { Run, RunState } from "./hillclimb-run";
   const SOFT = 0.14;                  // how wide the lifting edge is
   const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   let hintsOpen = false;              // the "where to look" panel, across redraws
+  // What the revealed map is showing. Only offered once the run is over: the
+  // height and the rainfall are the answers, not the question.
+  let layer: Layer = "biome";
 
   const at = () => run.path[run.path.length - 1];
   const settle = () => { now = runState(world, run); };
@@ -143,22 +148,7 @@ import type { Run, RunState } from "./hillclimb-run";
    *  the slope faces. Relief is what a climber reads, and a fifteen-colour
    *  palette cannot carry it on its own. */
   function buildPixels() {
-    pixels = new Uint8ClampedArray(W * H * 3);
-    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
-      const i = idx(r, c);
-      const def = BIOMES[world.biome[i]];
-      let [red, green, blue] = hex(darkMap ? def.dark : def.colour);
-      if (world.land[i]) {
-        // Ground rising to the west catches the light; ground falling away
-        // from it sits in shadow. One lamp, fixed, like a paper map.
-        const west = world.metres[idx(r, wrapC(c - 1))];
-        const east = world.metres[idx(r, wrapC(c + 1))];
-        const slope = Math.max(-1, Math.min(1, (west - east) / 900));
-        const lift = 1 + slope * 0.13 - Math.min(0.22, world.metres[i] / 26000);
-        red *= lift; green *= lift; blue *= lift;
-      }
-      pixels[i * 3] = red; pixels[i * 3 + 1] = green; pixels[i * 3 + 2] = blue;
-    }
+    pixels = pixelsFor(world, run && run.stopped ? layer : "biome", darkMap);
   }
 
   function sizeCanvas() {
@@ -294,6 +284,40 @@ import type { Run, RunState } from "./hillclimb-run";
     mark(at(), "", ink, back);
   }
 
+  /* Once the run is over, the map can show what it was made of rather than
+     only what it came to: the height the biomes sit on, the temperature and
+     the rainfall that chose them, or the biomes with the relief shading off,
+     which is the only way to see a climate belt as a belt. Offered at the end
+     and not before, because these are the answers. */
+  function drawLayers() {
+    const box = $("hcLayers");
+    box.classList.toggle("hidden", !run.stopped);
+    $("hcScale").classList.toggle("hidden", !run.stopped || layer === "biome" || layer === "flat");
+    if (!run.stopped) return;
+    box.innerHTML = LAYERS.map(l =>
+      "<button class='hclayer" + (l.id === layer ? " on" : "") + "' data-layer='" + l.id + "'" +
+      " aria-pressed='" + (l.id === layer) + "'>" + l.name + "</button>").join("");
+    box.querySelectorAll("button").forEach(b => {
+      (b as HTMLButtonElement).onclick = () => {
+        layer = (b as HTMLElement).dataset.layer as Layer;
+        buildPixels();
+        drawLayers();
+        paint();
+      };
+    });
+    if (layer === "biome" || layer === "flat") return;
+    // A bar of the ramp itself, with the two ends named. A temperature map is
+    // unreadable without one.
+    const [stops, lo, hi] =
+      layer === "height" ? [HEIGHT_LAND, "sea level", metresLabel(world.summitM)]
+      : layer === "temp" ? [TEMP, TEMP_LOW + "°C", TEMP_HIGH + "°C"]
+      : [RAIN, "driest", "wettest"];
+    const bar = (stops as string[]).map((c, k) =>
+      c + " " + Math.round((k / ((stops as string[]).length - 1)) * 100) + "%").join(", ");
+    $("hcScale").innerHTML = "<span>" + lo + "</span><i style='background:linear-gradient(to right," +
+      bar + ")'></i><span>" + hi + "</span>";
+  }
+
   /* What is under the pointer, named where the pointer is. It replaces the
      legend that used to sit under the map: fifteen colours listed at once is a
      lot to read, and only one of them is ever the square being asked about.
@@ -312,9 +336,13 @@ import type { Run, RunState } from "./hillclimb-run";
       // On the revealed map the outlines are the only thing left unlabelled,
       // so the pointer is what names them.
       const goal = run.stopped ? shownGoals().find(g => world.goals[g].cells.has(i)) : undefined;
-      tip.textContent =
-        BIOMES[world.biome[i]].name + (world.land[i] ? " · " + metresLabel(world.metres[i]) : "") +
-        " · " + latLabel(r) +
+      // Say the number the map is currently drawn from, not always the biome.
+      const reading =
+        layer === "height" ? (world.land[i] ? metresLabel(world.metres[i]) : "sea, " + Math.round(world.depth[i] * 100) + "% deep")
+        : layer === "temp" ? Math.round(world.tempC[i]) + "°C"
+        : layer === "rain" ? (world.land[i] ? "rainfall " + Math.round(world.rain[i] * 100) + "%" : "sea")
+        : BIOMES[world.biome[i]].name + (world.land[i] ? " · " + metresLabel(world.metres[i]) : "");
+      tip.textContent = reading + " · " + latLabel(r) +
         (goal === undefined ? "" :
           " · " + world.goals[goal].name + (now.found.includes(goal) ? ", reached" : ", missed"));
     }
@@ -370,6 +398,7 @@ import type { Run, RunState } from "./hillclimb-run";
         "<span><i style='background:" + (darkMap ? BIOMES[b].dark : BIOMES[b].colour) + "'></i> " +
         BIOMES[b].name + "</span>").join("");
 
+    drawLayers();
     canvas.classList.toggle("frozen", run.stopped);
     $("hcHint").classList.toggle("hidden", run.stopped);
     $("hcStop").classList.toggle("hidden", run.stopped);
@@ -739,6 +768,7 @@ import type { Run, RunState } from "./hillclimb-run";
     const stored = saved();
     const seed = dropSeed(stored);
     world = generateWorld(day, seed);
+    layer = "biome";
     if (!adopt(stored, seed)) {
       run = newRun(world, seed);
       // Written before a single move, or a reload would draw a new drop and

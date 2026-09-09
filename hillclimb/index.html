@@ -45,15 +45,15 @@
           <button id="hcHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="hcHelpBox">How to play</button>
         </div>
         <div id="hcHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, five squares each, and then the whole world is revealed and you find out what you walked past.</p>
+          <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, and then the whole world is revealed and you find out what you walked past.</p>
           <div class="tutorial-steps">
             <p><b>Move.</b> Tap the map in the direction you want to go, or use the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals. East and west wrap right the way round. The top and bottom edges are the poles, so you cannot step past them. You have a boat, so open water costs a move like anything else.</p>
             <p><b>Climb. That is the game.</b> Your score is the highest ground you stand on, as a percentage of the planet&rsquo;s true summit, which you are not shown until the end.</p>
             <p><b>Landmarks are the bonus.</b> Two are on offer at a time. Step within a couple of squares of one and it is yours, and a third comes up behind it. Any instance counts: stand in any desert and you have found the desert. Each is worth more than the last, nothing is ever at risk, and the only cost is the moves you spend getting there.</p>
+            <p><b>Look at what it was made of.</b> When the run is over the map can be switched between the biomes, the biomes with the relief shading off, the height, the temperature and the rainfall. Hovering a square reads out whichever of those is on screen.</p>
             <p><b>The world is not random.</b> It is built the way a planet is: height, then sea level, then ocean currents, then the winds that carry rain inland. So rainforest sits on the equator, deserts a quarter of the way to the pole, cold forest below the tundra, ice on both poles. Read the latitude and you can guess what is over the horizon before spending a move on it.</p>
             <p class="tutlink"><a class="learn-btn" href="./world/">How the world is made <span aria-hidden="true">&#8599;</span></a></p>
           </div>
-          <p class="tutpar">Stop early if you like. An unspent move is worth nothing, but neither is walking into the sea.</p>
         </div>
 
         <div id="hcBrief" class="hcbrief"></div>
@@ -62,6 +62,8 @@
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
           <div id="hcTip" class="hctip hidden" aria-hidden="true"></div>
         </div>
+        <div id="hcLayers" class="hclayers hidden" role="group" aria-label="What to show on the map"></div>
+        <div id="hcScale" class="hcscale hidden" aria-hidden="true"></div>
         <p id="hcHint" class="hchint">Tap the map to head that way. Hover a square to name it.</p>
         <div id="hcRead" class="hcread"></div>
 
