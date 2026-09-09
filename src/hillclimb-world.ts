@@ -41,6 +41,13 @@ export const GOALS_MAX = 4;
 // one first is a real gamble rather than a menu.
 export const LIVE = 2;
 
+// What counts as an island for the purpose of an archipelago. The floor is
+// what matters: without one, most of the islands in a day's archipelago were
+// single squares, too small to stand on meaningfully or to carry a biome.
+const ISLE_MIN = 4;
+const ISLE_MAX = 90;
+const ISLE_APART = 34;
+
 // Where ground stops counting as warm and starts counting as cold, in annual
 // mean °C. It is the line the two rainfall scales are split at.
 const COLD = 6;
@@ -555,9 +562,9 @@ export function generateWorld(day: string, drop = ''): World {
     // metres on the equator.
     // Permanent snow is a summit, not a latitude: it wants real height as well
     // as real cold, or half of every polar continent comes out white.
-    if (t <= -12 && h >= 1600) biome[i] = B.snowline;
+    if (t <= -11 && h >= 1400) biome[i] = B.snowline;
     else if (t <= 0.5 && h >= 900) biome[i] = B.alpine;
-    else if (t <= -13) biome[i] = B.icecap;
+    else if (t <= -12) biome[i] = B.icecap;
     else if (t <= -2) biome[i] = B.tundra;
     else if (t <= COLD) biome[i] = rainCold[i] >= 0.42 ? B.taiga : B.tundra;
     else if (t <= 19) biome[i] = m >= 0.62 ? B.forest : m >= 0.42 ? B.grassland : m >= 0.24 ? B.shrubland : B.desert;
@@ -669,7 +676,7 @@ function candidates(t: Terrain): Candidate[] {
 
   // Archipelagos: every cluster of three or more small islands sitting close
   // together, all of them counting as the same find.
-  const isles = landComps.filter(g => g.length <= 18);
+  const isles = landComps.filter(g => g.length <= ISLE_MAX);
   const used = new Set<number>();
   const archipelago: number[] = [];
   for (let a = 0; a < isles.length; a++) {

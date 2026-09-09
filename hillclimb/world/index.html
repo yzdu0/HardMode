@@ -72,13 +72,13 @@
         <h3>7. Biomes</h3>
         <figure class="atlas-fig"><canvas id="atlasBiome"></canvas>
           <figcaption>The result: the map the game is played on.</figcaption></figure>
-        <p>Rainfall is averaged over a three-square radius, then converted to a rank between 0 and 1 &mdash; separately for land above 6&thinsp;&deg;C and land below it. The split matters. Cold air carries little water, so cold ground is dry ground; ranked against the whole world, the polar half of the land occupies the bottom of the scale and the warm half is never dry enough to be desert. Ranked apart, <i>dry</i> means dry for that temperature, and the proportions come out close to Earth&rsquo;s: deserts about 16% of land, permanent ice about 14%.</p>
+        <p>Rainfall is averaged over a three-square radius, then converted to a rank between 0 and 1 &mdash; separately for land above 6&thinsp;&deg;C and land below it. The split matters. Cold air carries little water, so cold ground is dry ground; ranked against the whole world, the polar half of the land occupies the bottom of the scale and the warm half is never dry enough to be desert. Ranked apart, <i>dry</i> means dry for that temperature, and the proportions come out close to Earth&rsquo;s: deserts about 16% of land, permanent ice about 15%.</p>
         <p>Each land square then takes the first rule that matches, with <i>T</i> in &deg;C, <i>z</i> in metres and <i>m</i> the rainfall rank:</p>
         <table class="atlas-table">
           <tr><th>condition</th><th>biome</th></tr>
-          <tr><td><i>T</i> &le; &minus;12 and <i>z</i> &ge; 1600</td><td>snowfield</td></tr>
+          <tr><td><i>T</i> &le; &minus;11 and <i>z</i> &ge; 1400</td><td>snowfield</td></tr>
           <tr><td><i>T</i> &le; 0.5 and <i>z</i> &ge; 900</td><td>bare mountain</td></tr>
-          <tr><td><i>T</i> &le; &minus;13</td><td>ice cap</td></tr>
+          <tr><td><i>T</i> &le; &minus;12</td><td>ice cap</td></tr>
           <tr><td><i>T</i> &le; &minus;2</td><td>tundra</td></tr>
           <tr><td><i>T</i> &le; 6</td><td><i>m</i> &ge; 0.42 boreal forest, else tundra</td></tr>
           <tr><td><i>T</i> &le; 19</td><td><i>m</i> &ge; 0.62 forest, &ge; 0.42 grassland, &ge; 0.24 shrubland, else desert</td></tr>
@@ -88,7 +88,7 @@
         <div id="atlasKey" class="mapkey" aria-label="Biome key"></div>
 
         <h3>8. Landmarks and the drop</h3>
-        <p>Landmarks are read off the finished map. An archipelago is three or more landmasses of 18 squares or fewer within 10 columns and 8 rows of one another; an inland sea is a body of water not connected to the largest one; a volcanic island is a landmass of 70 squares or fewer reaching 1900&thinsp;m. The rest are the biomes themselves. Each kind holds every instance of itself on the planet, so any desert is the desert.</p>
+        <p>Landmarks are read off the finished map. An archipelago is three or more landmasses of 90 squares or fewer within 10 columns and 8 rows of one another; an inland sea is a body of water not connected to the largest one; a volcanic island is a landmass of 70 squares or fewer reaching 1900&thinsp;m. The rest are the biomes themselves. Each kind holds every instance of itself on the planet, so any desert is the desert.</p>
         <p>The terrain comes from the date, so it is the same for everyone. The drop comes from a value stored in your browser, and the chain of landmarks is built around wherever it lands: each leg is costed by walking it, and the chain stops when the next leg would not fit in 28 moves. Drops are restricted to between 9 and 20 moves from the summit, so the one thing that differs between players is also the thing that differs least in difficulty.</p>
       </section>
     </main>
