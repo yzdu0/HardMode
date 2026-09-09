@@ -248,13 +248,12 @@ import type { Run, RunState } from "./HillClimb-run";
     }
     ctx.globalAlpha = 1;
 
-    const mark = (i: number, glyph: string, fill: string, ring: string) => {
+    const mark = (i: number, glyph: string, fill: string, ink: string) => {
       const cx = x(colOf(i)), cy = y(rowOf(i)), rad = Math.max(4, cell * 1.5);
       ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
       ctx.fillStyle = fill; ctx.fill();
-      ctx.lineWidth = Math.max(1.4, cell * 0.35); ctx.strokeStyle = ring; ctx.stroke();
       if (glyph) {
-        ctx.fillStyle = ring;
+        ctx.fillStyle = ink;
         ctx.font = "700 " + Math.round(rad * 1.5) + "px -apple-system, Helvetica, Arial, sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(glyph, cx, cy + rad * 0.06);
@@ -269,31 +268,16 @@ import type { Run, RunState } from "./HillClimb-run";
       for (const g of shownGoals()) {
         if (held.has(g)) continue;
         const { cells } = world.goals[g];
-        // Small ones get a tint so an island or a lake is not just four lines.
-        // A landmark the size of a continent needs no help being found, and a
-        // wash that size would only recolour the terrain under it.
+        // Small missed landmarks get a tint. Large ones already read as the
+        // biome itself, so recolouring a continent would obscure the map.
         if (cells.size <= 260) {
           ctx.fillStyle = darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)";
           for (const i of cells) ctx.fillRect(screenCol(colOf(i)) * cell, rowOf(i) * cell, cell, cell);
         }
-        ctx.strokeStyle = darkMap ? "#ff9a63" : "#c23b3b";
-        ctx.lineWidth = Math.max(1.2, cell * 0.26);
-        ctx.beginPath();
-        for (const i of cells) {
-          const r = rowOf(i), c = colOf(i), sc = screenCol(c);
-          const px = sc * cell, py = r * cell;
-          // Only the sides facing out of the landmark, so what is left is its
-          // coastline rather than a grid drawn over it.
-          if (r === 0 || !cells.has(idx(r - 1, c))) { ctx.moveTo(px, py); ctx.lineTo(px + cell, py); }
-          if (r === H - 1 || !cells.has(idx(r + 1, c))) { ctx.moveTo(px, py + cell); ctx.lineTo(px + cell, py + cell); }
-          if (!cells.has(idx(r, wrapC(c - 1)))) { ctx.moveTo(px, py); ctx.lineTo(px, py + cell); }
-          if (!cells.has(idx(r, wrapC(c + 1)))) { ctx.moveTo(px + cell, py); ctx.lineTo(px + cell, py + cell); }
-        }
-        ctx.stroke();
       }
       mark(world.summit, "▲", back, ink);
     }
-    mark(run.path[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
+    mark(run.path[0], "", darkMap ? "#7fa8ff" : "#3157d5", ink);
     mark(at(), "", ink, back);
   }
 
@@ -387,8 +371,7 @@ import type { Run, RunState } from "./HillClimb-run";
     const i = idx(r, c);
     if (!(run.stopped || seen[i])) tip.textContent = "unexplored";
     else {
-      // On the revealed map the outlines are the only thing left unlabelled,
-      // so the pointer is what names them.
+      // On the revealed map, the pointer also names missed landmarks.
       const goal = run.stopped ? shownGoals().find(g => world.goals[g].cells.has(i)) : undefined;
       // Say the number the map is currently drawn from, not always the biome.
       const reading =

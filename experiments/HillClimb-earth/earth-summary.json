@@ -1,0 +1,132 @@
+{
+  "source": "NOAA ETOPO1 Ice Surface via ERDDAP, downsampled to 160x92",
+  "seed": "earth-etopo1",
+  "cells": 14720,
+  "landCells": 5063,
+  "landShare": 0.3439538043478261,
+  "elevationRangeM": [
+    -8321,
+    6364
+  ],
+  "temperatureRangeC": [
+    -44.10618209838867,
+    36.20206069946289
+  ],
+  "spotChecks": {
+    "Amazon": "rainforest",
+    "Sahara": "desert",
+    "Congo": "rainforest",
+    "Greenland": "snowfield",
+    "Siberia": "boreal forest",
+    "Himalaya": "desert",
+    "Gobi": "desert",
+    "Britain": "temperate forest"
+  },
+  "biomes": [
+    {
+      "id": "ocean",
+      "name": "open ocean",
+      "cells": 7694,
+      "landCells": 0,
+      "landShare": 0
+    },
+    {
+      "id": "shallow",
+      "name": "shallow sea",
+      "cells": 1440,
+      "landCells": 0,
+      "landShare": 0
+    },
+    {
+      "id": "seaice",
+      "name": "sea ice",
+      "cells": 523,
+      "landCells": 0,
+      "landShare": 0
+    },
+    {
+      "id": "icecap",
+      "name": "ice cap",
+      "cells": 261,
+      "landCells": 261,
+      "landShare": 0.05155046415168872
+    },
+    {
+      "id": "snowline",
+      "name": "snowfield",
+      "cells": 1273,
+      "landCells": 1273,
+      "landShare": 0.2514319573375469
+    },
+    {
+      "id": "alpine",
+      "name": "bare mountain",
+      "cells": 163,
+      "landCells": 163,
+      "landShare": 0.03219435117519257
+    },
+    {
+      "id": "tundra",
+      "name": "tundra",
+      "cells": 255,
+      "landCells": 255,
+      "landShare": 0.05036539601027059
+    },
+    {
+      "id": "taiga",
+      "name": "boreal forest",
+      "cells": 663,
+      "landCells": 663,
+      "landShare": 0.13095002962670355
+    },
+    {
+      "id": "forest",
+      "name": "temperate forest",
+      "cells": 441,
+      "landCells": 441,
+      "landShare": 0.08710250839423267
+    },
+    {
+      "id": "grassland",
+      "name": "grassland",
+      "cells": 212,
+      "landCells": 212,
+      "landShare": 0.04187240766344065
+    },
+    {
+      "id": "shrubland",
+      "name": "shrubland",
+      "cells": 135,
+      "landCells": 135,
+      "landShare": 0.02666403318190796
+    },
+    {
+      "id": "desert",
+      "name": "desert",
+      "cells": 682,
+      "landCells": 682,
+      "landShare": 0.13470274540786095
+    },
+    {
+      "id": "savannah",
+      "name": "savannah",
+      "cells": 361,
+      "landCells": 361,
+      "landShare": 0.07130159984199091
+    },
+    {
+      "id": "monsoon",
+      "name": "seasonal forest",
+      "cells": 212,
+      "landCells": 212,
+      "landShare": 0.04187240766344065
+    },
+    {
+      "id": "rainforest",
+      "name": "rainforest",
+      "cells": 405,
+      "landCells": 405,
+      "landShare": 0.07999209954572388
+    }
+  ]
+}

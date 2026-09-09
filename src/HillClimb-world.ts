@@ -372,6 +372,122 @@ function currents(land: Uint8Array): Float32Array {
   return warmth;
 }
 
+export interface TerrainClimate {
+  metres: Int16Array;
+  depth: Float32Array;
+  land: Uint8Array;
+  tempC: Float32Array;
+  rain: Float32Array;
+  biome: Uint8Array;
+}
+
+/** Run HillClimb's climate and biome assignment over an already-made terrain. */
+function climateForTerrain(
+  rnd: () => number,
+  metres: Int16Array,
+  depth: Float32Array,
+  land: Uint8Array,
+): Pick<TerrainClimate, 'tempC' | 'rain' | 'biome'> {
+  const warmth = currents(land);
+  const tempC = new Float32Array(W * H);
+  const wobble = field(rnd, 3, 2, false);
+  const bend = field(rnd, 2, 3, false);
+  const bentLat = (r: number, i: number) => latOf(r) + (bend[i] - 0.5) * 19;
+  const upland = spreadOverLand(Float32Array.from(metres), land, 4);
+  for (let r = 0; r < H; r++) {
+    const dir = windDir(latOf(r));
+    for (let c = 0; c < W; c++) {
+      const i = idx(r, c);
+      let t = baseTemp(bentLat(r, i)) + (wobble[i] - 0.5) * 8;
+      if (!land[i]) {
+        t += warmth[i];
+      } else {
+        for (let d = 1; d <= 7; d++) {
+          const j = idx(r, wrapC(c - dir * d));
+          if (!land[j]) { t += warmth[j] * (1 - d / 8) * 0.8; break; }
+        }
+        t -= (upland[i] / 1000) * 6.3;
+      }
+      tempC[i] = t;
+    }
+  }
+
+  const humid = new Float32Array(W * H);
+  for (let r = 0; r < H; r++) {
+    const dir = windDir(latOf(r));
+    let m = 0.5;
+    let prevM = 0;
+    for (let step = 0; step < 2 * W; step++) {
+      const c = wrapC(dir > 0 ? step : -step);
+      const i = idx(r, c);
+      if (!land[i]) {
+        const evap = 0.10 + 0.010 * Math.max(0, tempC[i]);
+        m += (1 - m) * evap;
+        prevM = 0;
+      } else {
+        const rise = Math.max(0, metres[i] - prevM) / 1000;
+        const fall = m * clamp01(0.07 + 0.42 * rise);
+        m = Math.max(0, m - fall) * 0.988;
+        prevM = metres[i];
+      }
+      if (step >= W) humid[i] = m * zonalRain(bentLat(r, i));
+    }
+  }
+
+  const damp = spreadOverLand(humid, land, 3);
+  const chilly = new Uint8Array(W * H);
+  const temperate = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    if (!land[i]) continue;
+    if (tempC[i] <= COLD) chilly[i] = 1; else temperate[i] = 1;
+  }
+  const rainCold = rankOverLand(damp, chilly);
+  const rain = rankOverLand(damp, temperate);
+
+  const biome = new Uint8Array(W * H);
+  for (let i = 0; i < biome.length; i++) {
+    const t = tempC[i];
+    if (!land[i]) {
+      biome[i] = t <= -12 ? B.seaice : depth[i] < 0.12 ? B.shallow : B.ocean;
+      continue;
+    }
+    const m = rain[i], h = metres[i];
+    if (t <= -11 && h >= 1400) biome[i] = B.snowline;
+    else if (t <= 0.5 && h >= 900) biome[i] = B.alpine;
+    else if (t <= -12) biome[i] = B.icecap;
+    else if (t <= -2) biome[i] = B.tundra;
+    else if (t <= COLD) biome[i] = rainCold[i] >= 0.42 ? B.taiga : B.tundra;
+    else if (t <= 19) biome[i] = m >= 0.62 ? B.forest : m >= 0.42 ? B.grassland : m >= 0.24 ? B.shrubland : B.desert;
+    else biome[i] = m >= 0.70 ? B.rainforest : m >= 0.52 ? B.monsoon : m >= 0.30 ? B.savannah : B.desert;
+  }
+  return { tempC, rain, biome };
+}
+
+/**
+ * Offline/test seam for supplying a signed elevation map instead of noise.
+ * Positive cells are land in metres; zero and negative cells are water.
+ */
+export function climateFromHeightMap(day: string, elevation: ArrayLike<number>): TerrainClimate {
+  if (elevation.length !== W * H) throw new RangeError(`height map must contain ${W * H} cells`);
+  const metres = new Int16Array(W * H);
+  const depth = new Float32Array(W * H);
+  const land = new Uint8Array(W * H);
+  let deepest = 1;
+  for (let i = 0; i < elevation.length; i++) deepest = Math.max(deepest, -elevation[i]);
+  for (let i = 0; i < elevation.length; i++) {
+    const h = elevation[i];
+    if (!Number.isFinite(h)) throw new TypeError(`height map cell ${i} is not finite`);
+    if (h > 0) {
+      land[i] = 1;
+      metres[i] = Math.min(32767, Math.round(h));
+    } else {
+      depth[i] = clamp01(-h / deepest);
+    }
+  }
+  const climate = climateForTerrain(random(`${HILLCLIMB_SEED}-height-map-${HILLCLIMB_REVISION}-${day}`), metres, depth, land);
+  return { metres, depth, land, ...climate };
+}
+
 export interface World {
   day: string;
   metres: Int16Array;        // height above sea level; 0 everywhere at sea
@@ -462,109 +578,8 @@ export function generateWorld(day: string, drop = ''): World {
     metres[i] = Math.round(7700 * Math.pow(relief, 1.55));
   }
 
-  // ---- temperature ----
-  const warmth = currents(land);
-  const tempC = new Float32Array(W * H);
-  const wobble = field(rnd, 3, 2, false);
-  // Climate does not run in straight lines. One broad, slow field bends the
-  // latitude every band is measured against, by up to seven degrees either
-  // way — so the tree line, the rainforest belt and the deserts all wander
-  // together, the way they do on a real map, instead of every biome changing
-  // along the same ruled row.
-  const bend = field(rnd, 2, 3, false);
-  const bentLat = (r: number, i: number) => latOf(r) + (bend[i] - 0.5) * 19;
-  // Weather answers to the height of a region, not of a square. Taking the
-  // lapse rate off the raw map made every crinkle in a warped coastline its
-  // own climate, and the biomes came out as mosaic rather than as belts.
-  const upland = spreadOverLand(Float32Array.from(metres), land, 4);
-  for (let r = 0; r < H; r++) {
-    const dir = windDir(latOf(r));
-    for (let c = 0; c < W; c++) {
-      const i = idx(r, c);
-      let t = baseTemp(bentLat(r, i)) + (wobble[i] - 0.5) * 8;
-      if (!land[i]) {
-        t += warmth[i];
-      } else {
-        // A coast takes its weather from the water upwind of it, and the
-        // further inland you go the less of that reaches you.
-        for (let d = 1; d <= 7; d++) {
-          const j = idx(r, wrapC(c - dir * d));
-          if (!land[j]) { t += warmth[j] * (1 - d / 8) * 0.8; break; }
-        }
-        t -= (upland[i] / 1000) * 6.3;                 // lapse rate
-      }
-      tempC[i] = t;
-    }
-  }
-
-  // ---- rain ----
-  // Air walks the row in the direction the wind blows, twice round so it
-  // arrives at the seam already carrying whatever it picked up. It takes water
-  // up over the sea and drops it over land — hardest where the ground climbs,
-  // which is what puts a desert behind every range.
-  const humid = new Float32Array(W * H);
-  for (let r = 0; r < H; r++) {
-    const dir = windDir(latOf(r));
-    let m = 0.5;
-    let prevM = 0;
-    for (let step = 0; step < 2 * W; step++) {
-      const c = wrapC(dir > 0 ? step : -step);
-      const i = idx(r, c);
-      if (!land[i]) {
-        const evap = 0.10 + 0.010 * Math.max(0, tempC[i]);
-        m += (1 - m) * evap;
-        prevM = 0;
-      } else {
-        const rise = Math.max(0, metres[i] - prevM) / 1000;
-        const fall = m * clamp01(0.07 + 0.42 * rise);
-        m = Math.max(0, m - fall) * 0.988;
-        prevM = metres[i];
-      }
-      // Only the second lap is recorded; the first is there to charge the air.
-      if (step >= W) humid[i] = m * zonalRain(bentLat(r, i));
-    }
-  }
-  /* Ranked within temperature class, not against all land at once.
-   *
-   * Cold air carries little water, so cold ground is dry ground: rank the
-   * whole world together and the polar half of the land fills the bottom of
-   * the scale, leaving the warm half too wet to be desert however parched it
-   * is. Deserts came out at a third the share of the ice, which is the wrong
-   * way round for a planet. Ranked apart, "dry" means dry for somewhere that
-   * temperature, which is what the words are supposed to mean. */
-  const damp = spreadOverLand(humid, land, 3);
-  const chilly = new Uint8Array(W * H);
-  const temperate = new Uint8Array(W * H);
-  for (let i = 0; i < W * H; i++) {
-    if (!land[i]) continue;
-    if (tempC[i] <= COLD) chilly[i] = 1; else temperate[i] = 1;
-  }
-  const rainCold = rankOverLand(damp, chilly);
-  const rain = rankOverLand(damp, temperate);
-
-  // ---- biomes ----
-  const biome = new Uint8Array(W * H);
-  for (let i = 0; i < biome.length; i++) {
-    const t = tempC[i];
-    if (!land[i]) {
-      // Water this cold, averaged over a year, is water with a lid on it.
-      biome[i] = t <= -12 ? B.seaice : depth[i] < 0.12 ? B.shallow : B.ocean;
-      continue;
-    }
-    const m = rain[i], h = metres[i];
-    // Above the treeline is a matter of height and cold together, which is why
-    // bare rock starts near sea level in the far north and needs four thousand
-    // metres on the equator.
-    // Permanent snow is a summit, not a latitude: it wants real height as well
-    // as real cold, or half of every polar continent comes out white.
-    if (t <= -11 && h >= 1400) biome[i] = B.snowline;
-    else if (t <= 0.5 && h >= 900) biome[i] = B.alpine;
-    else if (t <= -12) biome[i] = B.icecap;
-    else if (t <= -2) biome[i] = B.tundra;
-    else if (t <= COLD) biome[i] = rainCold[i] >= 0.42 ? B.taiga : B.tundra;
-    else if (t <= 19) biome[i] = m >= 0.62 ? B.forest : m >= 0.42 ? B.grassland : m >= 0.24 ? B.shrubland : B.desert;
-    else biome[i] = m >= 0.70 ? B.rainforest : m >= 0.52 ? B.monsoon : m >= 0.30 ? B.savannah : B.desert;
-  }
+  // ---- temperature, rain and biomes ----
+  const { tempC, rain, biome } = climateForTerrain(rnd, metres, depth, land);
 
   // ---- the two things worth walking to ----
   let summit = -1, summitM = -1;

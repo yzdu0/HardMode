@@ -1492,3 +1492,39 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .hcscale { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 650; }
 .hcscale i { flex: 1; height: 8px; border-radius: 999px; border: 1px solid var(--line); }
 .hcscale.hidden { display: none; }
+
+/* HillClimb is a map, not a stack of framed panels. Colour and spacing carry
+   the hierarchy; the global focus-visible outline remains for keyboard use. */
+.hillclimb-page .view { border: 0; box-shadow: none; }
+.hillclimb-page .datebtn,
+.hillclimb-page .icon-btn,
+.hillclimb-page .archive,
+.hillclimb-page .archive-item,
+.hillclimb-page .archive-head input,
+.hillclimb-page .learn-btn,
+.hillclimb-page .btn,
+.hillclimb-page .tutbox,
+.hillclimb-page .kindbox,
+.hillclimb-page .hcbrief,
+.hillclimb-page .results,
+.hillclimb-page .scorebox,
+.hillclimb-page .sharebox,
+.hillclimb-page .sharebox pre { border: 0; }
+.hillclimb-page .btn:hover,
+.hillclimb-page .learn-btn:hover,
+.hillclimb-page .archive-item:hover { border-color: transparent; }
+.hillclimb-page .archive,
+.hillclimb-page .scorebox,
+.hillclimb-page .sharebox { box-shadow: none; }
+.hillclimb-page .hcscore,
+.hillclimb-page .scorebox-rows { border-top: 0; }
+.hillclimb-page .hcmap-wrap { border: 0; }
+.hillclimb-page .hcgoal::before { border: 0; background: var(--raised); }
+.hillclimb-page .hcgoal.on::before { border: 0; background: var(--good); }
+.hillclimb-page .atlas-fig canvas { border: 0; }
+.hillclimb-page .atlas-table th,
+.hillclimb-page .atlas-table td { border-bottom: 0; }
+.hillclimb-page .hclayer { border: 0; background: var(--raised); }
+.hillclimb-page .hclayer:hover { border-color: transparent; }
+.hillclimb-page .hclayer.on { border: 0; background: var(--fg); }
+.hillclimb-page .hcscale i { border: 0; }
