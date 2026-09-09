@@ -32,11 +32,6 @@ export const MOVES = 28;
 export const STRIDE = 5;
 export const SIGHT = 8;
 
-// How many landmarks a day's budget is expected to allow. Scores are measured
-// against this, and the pool below runs deeper so that there is always another
-// one waiting behind the pair on offer.
-export const GOALS_MAX = 4;
-
 // How many are live at once. The choice is always between exactly two: the
 // next one on the natural route, and the one past it — so taking the further
 // one first is a real gamble rather than a menu.
@@ -390,7 +385,6 @@ export interface World {
   spawn: number;
   goals: Landmark[];         // the day's pool, in the order it comes on offer
   rungs: number;             // how many of them the budget is built to allow
-  checklist: number[];       // land biomes present in useful quantity
 }
 
 export interface Landmark {
@@ -576,10 +570,6 @@ export function generateWorld(day: string, drop = ''): World {
   let summit = -1, summitM = -1;
   for (let i = 0; i < metres.length; i++) if (land[i] && metres[i] > summitM) { summitM = metres[i]; summit = i; }
 
-  const counts = new Map<number, number>();
-  for (let i = 0; i < biome.length; i++) if (land[i]) counts.set(biome[i], (counts.get(biome[i]) || 0) + 1);
-  const checklist = [...counts.entries()].filter(([, n]) => n >= 10).map(([b]) => b).sort((a, b) => a - b);
-
   const terrain: Terrain = { land, biome, metres, depth, summit, summitM };
   // The landmarks do not depend on where anybody lands, so they are worked out
   // once and the drop is chosen with them in view.
@@ -587,7 +577,7 @@ export function generateWorld(day: string, drop = ''): World {
   const spawn = pickSpawn(dice, land, biome, summit, marks);
   const { goals, rungs } = pickGoals(dice, marks, spawn, summit);
 
-  return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs, checklist };
+  return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs };
 }
 
 /* ---------- features ---------- */
@@ -849,7 +839,7 @@ function pickGoals(
   let from = spawn;
   let spent = 0;
   let rungs = 0;
-  while (ladder.length < GOALS_MAX + LIVE && left.length) {
+  while (left.length) {
     // Costed by walking at each of them from where the last leg actually
     // finished, so the budget is a route somebody could really take.
     const trip = new Map<Landmark, { cost: number; at: number }>(left.map(g => [g, march(from, g.cells)]));
@@ -859,10 +849,10 @@ function pickGoals(
     // number no one can hit. Which also fixes what the top is worth — clearing
     // it means the whole budget went on landmarks and none of it on climbing.
     let affordable = left.filter(g => spent + reach(g) <= MOVES);
-    if (affordable.length && ladder.length < GOALS_MAX) rungs = ladder.length + 1;
-    // Past the budget, or past the number a day is scored out of, the chain
-    // carries on nearest-first anyway: those entries are the ones standing
-    // behind the pair on offer, so the choice never thins to a single option.
+    if (affordable.length) rungs = ladder.length + 1;
+    // Past the budget, the chain carries on nearest-first anyway: those entries
+    // are the ones standing behind the pair on offer, so the choice never thins
+    // to a single option.
     if (!affordable.length) affordable = [left.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
     // A rung far enough to be a walk, near enough to leave room for another.
     // Under MIN_LEG it is not a walk at all, so those are dropped rather than

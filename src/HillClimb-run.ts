@@ -55,12 +55,10 @@ export function touchedOrder(world: World, path: number[]): number[] {
   return order;
 }
 
-/* What the bonuses are worth. The nth landmark reached pays n times the first,
-   so four of them are worth forty and one is worth four: chasing the chain is
-   the part of a day you actually choose, and it should pay like it. A biome is
-   a flat point, picked up by going somewhere rather than by aiming at it. */
+/* What the bonuses are worth. The nth landmark reached pays n times the first:
+   chasing the chain is the part of a day you actually choose, and it should
+   pay like it. */
 export const LANDMARK_POINT = 4;
-export const BIOME_POINT = 1;
 
 export interface RunState {
   found: number[];       // landmarks collected, in the order reached
@@ -69,11 +67,9 @@ export interface RunState {
   movesLeft: number;
   best: number;          // highest ground stood on, in metres
   peakShare: number;     // …as a fraction of the planet's true summit
-  biomes: number[];      // checklist entries actually set foot in
   climb: number;         // 0–100: the day, as a percentage of the true summit
   landmarkBonus: number; // added on top
-  biomeBonus: number;    // added on top
-  score: number;         // climb + both bonuses
+  score: number;         // climb + landmark bonus
   grade: string;
 }
 
@@ -83,28 +79,23 @@ export function runState(world: World, run: Run): RunState {
 
   const best = run.path.reduce((high, i) => Math.max(high, world.metres[i]), 0);
   const peakShare = world.summitM > 0 ? best / world.summitM : 0;
-  const walked = new Set(run.path.filter(i => world.land[i]).map(i => world.biome[i]));
-  const biomes = world.checklist.filter(b => walked.has(b));
-
   /* The climb is the score: how high you stood, as a percentage of the true
-     summit. The landmarks and the field notes are added on top of it — what
-     you picked up on the way — so the arithmetic can be read off the card
-     rather than being three weights nobody can see.
+     summit. The landmarks are added on top of it — what you picked up on the
+     way — so the arithmetic can be read off the card.
 
      Landmarks count out of what the budget was built to allow, not the whole
      pool: the pool runs deeper only so the pair on offer never thins to one,
      and a player who routes well enough to beat it simply tops that part out. */
   const climb = Math.round(100 * peakShare);
   const landmarkBonus = LANDMARK_POINT * ladderValue(Math.min(found.length, world.rungs));
-  const biomeBonus = BIOME_POINT * biomes.length;
-  const score = climb + landmarkBonus + biomeBonus;
+  const score = climb + landmarkBonus;
 
   return {
     found, live,
     complete: live.length === 0,
     movesLeft: MOVES - (run.path.length - 1),
-    best, peakShare, biomes,
-    climb, landmarkBonus, biomeBonus, score,
+    best, peakShare,
+    climb, landmarkBonus, score,
     /* On a scale that runs past 100, because the summit and the landmarks are
        two different achievements and one day can hold both. S is for the day
        that does: it takes a real climb and most of the chain, and the budget

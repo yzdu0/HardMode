@@ -1365,32 +1365,8 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .hcstat span { color: var(--muted); font-size: 11px; font-weight: 650; }
 .hcstat strong { font-size: 14px; font-weight: 750; }
 
-/* Field notes read as the map key reads, because they are the same thing: the
-   ground you have stood on, named. Ground you have not found is not listed —
-   the list is the record of a walk, not a table of contents. */
-.hcnotes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 5px 12px;
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.hcnotes-head { font-weight: 750; }
-.hcnotes span { display: inline-flex; align-items: center; gap: 5px; }
-.hcnotes i {
-  display: inline-grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 3px;
-  font-style: normal;
-}
-
 /* The card at the end of a run. One number, arriving; the grade landing on it
-   once it has; three lines and two buttons. Nothing moves that does not have
+   once it has; two lines and two buttons. Nothing moves that does not have
    to, and under reduced motion nothing moves at all. */
 .scorebox {
   width: min(320px, calc(100vw - 40px));

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
-  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, march,
+  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, LIVE, goalValue, ladderValue, march,
   idx, rowOf, colOf, latOf,
 } from '../src/HillClimb-world.ts';
 
@@ -128,7 +128,7 @@ test('the drop is somewhere a person could start from', () => {
 
 test('every rung of the ladder exists and is a different kind of thing', () => {
   for (const w of worlds) {
-    assert.ok(w.goals.length >= 1 && w.goals.length <= GOALS_MAX + LIVE);
+    assert.ok(w.goals.length >= 1);
     assert.equal(new Set(w.goals.map(g => g.id)).size, w.goals.length, w.day + ' repeated a kind');
     for (const g of w.goals) {
       assert.ok(g.cells.size > 0, w.day + ' has an empty landmark');
@@ -137,6 +137,10 @@ test('every rung of the ladder exists and is a different kind of thing', () => {
       assert.ok(g.name.length > 3 && g.hint.length > 20);
     }
   }
+});
+
+test('the landmark ladder is not capped at four', () => {
+  assert.ok(worlds.some(w => w.rungs > 4), 'no sampled day offered more than four landmarks');
 });
 
 test('the rungs a day is scored out of fit inside one budget', () => {
@@ -158,7 +162,7 @@ test('the rungs a day is scored out of fit inside one budget', () => {
 test('later rungs are worth more, and the ladder adds up', () => {
   assert.equal(goalValue(0), 1);
   assert.equal(goalValue(3), 4);
-  for (let n = 0; n <= GOALS_MAX; n++) {
+  for (let n = 0; n <= 12; n++) {
     let sum = 0;
     for (let k = 0; k < n; k++) sum += goalValue(k);
     assert.equal(ladderValue(n), sum, 'ladder of ' + n);
@@ -169,19 +173,6 @@ test('later rungs are worth more, and the ladder adds up', () => {
 test('several kinds of landmark come up across a season', () => {
   const kinds = new Set(days(120).flatMap(d => generateWorld(d).goals.map(g => g.id)));
   assert.ok(kinds.size >= 5, 'only saw ' + [...kinds].join(', '));
-});
-
-test('the field-note list is exactly the land biomes worth finding', () => {
-  for (const w of worlds) {
-    const tally = new Map<number, number>();
-    for (let i = 0; i < W * H; i++) if (w.land[i]) tally.set(w.biome[i], (tally.get(w.biome[i]) || 0) + 1);
-    for (const b of w.checklist) {
-      assert.ok(isLandBiome(b), BIOMES[b].name + ' is water');
-      assert.ok((tally.get(b) || 0) >= 10);
-    }
-    for (const [b, n] of tally) if (n >= 10) assert.ok(w.checklist.includes(b), BIOMES[b].name + ' was left off');
-    assert.ok(w.checklist.length >= 5, 'a world worth exploring needs variety');
-  }
 });
 
 test('east and west join up', () => {

@@ -315,7 +315,7 @@ test('score rises with every landmark, and a full sweep tops the bonus', () => {
   }
   for (let i = 1; i < scores.length; i++) assert.ok(scores[i] > scores[i - 1], 'landmark ' + i + ' added nothing');
   // And each one pays more than the one before it. Measured on the landmark
-  // bonus itself: the total also moves with whatever biomes the detour crossed.
+  // bonus itself, independent of the height crossed along the way.
   const paid: number[] = [];
   for (let n = 0; n <= w.goals.length; n++) {
     const run = newRun(w);

@@ -391,14 +391,6 @@ import type { Run, RunState } from "./HillClimb-run";
 
     drawBrief();
 
-    // Only the ground actually stood on: the list is a record of the walk, not
-    // a table of contents for the planet.
-    $("hcNotes").innerHTML =
-      "<span class='hcnotes-head'>Field notes " + now.biomes.length + " / " + world.checklist.length + "</span>" +
-      now.biomes.map(b =>
-        "<span><i style='background:" + (darkMap ? BIOMES[b].dark : BIOMES[b].colour) + "'></i> " +
-        BIOMES[b].name + "</span>").join("");
-
     drawLayers();
     canvas.classList.toggle("frozen", run.stopped);
     $("hcHint").classList.toggle("hidden", run.stopped);
@@ -516,8 +508,7 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcMsg").innerHTML =
       "<b>" + now.score + ", grade " + now.grade + "</b> · " + now.climb + " for " + metresLabel(now.best) +
       " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
-      now.found.length + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") + ", +" +
-      now.biomeBonus + " for " + now.biomes.length + " of " + world.checklist.length + " biomes. " +
+      now.found.length + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") + ". " +
       verdict(now.peakShare, now.found.length > 0);
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
@@ -563,7 +554,7 @@ import type { Run, RunState } from "./HillClimb-run";
   /* The card. The number climbs before the grade lands on it, because a score
      you watch arrive is worth more than one that is simply there — and because
      the run itself was twenty-eight moves of not knowing. Everything else on
-     it is three lines and two buttons. */
+     it is two lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
   function showScore() {
     $("hcScoreDay").textContent = "HillClimb · " + longLabel(day);
@@ -572,7 +563,6 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcScoreRows").innerHTML = ([
       ["Climb", metresLabel(now.best) + " of " + metresLabel(world.summitM), String(now.climb)],
       ["Landmarks", now.found.length + " of " + world.rungs, "+" + now.landmarkBonus],
-      ["Field notes", now.biomes.length + " of " + world.checklist.length, "+" + now.biomeBonus],
     ] as [string, string, string][]).map(([k, v, n]) =>
       "<dt>" + k + "</dt><dd>" + v + "</dd><dd class='scorebox-pts'>" + n + "</dd>").join("");
     $("hcScoreGrade").textContent = "Grade " + now.grade;
@@ -704,7 +694,7 @@ import type { Run, RunState } from "./HillClimb-run";
     } else alert(text);
   }
   $("shareCopy").onclick = () => { copyShare(); };
-  $("shareSend").onclick = async () => { try { await navigator.share({ text: payload }); } catch (_) {} };
+  $("shareSend").onclick = async () => { try { await navigator.share({ title: "HillClimb", text: payload }); } catch (_) {} };
   $("shareDone").onclick = () => shareBox.close();
   shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
   $("hcShare").onclick = () => {
@@ -713,7 +703,6 @@ import type { Run, RunState } from "./HillClimb-run";
       now.score + " · grade " + now.grade + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
       "🧭 " + now.found.length + "/" + world.rungs + " landmarks · +" + now.landmarkBonus + "\n" +
-      "🗺 " + now.biomes.length + "/" + world.checklist.length + " biomes · +" + now.biomeBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 
