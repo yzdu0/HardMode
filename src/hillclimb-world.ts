@@ -408,8 +408,12 @@ export function generateWorld(day: string, drop = ''): World {
   for (let i = 0; i < biome.length; i++) if (land[i]) counts.set(biome[i], (counts.get(biome[i]) || 0) + 1);
   const checklist = [...counts.entries()].filter(([, n]) => n >= 10).map(([b]) => b).sort((a, b) => a - b);
 
-  const spawn = pickSpawn(dice, land, biome, summit);
-  const { goals, rungs } = pickGoals(dice, { land, biome, metres, depth, summit, summitM }, spawn);
+  const terrain: Terrain = { land, biome, metres, depth, summit, summitM };
+  // The landmarks do not depend on where anybody lands, so they are worked out
+  // once and the drop is chosen with them in view.
+  const marks = candidates(terrain);
+  const spawn = pickSpawn(dice, land, biome, summit, marks);
+  const { goals, rungs } = pickGoals(dice, marks, spawn, summit);
 
   return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs, checklist };
 }
@@ -473,16 +477,37 @@ interface Terrain {
 
 type Candidate = { id: string; name: string; hint: string; cells: number[] };
 
+/**
+ * The landmarks this planet has to offer, one entry per kind.
+ *
+ * Every entry holds *every* instance of its kind on the world, not the nearest
+ * or the largest one. A player standing in boreal forest has reached the boreal
+ * forest, and it should not matter which patch of it they are standing in; the
+ * same goes for a desert, an archipelago or an inland sea. Distances are then
+ * measured to the nearest square of the union, so the goal is always the
+ * closest instance without the player having to be told which one.
+ */
 function candidates(t: Terrain): Candidate[] {
   const found: Candidate[] = [];
   const landComps = components(i => t.land[i] === 1);
   const seaComps = components(i => t.land[i] === 0);
-  const biomeComp = (ids: number[], min: number) =>
-    components(i => t.land[i] === 1 && ids.includes(t.biome[i])).filter(g => g.length >= min);
 
-  // An archipelago: three or more small islands sitting close together.
+  /** Every square of these biomes, if the planet has enough of them between
+   *  them to be worth naming. A scatter of three squares is not a desert. */
+  const belt = (ids: number[], min: number): number[] | null => {
+    const cells: number[] = [];
+    for (let i = 0; i < W * H; i++) if (t.land[i] && ids.includes(t.biome[i])) cells.push(i);
+    return cells.length >= min ? cells : null;
+  };
+  const add = (id: string, name: string, hint: string, cells: number[] | null) => {
+    if (cells && cells.length) found.push({ id, name, hint, cells });
+  };
+
+  // Archipelagos: every cluster of three or more small islands sitting close
+  // together, all of them counting as the same find.
   const isles = landComps.filter(g => g.length <= 18);
   const used = new Set<number>();
+  const archipelago: number[] = [];
   for (let a = 0; a < isles.length; a++) {
     if (used.has(a)) continue;
     const group = [a];
@@ -494,76 +519,55 @@ function candidates(t: Terrain): Candidate[] {
     }
     if (group.length >= 3) {
       group.forEach(g => used.add(g));
-      found.push({
-        id: 'archipelago', name: 'an archipelago',
-        hint: 'Three or more small islands within sight of each other. Look offshore, never inland.',
-        cells: group.flatMap(g => isles[g]),
-      });
+      archipelago.push(...group.flatMap(g => isles[g]));
     }
   }
+  add('archipelago', 'an archipelago',
+    'Three or more small islands within sight of each other. Look offshore, never inland.', archipelago);
 
-  // An inland sea: water with no way out to the ocean.
+  // Inland seas: any water with no way out to the ocean.
   const openSea = seaComps.reduce((a, b) => (b.length > a.length ? b : a), [] as number[]);
-  for (const g of seaComps) {
-    if (g === openSea || g.length < 12) continue;
-    found.push({
-      id: 'inlandsea', name: 'an inland sea',
-      hint: 'Water with no way out to the ocean. It will be ringed by land on every side.',
-      cells: g,
-    });
-  }
+  add('inlandsea', 'an inland sea',
+    'Water with no way out to the ocean. It will be ringed by land on every side.',
+    seaComps.filter(g => g !== openSea && g.length >= 12).flat());
 
-  // A volcanic island: small, and far taller than an island that size should be.
+  // Volcanic islands: small, and far taller than an island that size should be.
+  const volcanic: number[] = [];
   for (const g of landComps) {
     if (g.length > 70) continue;
-    let peak = 0, at = g[0];
-    for (const i of g) if (t.metres[i] > peak) { peak = t.metres[i]; at = i; }
+    let peak = 0;
+    for (const i of g) if (t.metres[i] > peak) peak = t.metres[i];
     if (peak < 1900) continue;
-    found.push({
-      id: 'volcano', name: 'a volcanic island',
-      hint: 'One island on its own, rising far more steeply than its size suggests.',
-      cells: g.filter(i => t.metres[i] >= peak * 0.55),
-    });
+    volcanic.push(...g.filter(i => t.metres[i] >= peak * 0.55));
   }
+  add('volcano', 'a volcanic island',
+    'One island on its own, rising far more steeply than its size suggests.', volcanic);
 
-  for (const g of biomeComp([B.desert], 70)) found.push({
-    id: 'desert', name: 'a great desert',
-    hint: 'Under the subtropical highs, a quarter of the way to the pole, or in the dry lee of a range.',
-    cells: g,
-  });
-  for (const g of biomeComp([B.rainforest], 55)) found.push({
-    id: 'rainforest', name: 'a rainforest',
-    hint: 'On the equator, where the trade winds meet, or on any coast the wind hits first.',
-    cells: g,
-  });
-  for (const g of biomeComp([B.alpine, B.snowline], 18)) found.push({
-    id: 'range', name: 'a mountain range',
-    hint: 'Bare rock and snow above the treeline. Once you are on high ground, stay on it.',
-    cells: g,
-  });
-  // Both ends of the world at once, and every last square of it. Split into a
-  // northern goal and a southern one, the day would regularly send a player to
-  // the far pole while ice they could see from the drop counted for nothing;
-  // and dropping the small outlying patches would do the same in miniature.
-  const caps: number[] = [];
-  for (let i = 0; i < W * H; i++) if (t.land[i] && t.biome[i] === B.icecap) caps.push(i);
-  if (caps.length >= 30) found.push({
-    id: 'icecap', name: 'the ice cap',
-    hint: 'Straight for a pole, either one. The cold is not the problem; the distance is.',
-    cells: caps,
-  });
-  for (const g of biomeComp([B.taiga], 90)) found.push({
-    id: 'taiga', name: 'the boreal forest',
-    hint: 'The cold forest belt, between the tundra and the temperate ground below it.',
-    cells: g,
-  });
-  for (const g of biomeComp([B.savannah], 80)) found.push({
-    id: 'savannah', name: 'a savannah',
-    hint: 'Between the rainforest and the desert: hot ground with a wet season and a dry one.',
-    cells: g,
-  });
+  add('desert', 'a desert',
+    'Under the subtropical highs, a quarter of the way to the pole, or in the dry lee of a range.',
+    belt([B.desert], 120));
+  add('rainforest', 'a rainforest',
+    'On the equator, where the trade winds meet, or on any coast the wind hits first.',
+    belt([B.rainforest], 90));
+  add('range', 'a mountain range',
+    'Bare rock and snow above the treeline. Once you are on high ground, stay on it.',
+    belt([B.alpine, B.snowline], 40));
+  add('icecap', 'the ice cap',
+    'Straight for a pole, either one. The cold is not the problem; the distance is.',
+    belt([B.icecap], 60));
+  add('taiga', 'boreal forest',
+    'The cold forest belt, between the tundra and the temperate ground below it.',
+    belt([B.taiga], 140));
+  add('savannah', 'a savannah',
+    'Between the rainforest and the desert: hot ground with a wet season and a dry one.',
+    belt([B.savannah], 120));
   return found;
 }
+
+// The shortest a leg of the chain may be. A landmark you are already standing
+// in is not a landmark to go and find, and now that a kind covers every one of
+// its instances the nearest is often underfoot.
+const MIN_LEG = 3;
 
 // How far from the summit a drop may be, in moves. Since the drop is now the
 // one thing that differs between players, it has to be the thing that differs
@@ -571,9 +575,38 @@ function candidates(t: Terrain): Candidate[] {
 // and nobody starts on its doorstep or on the far side of the planet from it.
 const DROP_NEAR = 9, DROP_FAR = 20;
 
-/** Somewhere to be dropped: land, out of the ice, on a coast where possible,
- *  and a comparable journey from the summit however the dice fall. */
-function pickSpawn(rnd: () => number, land: Uint8Array, biome: Uint8Array, summit: number): number {
+/** Moves from every square to the nearest square of `cells`. One pass, so the
+ *  drop can ask about all of a planet's landmarks without walking each one. */
+function spreadFrom(cells: Iterable<number>): Uint8Array {
+  const away = new Uint8Array(W * H).fill(255);
+  let edge: number[] = [];
+  for (const i of cells) if (away[i] === 255) { away[i] = 0; edge.push(i); }
+  for (let d = 1; edge.length; d++) {
+    const next: number[] = [];
+    for (const i of edge) {
+      const r = rowOf(i), c = colOf(i);
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const rr = r + dr;
+        if (rr < 0 || rr >= H) continue;
+        const j = idx(rr, wrapC(c + dc));
+        if (away[j] === 255) { away[j] = Math.min(254, d); next.push(j); }
+      }
+    }
+    edge = next;
+  }
+  return away;
+}
+
+/** Somewhere to be dropped: land, out of the ice, on a coast where possible, a
+ *  comparable journey from the summit however the dice fall, and with real
+ *  ground between it and the landmarks. A drop standing in two of the day's
+ *  three landmarks has nothing left to go and find. */
+function pickSpawn(
+  rnd: () => number, land: Uint8Array, biome: Uint8Array, summit: number, marks: Candidate[],
+): number {
+  const reach = marks.map(m => spreadFrom(m.cells));
+  const worthLeaving = (i: number) =>
+    reach.filter(away => Math.ceil(away[i] / STRIDE) >= MIN_LEG).length >= Math.min(2, marks.length);
   const coastal: number[] = [], inland: number[] = [], anywhere: number[] = [];
   for (let r = 2; r < H - 2; r++) {
     if (Math.abs(latOf(r)) > 62) continue;
@@ -582,7 +615,7 @@ function pickSpawn(rnd: () => number, land: Uint8Array, biome: Uint8Array, summi
       if (!land[i] || biome[i] === B.icecap || biome[i] === B.snowline) continue;
       anywhere.push(i);
       const away = movesBetween(i, summit);
-      if (away < DROP_NEAR || away > DROP_FAR) continue;
+      if (away < DROP_NEAR || away > DROP_FAR || !worthLeaving(i)) continue;
       const shore = !land[idx(r - 1, c)] || !land[idx(r + 1, c)] ||
         !land[idx(r, wrapC(c - 1))] || !land[idx(r, wrapC(c + 1))];
       (shore ? coastal : inland).push(i);
@@ -605,9 +638,9 @@ const GOAL_WEIGHT: Record<string, number> = {
 
 /** The summit as a landmark of last resort, for a world so bare that nothing
  *  else on it is worth naming. */
-function summitGoal(t: Terrain): Landmark {
+function summitGoal(summit: number): Landmark {
   const cells = new Set<number>();
-  const sr = rowOf(t.summit), sc = colOf(t.summit);
+  const sr = rowOf(summit), sc = colOf(summit);
   for (let dr = -3; dr <= 3; dr++) for (let dc = -3; dc <= 3; dc++) {
     const r = sr + dr;
     if (r >= 0 && r < H) cells.add(idx(r, wrapC(sc + dc)));
@@ -615,7 +648,7 @@ function summitGoal(t: Terrain): Landmark {
   return {
     id: 'summit', name: 'the roof of the world',
     hint: 'The highest ground anywhere. Follow the rising land and keep following it.',
-    cells, centre: t.summit,
+    cells, centre: summit,
   };
 }
 
@@ -632,17 +665,13 @@ function summitGoal(t: Terrain): Landmark {
  * is what a day is scored out of. The pool runs a little past it so there is
  * always a second option standing behind the first.
  */
-function pickGoals(rnd: () => number, t: Terrain, spawn: number): { goals: Landmark[]; rungs: number } {
-  // One instance per kind — the one nearest the drop — so a world with nine
-  // desert patches does not become nine chances of drawing "a great desert".
-  const byKind = new Map<string, Landmark>();
-  for (const c of candidates(t)) {
-    const here: Landmark = { ...c, cells: new Set(c.cells), centre: centreOf(c.cells) };
-    const held = byKind.get(here.id);
-    if (!held || movesTo(spawn, here.cells) < movesTo(spawn, held.cells)) byKind.set(here.id, here);
-  }
-  const left = [...byKind.values()];
-  if (!left.length) return { goals: [summitGoal(t)], rungs: 1 };
+function pickGoals(
+  rnd: () => number, marks: Candidate[], spawn: number, summit: number,
+): { goals: Landmark[]; rungs: number } {
+  // candidates() already returns one entry per kind, holding every instance of
+  // it on the planet, so there is nothing to choose between here.
+  const left: Landmark[] = marks.map(c => ({ ...c, cells: new Set(c.cells), centre: centreOf(c.cells) }));
+  if (!left.length) return { goals: [summitGoal(summit)], rungs: 1 };
 
   const ladder: Landmark[] = [];
   let from = spawn;
@@ -665,8 +694,13 @@ function pickGoals(rnd: () => number, t: Terrain, spawn: number): { goals: Landm
     // behind the pair on offer, so the choice never thins to a single option.
     if (!affordable.length) affordable = [left.reduce((a, b) => (movesTo(from, b.cells) < movesTo(from, a.cells) ? b : a))];
     // A rung far enough to be a walk, near enough to leave room for another.
-    const fair = affordable.filter(g => reach(g) >= 4 && reach(g) <= 11);
-    const pool = fair.length ? fair : [affordable.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
+    // Under MIN_LEG it is not a walk at all, so those are dropped rather than
+    // fallen back to; only a world with nothing else left will offer one, and
+    // that beats offering nothing.
+    const worth = affordable.filter(g => reach(g) >= MIN_LEG);
+    const usable = worth.length ? worth : affordable;
+    const fair = usable.filter(g => reach(g) >= 4 && reach(g) <= 11);
+    const pool = fair.length ? fair : [usable.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
     const weights = pool.map(g => GOAL_WEIGHT[g.id] ?? 2);
     let roll = rnd() * weights.reduce((a, b) => a + b, 0);
     let chosen = pool[pool.length - 1];

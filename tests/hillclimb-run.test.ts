@@ -149,6 +149,49 @@ test('a landmark that has not come up yet is scenery, not a find', () => {
   assert.deepEqual(touchedOrder(w, [w.spawn, deep]).filter(g => g === LIVE), []);
 });
 
+test('any instance of a landmark counts, not one chosen patch of it', () => {
+  // The bug this pins: a landmark used to be a single connected patch, so a
+  // player standing in boreal forest could be told they had not found the
+  // boreal forest because it was a different patch of it.
+  const named: [string, number[]][] = [
+    ['desert', [B.desert]],
+    ['rainforest', [B.rainforest]],
+    ['taiga', [B.taiga]],
+    ['savannah', [B.savannah]],
+    ['icecap', [B.icecap]],
+    ['range', [B.alpine, B.snowline]],
+  ];
+  let checked = 0;
+  for (const w of worlds) {
+    for (const [id, biomes] of named) {
+      const goal = w.goals.find(g => g.id === id);
+      if (!goal) continue;
+      checked++;
+      for (let i = 0; i < W * H; i++) {
+        if (w.land[i] && biomes.includes(w.biome[i])) {
+          assert.ok(goal.cells.has(i),
+            w.day + ': a square of ' + goal.name + ' at ' + rowOf(i) + ',' + colOf(i) + ' is not part of it');
+        }
+      }
+    }
+  }
+  assert.ok(checked > 40, 'only checked ' + checked + ' landmarks');
+});
+
+test('a landmark kind is offered once, holding all of itself', () => {
+  for (const w of worlds) {
+    assert.equal(new Set(w.goals.map(g => g.id)).size, w.goals.length, w.day + ' offered a kind twice');
+  }
+});
+
+test('no landmark is underfoot at the drop', () => {
+  for (const w of worlds) {
+    // A find you are standing on is not a find. Every rung has to be a walk.
+    assert.ok(movesTo(w.spawn, w.goals[0].cells) >= 3,
+      w.day + ': ' + w.goals[0].name + ' is on the doorstep');
+  }
+});
+
 test('the ice cap counts at whichever pole you walk to', () => {
   let checked = 0;
   for (const w of worlds) {
@@ -188,10 +231,14 @@ test('either of the two on offer may be taken first, and the pair refills', () =
     const run = newRun(w);
     assert.ok(walkTo(run, w.goals[first].cells, MOVES * 8));
     const now = runState(w, run);
-    assert.equal(now.found[0], first, 'taking the ' + (first ? 'far' : 'near') + ' one first should count');
-    // A walk can brush a second landmark on the way, which is a bonus rather
-    // than a fault; what has to hold is that the pair refills from behind and
-    // never offers something already in hand.
+    // Either one can be gone after, and the walk always ends up holding it.
+    // Not necessarily holding it *first*: a landmark covers every instance of
+    // its kind, so heading for the far one often crosses the near one on the
+    // way, and collecting both is the reward for the route rather than a fault.
+    assert.ok(now.found.includes(first),
+      'going after the ' + (first ? 'far' : 'near') + ' one should count');
+    // What has to hold is that the pair refills from behind and never offers
+    // something already in hand.
     assert.equal(now.live.length, LIVE);
     for (const g of now.live) assert.ok(!now.found.includes(g));
   }
