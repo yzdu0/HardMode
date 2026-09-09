@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
-  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, movesTo,
+  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, march,
   idx, rowOf, colOf, latOf,
 } from '../src/hillclimb-world.ts';
 
@@ -141,14 +141,15 @@ test('every rung of the ladder exists and is a different kind of thing', () => {
 
 test('the rungs a day is scored out of fit inside one budget', () => {
   for (const w of worlds) {
-    // Rung by rung from the drop, arriving at the near edge of each: a player
-    // who spent every move on landmarks and nothing else could finish them.
-    // The pool past `rungs` is deliberately out of reach — it is only there so
-    // the pair on offer never thins to one.
+    // Rung by rung from the drop, walked rather than measured in straight
+    // lines: a player who spent every move on landmarks and nothing else could
+    // finish them. The pool past `rungs` is deliberately out of reach; it is
+    // only there so the pair on offer never thins to one.
     let moves = 0, from = w.spawn;
     for (const g of w.goals.slice(0, w.rungs)) {
-      moves += movesTo(from, g.cells);
-      from = [...g.cells].reduce((a, b) => (movesBetween(from, b) < movesBetween(from, a) ? b : a));
+      const trip = march(from, g.cells);
+      moves += trip.cost;
+      from = trip.at;
     }
     assert.ok(moves <= MOVES, w.day + ' needs ' + moves + ' moves for ' + w.rungs + ' rungs');
   }

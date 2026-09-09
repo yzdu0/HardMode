@@ -14,7 +14,7 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-export const HILLCLIMB_REVISION = 'world-2';
+export const HILLCLIMB_REVISION = 'world-3';
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
 // Two degrees of latitude to the row: fine enough for a coastline to have
@@ -40,6 +40,15 @@ export const GOALS_MAX = 4;
 // next one on the natural route, and the one past it — so taking the further
 // one first is a real gamble rather than a menu.
 export const LIVE = 2;
+
+/* The domain warp on the height field: how far a square may be dragged before
+   it is read, how much of that the calmest ground still gets, and how tightly
+   the drag itself varies. The last matters most. A drag that changes more
+   slowly than the terrain only slides continents about; it is the drag varying
+   faster than what it moves that folds a coast back on itself. */
+const WARP_PUSH = 40;
+const WARP_FLOOR = 0.25;
+const WARP_SCALE = 8;
 
 // How near counts as standing on a landmark. This is not generosity: a move
 // covers STRIDE squares, so the squares any walk can stop on form a lattice
@@ -96,6 +105,55 @@ export const dxWrap = (a: number, b: number) => {
 export const movesBetween = (a: number, b: number) =>
   Math.ceil(Math.max(dxWrap(colOf(a), colOf(b)), Math.abs(rowOf(a) - rowOf(b))) / STRIDE);
 
+/** Standing on a landmark, or within TOUCH squares of it. See TOUCH: the
+ *  tolerance is what makes every square on the board landable-beside. */
+export function touching(cells: Set<number>, stop: number): boolean {
+  const r = rowOf(stop), c = colOf(stop);
+  for (let dr = -TOUCH; dr <= TOUCH; dr++) {
+    const rr = r + dr;
+    if (rr < 0 || rr >= H) continue;
+    for (let dc = -TOUCH; dc <= TOUCH; dc++) if (cells.has(idx(rr, wrapC(c + dc)))) return true;
+  }
+  return false;
+}
+
+/** One move of the stride, eight ways, clamped at the poles and wrapped east
+ *  to west. The same rule the page moves the player by. */
+export const stepTo = (from: number, dr: number, dc: number) =>
+  idx(Math.max(0, Math.min(H - 1, rowOf(from) + dr * STRIDE)), wrapC(colOf(from) + dc * STRIDE));
+
+/**
+ * Walk at a landmark and see what it costs and where it leaves you.
+ *
+ * Not the distance to its nearest square, which is what it used to be costed
+ * at: a landmark holds every instance of its kind, so a walk aimed at the
+ * nearest one often touches a different one on the way and stops somewhere the
+ * straight-line figure never predicted. Costing the chain by actually walking
+ * it is the only way the budget and the board agree.
+ */
+export function march(from: number, cells: Set<number>): { cost: number; at: number } {
+  let target = from, best = Infinity;
+  for (const cell of cells) {
+    const d = movesBetween(from, cell);
+    if (d < best) { best = d; target = cell; }
+  }
+  let at = from, cost = 0;
+  while (!touching(cells, at) && cost <= MOVES * 2) {
+    let dc = colOf(target) - colOf(at);
+    if (dc > W / 2) dc -= W;
+    if (dc < -W / 2) dc += W;
+    const dr = rowOf(target) - rowOf(at);
+    // Each axis marches until it is inside the touch radius and then stops. A
+    // diagonal held all the way in steps over its own target for ever, because
+    // a move is a whole stride on both axes at once.
+    const next = stepTo(at, Math.abs(dr) <= TOUCH ? 0 : Math.sign(dr), Math.abs(dc) <= TOUCH ? 0 : Math.sign(dc));
+    if (next === at) break;
+    at = next;
+    cost++;
+  }
+  return { cost, at };
+}
+
 /** How many moves to the nearest part of a landmark. Never the distance to its
  *  middle: a polar cap wraps the whole world and a desert can be a hundred
  *  squares across, so the middle of one says almost nothing about the walk. */
@@ -128,18 +186,27 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
    at the seam with no visible edge. The vertical lattice is clamped instead:
    the poles are the top and bottom of the world, not a wrap. */
 
-interface Lattice { v: Float32Array; lx: number; ly: number }
+interface Lattice { v: Float32Array; lx: number; ly: number; oy: number }
 
+/**
+ * One layer's lattice, with a random vertical phase and a spare row to slide
+ * into. Without the phase every layer puts a lattice row exactly on the north
+ * pole, the equator and the south pole of every planet: a row sitting on a
+ * lattice row is read straight out of it while a row between two is an average
+ * of them, an average is narrower than what it averages, and a sea level set
+ * by percentile turns that into a standing surplus of land at those three
+ * latitudes. Sliding each layer independently makes them cancel.
+ */
 function lattice(rnd: () => number, lx: number): Lattice {
-  const ly = Math.max(2, Math.round((lx * H) / W) + 1);
+  const ly = Math.max(3, Math.round((lx * H) / W) + 2);
   const v = new Float32Array(lx * ly);
   for (let i = 0; i < v.length; i++) v[i] = rnd();
-  return { v, lx, ly };
+  return { v, lx, ly, oy: rnd() };
 }
 
 function sample(l: Lattice, r: number, c: number): number {
   const fx = (c / W) * l.lx;
-  const fy = (r / (H - 1)) * (l.ly - 1);
+  const fy = (r / (H - 1)) * (l.ly - 2) + l.oy;
   const x0 = Math.floor(fx), y0 = Math.floor(fy);
   const tx = smooth(fx - x0), ty = smooth(fy - y0);
   const xa = ((x0 % l.lx) + l.lx) % l.lx, xb = (xa + 1) % l.lx;
@@ -151,22 +218,40 @@ function sample(l: Lattice, r: number, c: number): number {
   return top + (bot - top) * ty;
 }
 
-/** Layered noise, coarse to fine. `ridged` folds each octave about its middle,
- *  which turns round blobs into the long creases that read as ranges. */
-function field(rnd: () => number, base: number, octaves: number, ridged: boolean): Float32Array {
+/** A stack of lattices, coarse to fine: the thing a layered-noise value is
+ *  read out of. Kept apart from reading it so that the point being read can be
+ *  moved, which is what the warp below does. */
+export interface Noise { layers: Lattice[]; norm: number }
+
+export function noiseOf(rnd: () => number, base: number, octaves: number): Noise {
   const layers: Lattice[] = [];
-  for (let o = 0; o < octaves; o++) layers.push(lattice(rnd, base << o));
-  const out = new Float32Array(W * H);
   let norm = 0;
-  for (let o = 0; o < octaves; o++) norm += Math.pow(0.5, o);
-  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
-    let sum = 0;
-    for (let o = 0; o < octaves; o++) {
-      const n = sample(layers[o], r, c);
-      sum += Math.pow(0.5, o) * (ridged ? 1 - Math.abs(2 * n - 1) : n);
-    }
-    out[idx(r, c)] = sum / norm;
+  for (let o = 0; o < octaves; o++) { layers.push(lattice(rnd, base << o)); norm += Math.pow(0.5, o); }
+  return { layers, norm };
+}
+
+/** Read layered noise at a point. Fractional and out-of-range coordinates are
+ *  fine: east and west wrap, and the poles clamp. `ridged` folds each octave
+ *  about its middle, which turns round blobs into creases that read as ranges.
+ *  `depth` reads only the coarsest octaves, for the fields that steer rather
+ *  than decorate. */
+export function noiseAt(n: Noise, r: number, c: number, ridged = false, depth = 0): number {
+  const octaves = depth > 0 ? Math.min(depth, n.layers.length) : n.layers.length;
+  let sum = 0, norm = 0;
+  for (let o = 0; o < octaves; o++) {
+    const a = Math.pow(0.5, o);
+    const v = sample(n.layers[o], r, c);
+    sum += a * (ridged ? 1 - Math.abs(2 * v - 1) : v);
+    norm += a;
   }
+  return sum / norm;
+}
+
+/** Layered noise over the whole map, read straight. */
+function field(rnd: () => number, base: number, octaves: number, ridged: boolean): Float32Array {
+  const n = noiseOf(rnd, base, octaves);
+  const out = new Float32Array(W * H);
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) out[idx(r, c)] = noiseAt(n, r, c, ridged);
   return out;
 }
 
@@ -300,9 +385,39 @@ export function generateWorld(day: string, drop = ''): World {
   // One broad field decides where the continents are; a ridged field creases
   // them into ranges, and only bites where the ground is already high, so
   // ranges run through the middle of a landmass rather than out to sea.
-  const base = field(rnd, 3, 7, false);
-  const ridge = field(rnd, 4, 6, true);
-  const sea = quantile(base, 0.68);
+  //
+  // Both are read at a moved point rather than where they sit. That is the
+  // warp: two more fields say how far to drag each square before reading it,
+  // and because the drag varies faster than the terrain it is dragging, the
+  // field folds over itself. Coasts come out marbled rather than rounded,
+  // headlands trail off into island chains, and inlets cut back on themselves.
+  // A third, very broad field scales how hard the drag pulls, so one part of a
+  // planet shatters into archipelago while another keeps a clean continental
+  // shore. Both layers are dragged by the same amount, or the ranges would
+  // stop following the coasts they belong to.
+  const shape = noiseOf(rnd, 3, 7);
+  const crease = noiseOf(rnd, 4, 6);
+  const drift = random('hillclimb-warp-' + HILLCLIMB_REVISION + '-' + day);
+  const pushX = noiseOf(drift, WARP_SCALE, 3);
+  const pushY = noiseOf(drift, WARP_SCALE, 3);
+  const pushHard = noiseOf(drift, 2, 2);
+
+  const base = new Float32Array(W * H);
+  const ridge = new Float32Array(W * H);
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    const i = idx(r, c);
+    const reach = WARP_PUSH * (WARP_FLOOR + (1 - WARP_FLOOR) * noiseAt(pushHard, r, c));
+    const dc = (noiseAt(pushX, r, c) - 0.5) * 2 * reach;
+    const dr = (noiseAt(pushY, r, c) - 0.5) * 2 * reach;
+    // The drag slides along a pole rather than through it. Left unclamped, a
+    // square dragged past the top reads a blend of the first two lattice rows
+    // at a weight that means nothing, and the correction above then widens a
+    // spread that was never narrowed: land piles up at both ends of the map.
+    const read = Math.max(0, Math.min(H - 1, r + dr));
+    base[i] = noiseAt(shape, read, c + dc);
+    ridge[i] = noiseAt(crease, read, c + dc, true);
+  }
+  const sea = quantile(base, 0.60);   // four squares of land in every ten
 
   const metres = new Int16Array(W * H);
   const depth = new Float32Array(W * H);
@@ -678,21 +793,20 @@ function pickGoals(
   let spent = 0;
   let rungs = 0;
   while (ladder.length < GOALS_MAX + LIVE && left.length) {
-    const reach = (g: Landmark) => movesTo(from, g.cells);
+    // Costed by walking at each of them from where the last leg actually
+    // finished, so the budget is a route somebody could really take.
+    const trip = new Map<Landmark, { cost: number; at: number }>(left.map(g => [g, march(from, g.cells)]));
+    const reach = (g: Landmark) => trip.get(g).cost;
     // What the budget reaches is what the day is scored out of: a chain nobody
     // could finish even by spending every move on it would be scored out of a
     // number no one can hit. Which also fixes what the top is worth — clearing
     // it means the whole budget went on landmarks and none of it on climbing.
-    // A move of slack for each leg already walked. The chain is costed as if
-    // the walk finishes standing on the near edge of every landmark, but
-    // reaching one only means coming within TOUCH of it, and stopping a couple
-    // of squares short can cost a move on the leg after.
-    let affordable = left.filter(g => spent + reach(g) <= MOVES - ladder.length);
+    let affordable = left.filter(g => spent + reach(g) <= MOVES);
     if (affordable.length && ladder.length < GOALS_MAX) rungs = ladder.length + 1;
     // Past the budget, or past the number a day is scored out of, the chain
     // carries on nearest-first anyway: those entries are the ones standing
     // behind the pair on offer, so the choice never thins to a single option.
-    if (!affordable.length) affordable = [left.reduce((a, b) => (movesTo(from, b.cells) < movesTo(from, a.cells) ? b : a))];
+    if (!affordable.length) affordable = [left.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
     // A rung far enough to be a walk, near enough to leave room for another.
     // Under MIN_LEG it is not a walk at all, so those are dropped rather than
     // fallen back to; only a world with nothing else left will offer one, and
@@ -708,10 +822,7 @@ function pickGoals(
     ladder.push(chosen);
     left.splice(left.indexOf(chosen), 1);
     spent += reach(chosen);
-    // Carry on from the square the walk would actually arrive at — the near
-    // edge of the landmark, not its middle. Budgeting from the middle of a
-    // continent-sized desert quietly hands the next leg moves nobody has.
-    from = [...chosen.cells].reduce((a, b) => (movesBetween(from, b) < movesBetween(from, a) ? b : a));
+    from = trip.get(chosen).at;      // where that walk actually finishes
   }
   // A rung has to have a full pair standing behind it, or the last one on the
   // list would be offered on its own.

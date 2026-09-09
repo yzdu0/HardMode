@@ -8,7 +8,7 @@
  * Nothing is stored but where the walk has been. Everything below is derived
  * from that and the world, so a restored run and a live one cannot drift
  * apart. */
-import { H, LIVE, MOVES, TOUCH, idx, rowOf, colOf, wrapC, ladderValue } from "./hillclimb-world.ts";
+import { LIVE, MOVES, ladderValue, touching } from "./hillclimb-world.ts";
 import type { World } from "./hillclimb-world.ts";
 
 export interface Run {
@@ -19,17 +19,10 @@ export interface Run {
 
 export const newRun = (world: World, seed = ''): Run => ({ path: [world.spawn], stopped: false, seed });
 
-/** Standing on a landmark, or within a couple of squares of it. See TOUCH:
- *  the tolerance is what makes every landmark landable-beside at this stride. */
-export function touching(cells: Set<number>, stop: number): boolean {
-  const r = rowOf(stop), c = colOf(stop);
-  for (let dr = -TOUCH; dr <= TOUCH; dr++) {
-    const rr = r + dr;
-    if (rr < 0 || rr >= H) continue;
-    for (let dc = -TOUCH; dc <= TOUCH; dc++) if (cells.has(idx(rr, wrapC(c + dc)))) return true;
-  }
-  return false;
-}
+// Standing on a landmark, or within a couple of squares of it, lives beside
+// the world: the generator has to reason about it too when it works out
+// whether a day's chain can be walked at all.
+export { touching };
 
 /** The landmarks on offer right now: the first two of the day's pool that have
  *  not been collected. Reaching one lets the next take its place, so the choice
