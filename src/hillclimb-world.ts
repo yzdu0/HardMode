@@ -31,8 +31,22 @@ export const MOVES = 28;
 export const STRIDE = 5;
 export const SIGHT = 8;
 
-// Most a day's ladder of landmarks runs to.
+// How many landmarks a day's budget is expected to allow. Scores are measured
+// against this, and the pool below runs deeper so that there is always another
+// one waiting behind the pair on offer.
 export const GOALS_MAX = 4;
+
+// How many are live at once. The choice is always between exactly two: the
+// next one on the natural route, and the one past it — so taking the further
+// one first is a real gamble rather than a menu.
+export const LIVE = 2;
+
+// How near counts as standing on a landmark. This is not generosity: a move
+// covers STRIDE squares, so the squares any walk can stop on form a lattice
+// STRIDE apart, and the nearest lattice point to an arbitrary square is up to
+// half a stride away on each axis. A tighter radius would leave landmarks that
+// no route on the board could ever land beside.
+export const TOUCH = Math.floor(STRIDE / 2);
 
 export interface BiomeDef {
   id: string;
@@ -81,6 +95,18 @@ export const dxWrap = (a: number, b: number) => {
 /** How many moves apart two squares are, at this stride. */
 export const movesBetween = (a: number, b: number) =>
   Math.ceil(Math.max(dxWrap(colOf(a), colOf(b)), Math.abs(rowOf(a) - rowOf(b))) / STRIDE);
+
+/** How many moves to the nearest part of a landmark. Never the distance to its
+ *  middle: a polar cap wraps the whole world and a desert can be a hundred
+ *  squares across, so the middle of one says almost nothing about the walk. */
+export function movesTo(from: number, cells: Iterable<number>): number {
+  let best = Infinity;
+  for (const cell of cells) {
+    const d = movesBetween(from, cell);
+    if (d < best) { best = d; if (!best) break; }
+  }
+  return best;
+}
 
 // Stable numeric seed: never use function names, which bundlers can rename.
 function random(seed: string): () => number {
@@ -242,7 +268,8 @@ export interface World {
   summit: number;            // cell index of the highest ground
   summitM: number;
   spawn: number;
-  goals: Landmark[];         // the day's ladder, in the order it is offered
+  goals: Landmark[];         // the day's pool, in the order it comes on offer
+  rungs: number;             // how many of them the budget is built to allow
   checklist: number[];       // land biomes present in useful quantity
 }
 
@@ -366,9 +393,9 @@ export function generateWorld(day: string): World {
   const checklist = [...counts.entries()].filter(([, n]) => n >= 10).map(([b]) => b).sort((a, b) => a - b);
 
   const spawn = pickSpawn(rnd, land, biome, summit);
-  const goals = pickGoals(rnd, { land, biome, metres, depth, summit, summitM }, spawn);
+  const { goals, rungs } = pickGoals(rnd, { land, biome, metres, depth, summit, summitM }, spawn);
 
-  return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, checklist };
+  return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs, checklist };
 }
 
 /* ---------- features ---------- */
@@ -498,10 +525,16 @@ function candidates(t: Terrain): Candidate[] {
     hint: 'Bare rock and snow above the treeline. Once you are on high ground, stay on it.',
     cells: g,
   });
-  for (const g of biomeComp([B.icecap], 30)) found.push({
+  // Both ends of the world at once, and every last square of it. Split into a
+  // northern goal and a southern one, the day would regularly send a player to
+  // the far pole while ice they could see from the drop counted for nothing;
+  // and dropping the small outlying patches would do the same in miniature.
+  const caps: number[] = [];
+  for (let i = 0; i < W * H; i++) if (t.land[i] && t.biome[i] === B.icecap) caps.push(i);
+  if (caps.length >= 30) found.push({
     id: 'icecap', name: 'the ice cap',
-    hint: 'Straight for a pole. The cold is not the problem; the distance is.',
-    cells: g,
+    hint: 'Straight for a pole — either one. The cold is not the problem; the distance is.',
+    cells: caps,
   });
   for (const g of biomeComp([B.taiga], 90)) found.push({
     id: 'taiga', name: 'the boreal forest',
@@ -561,41 +594,46 @@ function summitGoal(t: Terrain): Landmark {
 }
 
 /**
- * The day's ladder: up to four landmarks, each offered only once the one
- * before it has been reached.
+ * The day's landmarks, in the order they come on offer.
  *
- * Every rung is a different kind of feature, and each is chosen a fair walk on
- * from the last — far enough that taking it is a real decision about the moves
- * left, near enough that it is not a dare. Kinds are drawn by weight, so an
- * archipelago comes up long before the ice cap does.
+ * They are chained nearest-ish first, each a fair walk on from the one before,
+ * and every one a different kind of feature — kinds are drawn by weight, so an
+ * archipelago comes up long before the ice cap does. Two of the chain are live
+ * at any moment, which is what makes the order a decision: the near one now,
+ * or the far one while there are still moves to spend on it.
+ *
+ * `rungs` is how far down the chain the move budget actually reaches, and it
+ * is what a day is scored out of. The pool runs a little past it so there is
+ * always a second option standing behind the first.
  */
-function pickGoals(rnd: () => number, t: Terrain, spawn: number): Landmark[] {
+function pickGoals(rnd: () => number, t: Terrain, spawn: number): { goals: Landmark[]; rungs: number } {
   // One instance per kind — the one nearest the drop — so a world with nine
   // desert patches does not become nine chances of drawing "a great desert".
   const byKind = new Map<string, Landmark>();
   for (const c of candidates(t)) {
     const here: Landmark = { ...c, cells: new Set(c.cells), centre: centreOf(c.cells) };
     const held = byKind.get(here.id);
-    if (!held || movesBetween(spawn, here.centre) < movesBetween(spawn, held.centre)) byKind.set(here.id, here);
+    if (!held || movesTo(spawn, here.cells) < movesTo(spawn, held.cells)) byKind.set(here.id, here);
   }
   const left = [...byKind.values()];
-  if (!left.length) return [summitGoal(t)];
+  if (!left.length) return { goals: [summitGoal(t)], rungs: 1 };
 
   const ladder: Landmark[] = [];
   let from = spawn;
   let spent = 0;
-  while (ladder.length < GOALS_MAX && left.length) {
-    const reach = (g: Landmark) => movesBetween(from, g.centre);
-    // The ladder has to stay finishable: a rung nobody could reach even by
-    // spending every remaining move on it is a rung that is only there to be
-    // failed. Which also fixes what the top of the ladder is worth — clearing
+  let rungs = 0;
+  while (ladder.length < GOALS_MAX + LIVE && left.length) {
+    const reach = (g: Landmark) => movesTo(from, g.cells);
+    // What the budget reaches is what the day is scored out of: a chain nobody
+    // could finish even by spending every move on it would be scored out of a
+    // number no one can hit. Which also fixes what the top is worth — clearing
     // it means the whole budget went on landmarks and none of it on climbing.
-    const affordable = left.filter(g => spent + reach(g) <= MOVES);
-    if (!affordable.length) {
-      // Nothing in reach at all. One rung, the nearest, or the day has none.
-      if (ladder.length) break;
-      affordable.push(left.reduce((a, b) => (movesBetween(from, b.centre) < movesBetween(from, a.centre) ? b : a)));
-    }
+    let affordable = left.filter(g => spent + reach(g) <= MOVES);
+    if (affordable.length && ladder.length < GOALS_MAX) rungs = ladder.length + 1;
+    // Past the budget, or past the number a day is scored out of, the chain
+    // carries on nearest-first anyway: those entries are the ones standing
+    // behind the pair on offer, so the choice never thins to a single option.
+    if (!affordable.length) affordable = [left.reduce((a, b) => (movesTo(from, b.cells) < movesTo(from, a.cells) ? b : a))];
     // A rung far enough to be a walk, near enough to leave room for another.
     const fair = affordable.filter(g => reach(g) >= 4 && reach(g) <= 11);
     const pool = fair.length ? fair : [affordable.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
@@ -606,9 +644,14 @@ function pickGoals(rnd: () => number, t: Terrain, spawn: number): Landmark[] {
     ladder.push(chosen);
     left.splice(left.indexOf(chosen), 1);
     spent += reach(chosen);
-    from = chosen.centre;
+    // Carry on from the square the walk would actually arrive at — the near
+    // edge of the landmark, not its middle. Budgeting from the middle of a
+    // continent-sized desert quietly hands the next leg moves nobody has.
+    from = [...chosen.cells].reduce((a, b) => (movesBetween(from, b) < movesBetween(from, a) ? b : a));
   }
-  return ladder;
+  // A rung has to have a full pair standing behind it, or the last one on the
+  // list would be offered on its own.
+  return { goals: ladder, rungs: Math.max(1, Math.min(rungs, ladder.length - LIVE + 1)) };
 }
 
 /** What a rung is worth, and what the whole ladder is worth. Later rungs count

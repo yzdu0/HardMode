@@ -7,6 +7,12 @@ import { defineConfig } from "vite";
 // at a domain root, behind a custom domain, and opened straight off disk.
 export default defineConfig({
   base: "./",
+
+  // Two real pages, not one page with routes. Without this the dev server
+  // answers every unknown path with index.html, so a broken link to a second
+  // page comes back 200 with the wrong page in it and looks like a link that
+  // does nothing — which is exactly how "/hillclimb" hid its missing slash.
+  appType: "mpa",
   build: {
     rollupOptions: {
       // Hillclimb is its own page, served at /hillclimb. It is a directory with

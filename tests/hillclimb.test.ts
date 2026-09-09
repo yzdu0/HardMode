@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
-  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, goalValue, ladderValue,
+  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, GOALS_MAX, LIVE, goalValue, ladderValue, movesTo,
   idx, rowOf, colOf, latOf,
 } from '../src/hillclimb-world.ts';
 
@@ -126,7 +126,7 @@ test('the drop is somewhere a person could start from', () => {
 
 test('every rung of the ladder exists and is a different kind of thing', () => {
   for (const w of worlds) {
-    assert.ok(w.goals.length >= 1 && w.goals.length <= GOALS_MAX);
+    assert.ok(w.goals.length >= 1 && w.goals.length <= GOALS_MAX + LIVE);
     assert.equal(new Set(w.goals.map(g => g.id)).size, w.goals.length, w.day + ' repeated a kind');
     for (const g of w.goals) {
       assert.ok(g.cells.size > 0, w.day + ' has an empty landmark');
@@ -137,14 +137,18 @@ test('every rung of the ladder exists and is a different kind of thing', () => {
   }
 });
 
-test('the whole ladder is walkable inside one budget', () => {
+test('the rungs a day is scored out of fit inside one budget', () => {
   for (const w of worlds) {
-    // Rung by rung from the drop, taking the shortest route between centres:
-    // a player who spent every move on the ladder and nothing else could
-    // finish it. Anything longer would be a ladder with a rung nobody reaches.
+    // Rung by rung from the drop, arriving at the near edge of each: a player
+    // who spent every move on landmarks and nothing else could finish them.
+    // The pool past `rungs` is deliberately out of reach — it is only there so
+    // the pair on offer never thins to one.
     let moves = 0, from = w.spawn;
-    for (const g of w.goals) { moves += movesBetween(from, g.centre); from = g.centre; }
-    assert.ok(moves <= MOVES, w.day + ' needs ' + moves + ' moves for ' + w.goals.length + ' landmarks');
+    for (const g of w.goals.slice(0, w.rungs)) {
+      moves += movesTo(from, g.cells);
+      from = [...g.cells].reduce((a, b) => (movesBetween(from, b) < movesBetween(from, a) ? b : a));
+    }
+    assert.ok(moves <= MOVES, w.day + ' needs ' + moves + ' moves for ' + w.rungs + ' rungs');
   }
 });
 

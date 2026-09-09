@@ -1245,14 +1245,41 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .k-reached { background: rgba(47, 125, 50, .38); }
 .k-missed { background: rgba(214, 69, 69, .42); }
 
-/* How far up the ladder you are, at a glance: filled rungs climbed, a hollow
-   rung struck off, the rest still out there. */
-.hcbrief-count { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
-.hcpip { width: 9px; height: 9px; border-radius: 3px; border: 1px solid var(--muted); }
-.hcpip.on { background: var(--good); border-color: var(--good); }
-.hcpip.lost { border-color: var(--bad); border-style: dashed; }
+.hcbrief-count { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+/* Every landmark the day is offering, all of them live at once. A tick is one
+   in hand, a struck-through one was lost to pressing on, and the rest are
+   still out there in whatever order the player fancies. */
+.hcgoals { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
+.hcgoal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--tut-line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.hcgoal::before { content: "○"; font-size: 11px; }
+.hcgoal.on { border-color: var(--good); background: var(--good-bg); color: var(--good-fg); }
+.hcgoal.on::before { content: "✓"; }
+.hcgoal.lost { border-color: var(--bad); color: var(--bad-fg); text-decoration: line-through; }
+.hcgoal.lost::before { content: "×"; text-decoration: none; }
+
 .hcchoice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .hcchoice .btn { flex: 1 1 auto; }
+
+/* Where to look. Folded away by default: knowing that rainforest sits on the
+   equator is the puzzle, so it is there for whoever wants it and out of the
+   way of whoever does not. */
+.hcbrief .linkbtn { margin-top: 4px; padding: 0; color: var(--muted); }
+.hcbrief .linkbtn:hover { color: var(--fg); }
+.hcbrief .kindbox { background: var(--surface); margin-bottom: 0; }
+.hcbrief .kindbox p { margin: 0 0 6px; line-height: 1.5; }
+.hcbrief .kindbox p:last-child { margin-bottom: 0; }
 
 /* The map is an object on the page, not a panel: a thin surround and the
    corner radius the boards use, so it sits in the same family as the grids. */

@@ -3,15 +3,15 @@
  * The world lives in hillclimb-world.ts; everything here is the expedition:
  * where you have been, what you could see from there, and what it added up to.
  *
- * The run is stored as nothing but the list of squares you stopped on. Sight,
- * field notes, best altitude and whether you reached the day's landmark all
- * fall out of that list and the day's world, so a restored run and a live one
- * are the same computation and can never disagree. */
+ * The rules of a run live in hillclimb-run.ts, which is where the arithmetic
+ * is tested. This file draws it. */
 import {
-  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION, ladderValue,
+  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
 } from "./hillclimb-world";
-import type { World, Landmark } from "./hillclimb-world";
+import { newRun, runState } from "./hillclimb-run";
+import type { World } from "./hillclimb-world";
+import type { Run, RunState } from "./hillclimb-run";
 
 (function () {
   "use strict";
@@ -62,20 +62,20 @@ import type { World, Landmark } from "./hillclimb-world";
 
   // ---------- run state ----------
   let world: World = null;
-  let path: number[] = [];            // every square stopped on, starting at the drop
-  let stopped = false;                // the run is over: the whole map is shown
-  let banked = false;                 // no more rungs wanted; what is reached is kept
-  let pressedOn = 0;                  // rungs taken on after reaching the one before
+  let run: Run = null;
+  let now: RunState = null;           // recomputed after every change, never stored
   let seen: Uint8Array = null;        // ground the expedition has actually looked at
+  let hintsOpen = false;              // the "where to look" panel, across redraws
 
-  const at = () => path[path.length - 1];
-  const movesLeft = () => MOVES - (path.length - 1);
+  const path = () => run.path;
+  const at = () => run.path[run.path.length - 1];
+  const settle = () => { now = runState(world, run); };
 
   /** Everything within sight of any stop. Recomputed from the path, never
    *  stored, so an old save can never disagree with today's world. */
   function reveal() {
     seen = new Uint8Array(W * H);
-    for (const stop of path) light(stop);
+    for (const stop of run.path) light(stop);
   }
   function light(stop: number) {
     const sr = rowOf(stop), sc = colOf(stop);
@@ -88,56 +88,6 @@ import type { World, Landmark } from "./hillclimb-world";
       }
     }
   }
-
-  const bestMetres = () => path.reduce((best, i) => Math.max(best, world.metres[i]), 0);
-  const visitedBiomes = () => new Set(path.filter(i => world.land[i]).map(i => world.biome[i]));
-
-  /* ---------- the ladder ----------
-     Rungs are offered one at a time: reach one and you choose between banking
-     what you have and taking the next, which is worth more. Press on and fail
-     to arrive, and the rung you were standing on is struck off — one step back
-     down the ladder, never the whole thing.
-
-     Only `banked` and `pressedOn` are decisions; everything else is read back
-     off the path, so a restored run cannot drift from a live one. */
-
-  /** A rung is reached by standing on it or right beside it. Seeing it from
-   *  eight squares away is not an expedition. */
-  function touches(stop: number, goal: Landmark) {
-    const r = rowOf(stop), c = colOf(stop);
-    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
-      const rr = r + dr;
-      if (rr >= 0 && rr < H && goal.cells.has(idx(rr, wrapC(c + dc)))) return true;
-    }
-    return false;
-  }
-  /** Rungs climbed, in order — capped at the rungs actually offered, so ground
-   *  wandered over after banking does not quietly count. */
-  function reached() {
-    let g = 0;
-    for (const stop of path) {
-      if (g >= world.goals.length) break;
-      if (touches(stop, world.goals[g])) g++;
-    }
-    return Math.min(g, pressedOn + 1);
-  }
-  const awaiting = () => !stopped && !banked && reached() > pressedOn && reached() < world.goals.length;
-  /** The run ended while still hunting a rung that was taken on. */
-  const struck = () => stopped && !banked && reached() >= 1 && pressedOn === reached();
-  const kept = () => Math.max(0, reached() - (struck() ? 1 : 0));
-
-  const noteCount = () => {
-    const got = visitedBiomes();
-    return world.checklist.filter(b => got.has(b)).length;
-  };
-  const peakShare = () => (world.summitM > 0 ? bestMetres() / world.summitM : 0);
-  const ladderShare = () => ladderValue(kept()) / ladderValue(world.goals.length);
-  /** One number for the day: mostly the climb, then the ladder, then how much
-   *  of the world you actually sampled on the way. */
-  const score = () => Math.round(
-    45 * peakShare() + 30 * ladderShare() +
-    25 * (world.checklist.length ? noteCount() / world.checklist.length : 0));
-  const grade = (s: number) => (s >= 75 ? "A" : s >= 55 ? "B" : s >= 35 ? "C" : "D");
 
   // ---------- map ----------
   const canvas = $("hcMap") as HTMLCanvasElement;
@@ -186,7 +136,7 @@ import type { World, Landmark } from "./hillclimb-world";
     const fog = darkMap ? FOG_DARK : FOG_LIGHT;
     const img = tileCtx.createImageData(W, H);
     for (let i = 0; i < W * H; i++) {
-      const show = stopped || seen[i];
+      const show = run.stopped || seen[i];
       img.data[i * 4] = show ? pixels[i * 3] : fog[0];
       img.data[i * 4 + 1] = show ? pixels[i * 3 + 1] : fog[1];
       img.data[i * 4 + 2] = show ? pixels[i * 3 + 2] : fog[2];
@@ -264,21 +214,25 @@ import type { World, Landmark } from "./hillclimb-world";
       }
     };
 
-    if (stopped) {
-      // Only worth drawing once it is all visible: the rungs that were actually
-      // in play — the ones climbed, the one still being hunted — and where the
-      // summit you were aiming at turned out to sit.
-      const live = Math.min(world.goals.length, reached() + 1);
-      for (let g = 0; g < live; g++) {
-        const done = g < kept();
-        ctx.fillStyle = done
+    if (run.stopped) {
+      // Only worth drawing once it is all visible: every landmark the day
+      // offered, the ones reached marked apart from the ones walked past, and
+      // where the summit you were aiming at turned out to sit.
+      const held = new Set(now.found.slice(0, now.kept));
+      // Only what was ever on the table: the pool runs deeper than the day
+      // does, and marking landmarks that never came up would be marking the
+      // player down for missing something they were never shown.
+      const shown = new Set([...held, ...now.found, ...now.live]);
+      world.goals.forEach((goal, g) => {
+        if (!shown.has(g)) return;
+        ctx.fillStyle = held.has(g)
           ? (darkMap ? "rgba(120,220,150,.5)" : "rgba(47,125,50,.38)")
           : (darkMap ? "rgba(255,120,60,.5)" : "rgba(214,69,69,.42)");
-        for (const i of world.goals[g].cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
-      }
+        for (const i of goal.cells) ctx.fillRect(colOf(i) * cell, rowOf(i) * cell, cell, cell);
+      });
       mark(world.summit, "▲", back, ink);
     }
-    mark(path[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
+    mark(path()[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
     mark(at(), "", ink, back);
   }
 
@@ -287,14 +241,13 @@ import type { World, Landmark } from "./hillclimb-world";
    *  colours under the map would be nothing but noise. */
   function buildKey() {
     const box = $("hcKey");
-    box.classList.toggle("hidden", !stopped);
-    if (!stopped) return;
-    const live = Math.min(world.goals.length, reached() + 1);
+    box.classList.toggle("hidden", !run.stopped);
+    if (!run.stopped) return;
     box.innerHTML = BIOMES.map((_, i) => i).filter(i => world.biome.includes(i)).map(i =>
       "<span><i style='background:" + (darkMap ? BIOMES[i].dark : BIOMES[i].colour) + "'></i> " + BIOMES[i].name + "</span>",
     ).join("") + "<span><i class='k-summit'>▲</i> the summit</span>" +
-      (kept() ? "<span><i class='k-reached'></i> reached</span>" : "") +
-      (live > kept() ? "<span><i class='k-missed'></i> " + world.goals[live - 1].name + ", missed</span>" : "");
+      (now.kept ? "<span><i class='k-reached'></i> landmark reached</span>" : "") +
+      (now.live.length ? "<span><i class='k-missed'></i> landmark missed</span>" : "");
   }
 
   // ---------- readout ----------
@@ -312,86 +265,103 @@ import type { World, Landmark } from "./hillclimb-world";
       ["Altitude", water ? "at sea level" : metresLabel(world.metres[here])],
       ["Latitude", latLabel(rowOf(here))],
       ["Wind", windName(lat) + ", blowing " + (windDir(lat) > 0 ? "east" : "west")],
-      ["Highest so far", metresLabel(bestMetres())],
+      ["Highest so far", metresLabel(now.best)],
     ];
     $("hcRead").innerHTML = rows.map(([k, v]) =>
       "<div class='hcstat'><span>" + k + "</span><strong>" + v + "</strong></div>").join("");
-    $("hcMovesPill").textContent = stopped ? "run over" : movesLeft() + (movesLeft() === 1 ? " move left" : " moves left");
-    $("hcBestPill").textContent = metresLabel(bestMetres());
+    $("hcMovesPill").textContent = run.stopped ? "run over" : now.movesLeft + (now.movesLeft === 1 ? " move left" : " moves left");
+    $("hcBestPill").textContent = metresLabel(now.best);
 
     drawBrief();
 
     // Only the ground actually stood on: the list is a record of the walk, not
     // a table of contents for the planet.
-    const got = visitedBiomes();
     $("hcNotes").innerHTML =
-      "<span class='hcnotes-head'>Field notes " + noteCount() + " / " + world.checklist.length + "</span>" +
-      world.checklist.filter(b => got.has(b)).map(b =>
+      "<span class='hcnotes-head'>Field notes " + now.biomes.length + " / " + world.checklist.length + "</span>" +
+      now.biomes.map(b =>
         "<span><i style='background:" + (darkMap ? BIOMES[b].dark : BIOMES[b].colour) + "'></i> " +
         BIOMES[b].name + "</span>").join("");
 
     // Nothing moves while a rung is on the table: the choice is the move.
-    canvas.classList.toggle("frozen", stopped || awaiting());
+    canvas.classList.toggle("frozen", run.stopped || now.awaiting);
     // While a rung is on the table the map does not answer, so nothing should
     // be telling the player to tap it.
-    $("hcHint").classList.toggle("hidden", stopped || awaiting());
-    $("hcStop").classList.toggle("hidden", stopped || awaiting());
-    $("hcRestart").classList.toggle("hidden", !stopped || day === TODAY);
+    $("hcHint").classList.toggle("hidden", run.stopped || now.awaiting);
+    $("hcStop").classList.toggle("hidden", run.stopped || now.awaiting);
+    $("hcRestart").classList.toggle("hidden", !run.stopped || day === TODAY);
   }
 
-  /** The ladder, in the one place the player is already looking. */
+  /** The two landmarks on offer, the choice when one has just been reached,
+   *  and — folded away, because knowing where a rainforest sits is the puzzle
+   *  rather than the instructions — a note on where to look for each. */
   function drawBrief() {
     const box = $("hcBrief");
-    const total = world.goals.length;
-    const done = reached();
-    const pips = world.goals.map((_, g) =>
-      "<i class='hcpip" + (g < kept() ? " on" : g < done ? " lost" : "") + "'></i>").join("");
-    const count = "<span class='hcbrief-count'>" + pips + " " + kept() + " of " + total + "</span>";
+    const held = new Set(now.found.slice(0, now.kept));
+    const lost = now.found.filter(g => !held.has(g));
+    // While the choice is open the landmark just reached is still worth naming,
+    // so it is shown alongside whatever has come up behind it. Once the run is
+    // over the chips carry the whole account: kept, struck off, walked past.
+    const listed = run.stopped ? [...now.found, ...now.live]
+      : now.awaiting ? [now.found[now.reached - 1], ...now.live]
+      : now.live;
 
-    if (stopped) {
-      box.innerHTML = "<p class='hcbrief-line'><b>" + kept() + " of " + total + " landmarks</b>" +
-        (struck() ? " <span class='hc-lost'>· " + world.goals[done - 1].name + " struck off</span>" : "") +
-        "</p><p class='hcbrief-hint'>" + (kept() === total
-          ? "The whole ladder, in one run."
-          : "The rest of them are on the map below.") + "</p>";
-      return;
+    let head: string, note: string;
+    if (run.stopped) {
+      head = "<b>" + now.kept + " of " + world.rungs + " landmarks</b>" +
+        (now.struck ? " <span class='hc-lost'>· " + world.goals[lost[0]].name + " struck off</span>" : "");
+      note = now.kept >= world.rungs ? "The whole day's worth, in one run."
+        : "Everything you were offered is marked on the map — what you reached, and what you left out there.";
+    } else if (now.awaiting) {
+      head = "<b>Reached " + world.goals[now.found[now.reached - 1]].name + ".</b>";
+      note = "Banking keeps what you have and leaves you free to climb with the moves you have left. " +
+        "Press on and the next one is worth more than the last — but if the moves run out before you reach it, " +
+        world.goals[now.found[now.reached - 1]].name + " is struck off.";
+    } else if (now.complete) {
+      head = "<b>Every landmark reached.</b>";
+      note = "Nothing left to find. Spend what is left of the budget going up.";
+    } else if (run.banked) {
+      head = "<b>Banked.</b>";
+      note = "No more landmarks. Every move from here is altitude and field notes.";
+    } else {
+      head = "<b>Head for either one</b>";
+      note = "Two are on offer at a time, and each one you reach is worth more than the last — " +
+        "so which of the two you go after, and in what order, is the game.";
     }
-    if (awaiting()) {
-      const next = world.goals[done];
-      box.innerHTML =
-        "<p class='hcbrief-line'><b>Reached " + world.goals[done - 1].name + ".</b> " + count + "</p>" +
-        "<div class='hcchoice'>" +
-        "<button id='hcBank' class='btn'>Bank these</button>" +
-        "<button id='hcPress' class='btn primary'>Press on → " + next.name + "</button></div>" +
-        "<p class='hcbrief-hint'>Banking keeps what you have and leaves you free to climb with the moves you have left. " +
-        "Press on and the next one is worth more — but if the moves run out before you reach it, " +
-        world.goals[done - 1].name + " is struck off.</p>";
-      $("hcBank").onclick = () => { banked = true; save(); refresh(); };
-      $("hcPress").onclick = () => { pressedOn++; save(); refresh(); paint(); };
-      return;
+
+    box.innerHTML =
+      "<p class='hcbrief-line'>" + head +
+      " <span class='hcbrief-count'>" + now.kept + " of " + world.rungs + "</span></p>" +
+      (listed.length
+        ? "<ul class='hcgoals'>" + listed.map(g =>
+            "<li class='hcgoal" + (held.has(g) ? " on" : lost.includes(g) ? " lost" : "") + "'>" +
+            world.goals[g].name + "</li>").join("") + "</ul>"
+        : "") +
+      (now.awaiting
+        ? "<div class='hcchoice'><button id='hcBank' class='btn'>Bank these</button>" +
+          "<button id='hcPress' class='btn primary'>Press on</button></div>"
+        : "") +
+      "<p class='hcbrief-hint'>" + note + "</p>" +
+      (run.stopped || !now.live.length ? "" :
+        "<button id='hcWhere' class='linkbtn' aria-expanded='" + hintsOpen + "' aria-controls='hcWhereBox'>" +
+        (hintsOpen ? "Hide where to look" : "Where to look") + "</button>" +
+        "<div id='hcWhereBox' class='kindbox" + (hintsOpen ? "" : " hidden") + "'>" +
+        now.live.map(g => "<p><b>" + world.goals[g].name + "</b> — " + world.goals[g].hint + "</p>").join("") +
+        "</div>");
+
+    if (now.awaiting) {
+      $("hcBank").onclick = () => { run.banked = true; settle(); save(); refresh(); };
+      $("hcPress").onclick = () => { run.pressedOn++; settle(); save(); refresh(); paint(); };
     }
-    if (done >= total) {
-      box.innerHTML = "<p class='hcbrief-line'><b>Every landmark reached.</b> " + count + "</p>" +
-        "<p class='hcbrief-hint'>Nothing left to find. Spend what is left of the budget going up.</p>";
-      return;
-    }
-    if (banked) {
-      box.innerHTML = "<p class='hcbrief-line'><b>Banked.</b> " + count + "</p>" +
-        "<p class='hcbrief-hint'>No more landmarks. Every move from here is altitude and field notes.</p>";
-      return;
-    }
-    const goal = world.goals[done];
-    box.innerHTML = "<p class='hcbrief-line'><b>Find " + goal.name + "</b> " + count + "</p>" +
-      "<p class='hcbrief-hint'>" + goal.hint + "</p>";
+    const where = $("hcWhere");
+    if (where) where.onclick = () => { hintsOpen = !hintsOpen; drawBrief(); };
   }
 
-  // ---------- moving ----------
   /* Tapping the map is the whole control: point at where you want to be and
      you take one move of the stride towards it, snapped to the eight compass
      directions. It reads the same on a phone and a desktop, and it puts the
      decision on the map — which is the only thing worth looking at. */
   canvas.addEventListener("click", (e) => {
-    if (stopped || awaiting()) return;
+    if (run.stopped || now.awaiting) return;
     const box = canvas.getBoundingClientRect();
     const c = Math.floor(((e.clientX - box.left) / box.width) * W);
     const r = Math.floor(((e.clientY - box.top) / box.height) * H);
@@ -411,7 +381,7 @@ import type { World, Landmark } from "./hillclimb-world";
     step(flat ? 0 : Math.sign(dr), steep ? 0 : Math.sign(dc));
   });
   function step(dr: number, dc: number) {
-    if (stopped || awaiting() || movesLeft() <= 0) return;
+    if (run.stopped || now.awaiting || now.movesLeft <= 0) return;
     const here = at();
     // The poles are the end of the map, not a wrap: a move north from the top
     // row simply runs along it rather than being refused outright.
@@ -419,9 +389,10 @@ import type { World, Landmark } from "./hillclimb-world";
     const c = wrapC(colOf(here) + dc * STRIDE);
     const next = idx(r, c);
     if (next === here) return;
-    path.push(next);
+    run.path.push(next);
     light(next);
-    if (movesLeft() <= 0) finish(true);
+    settle();
+    if (now.movesLeft <= 0) finish(true);
     else { save(); paint(); refresh(); buildKey(); }
   }
   document.addEventListener("keydown", (e) => {
@@ -450,33 +421,30 @@ import type { World, Landmark } from "./hillclimb-world";
     return "Barely off the beach. The ranges sit inland; the coast will not take you up.";
   }
   function finish(fresh: boolean) {
-    stopped = true;
+    run.stopped = true;
+    settle();
     save();
     buildPixels();
     paint(); refresh(); buildKey();
-    const share = peakShare();
-    const s = score();
-    const ladder = kept() + " of " + world.goals.length + " landmark" + (world.goals.length === 1 ? "" : "s") +
-      (struck() ? " — " + world.goals[reached() - 1].name + " struck off for pressing on" : "") + ". ";
+    const struckOff = now.found.find(g => !now.found.slice(0, now.kept).includes(g));
+    const ladder = now.kept + " of " + world.rungs + " landmark" + (world.rungs === 1 ? "" : "s") +
+      (now.struck ? " — " + world.goals[struckOff].name + " struck off for pressing on" : "") + ". ";
     $("hcMsg").innerHTML =
-      "<b>" + metresLabel(bestMetres()) + "</b> of a " + metresLabel(world.summitM) + " summit — " +
-      Math.round(share * 100) + "%. " + ladder +
-      noteCount() + " of " + world.checklist.length + " biomes logged. " +
-      "<b>Grade " + grade(s) + "</b> — " + verdict(share, kept() > 0);
+      "<b>" + metresLabel(now.best) + "</b> of a " + metresLabel(world.summitM) + " summit — " +
+      Math.round(now.peakShare * 100) + "%. " + ladder +
+      now.biomes.length + " of " + world.checklist.length + " biomes logged. " +
+      "<b>Grade " + now.grade + "</b> — " + verdict(now.peakShare, now.kept > 0);
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
-    $("hcMsg").className = "msg" + (s >= 55 ? " good" : s < 35 ? " bad" : "");
-    reportResult(grade(s), fresh);
+    $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
+    reportResult(now.grade, fresh);
   }
-  $("hcStop").onclick = () => { if (!stopped) finish(true); };
-  $("hcRestart").onclick = () => {
-    path = [world.spawn]; stopped = false; banked = false; pressedOn = 0;
-    save(); start();
-  };
+  $("hcStop").onclick = () => { if (!run.stopped) finish(true); };
+  $("hcRestart").onclick = () => { run = newRun(world); save(); start(); };
 
   // ---------- storage ----------
   function save() {
-    try { localStorage.setItem(storeKey(), JSON.stringify({ path, stopped, banked, pressedOn })); } catch (_) {}
+    try { localStorage.setItem(storeKey(), JSON.stringify(run)); } catch (_) {}
   }
   function load(): boolean {
     try {
@@ -484,11 +452,13 @@ import type { World, Landmark } from "./hillclimb-world";
       if (!d || !Array.isArray(d.path) || d.path[0] !== world.spawn) return false;
       // A path from a world that has since changed shape is worse than none.
       if (d.path.length > MOVES + 1 || d.path.some((i: unknown) => typeof i !== "number" || i < 0 || i >= W * H)) return false;
-      path = d.path;
-      stopped = Boolean(d.stopped);
-      banked = Boolean(d.banked);
-      // Never more rungs taken on than there are rungs, whatever is in storage.
-      pressedOn = Math.max(0, Math.min(world.goals.length - 1, Number(d.pressedOn) || 0));
+      run = {
+        path: d.path,
+        stopped: Boolean(d.stopped),
+        banked: Boolean(d.banked),
+        // Never more landmarks taken on than there are, whatever is in storage.
+        pressedOn: Math.max(0, Math.min(world.goals.length, Number(d.pressedOn) || 0)),
+      };
       return true;
     } catch (_) { return false; }
   }
@@ -572,12 +542,13 @@ import type { World, Landmark } from "./hillclimb-world";
   $("shareDone").onclick = () => shareBox.close();
   shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
   $("hcShare").onclick = () => {
-    const share = Math.round(peakShare() * 100);
     openShare(
       "HardMode Hillclimb " + day + "\n" +
-      "⛰ " + metresLabel(bestMetres()) + " — " + share + "% of the summit\n" +
-      "🧭 " + kept() + "/" + world.goals.length + " landmarks" + (banked ? " — banked" : struck() ? " — pressed on and lost one" : "") + "\n" +
-      "🗺 " + noteCount() + "/" + world.checklist.length + " biomes · " + (MOVES - movesLeft()) + " moves\n" +
+      "⛰ " + metresLabel(now.best) + " — " + Math.round(now.peakShare * 100) + "% of the summit\n" +
+      "🧭 " + now.kept + "/" + world.rungs + " landmarks" +
+        (run.banked ? " — banked" : now.struck ? " — pressed on and lost one" : "") + "\n" +
+      "🗺 " + now.biomes.length + "/" + world.checklist.length + " biomes · " +
+        (MOVES - now.movesLeft) + " moves\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 
@@ -592,7 +563,8 @@ import type { World, Landmark } from "./hillclimb-world";
 
   function start() {
     world = generateWorld(day);
-    if (!load()) { path = [world.spawn]; stopped = false; banked = false; pressedOn = 0; }
+    if (!load()) run = newRun(world);
+    settle();
     reveal();
     buildPixels();
     $("hcDateLabel").textContent = day === TODAY ? "Today · " + longLabel(day) : longLabel(day);
@@ -602,7 +574,7 @@ import type { World, Landmark } from "./hillclimb-world";
     $("hcResults").classList.add("hidden");
     mine = null;
     paint(); refresh(); buildKey();
-    if (stopped) finish(false); else drawResults();
+    if (run.stopped) finish(false); else drawResults();
   }
 
   let stored = "light";
