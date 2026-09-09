@@ -922,7 +922,7 @@ body:not([data-theme]) #viewSteiner {
   position: relative;
   gap: 2px;
   padding: 8px;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 13px;
   background: var(--raised);
   box-shadow: 0 3px 14px var(--shadow);
@@ -953,7 +953,10 @@ body:not([data-theme]) #viewSteiner {
   box-shadow: 0 1px 3px rgb(0 0 0 / .12);
   transition: box-shadow 180ms ease;
 }
-#steinerGrid .cell.term.connected::before { box-shadow: 0 0 0 2px var(--road), inset 0 0 0 2px var(--town-fg); }
+#steinerGrid .cell.term.connected::before {
+  transform: scale(1.08);
+  box-shadow: 0 2px 5px rgb(0 0 0 / .18);
+}
 #steinerGrid .cell.term { font-size: 10px; }
 #steinerGrid .cell.portal { border-radius: 8px; font-size: 12px; }
 #steinerGrid .cell.portal.path::before { inset: 18%; border-radius: 50%; }
@@ -966,10 +969,11 @@ body:not([data-theme]) #viewSteiner {
 #steinerGrid .road-w { right: 50%; }
 #steinerGrid .join-n .road-n, #steinerGrid .join-e .road-e,
 #steinerGrid .join-s .road-s, #steinerGrid .join-w .road-w { display: block; }
-#steinerGrid.answer-view { outline: 2px solid var(--accent); outline-offset: 3px; }
+#steinerGrid.answer-view { outline: 0; background: var(--tab-on); box-shadow: 0 3px 18px var(--shadow); }
 #steinerGrid.answer-view .cell { cursor: default; }
 #steinerGrid .cell:focus-visible { z-index: 2; outline-offset: 2px; }
 #viewSteiner .btn { transition: background-color 140ms ease, transform 100ms ease; }
+#viewSteiner .btn:not(.primary) { border-color: transparent; background: var(--raised); }
 #viewSteiner .btn:active:not(:disabled) { transform: translateY(1px); }
 #viewSteiner .btn:disabled { opacity: .4; cursor: default; }
 #steinerReveal { margin-top: 4px; color: var(--accent); }
@@ -981,7 +985,7 @@ body:not([data-theme]) #viewSteiner {
 #steinerMeta .st-linked.complete { color: var(--good-fg); }
 #steinerMeta .board-kind { margin-left: auto; font-size: 12px; font-weight: 500; }
 @media (hover: hover) {
-  #steinerGrid:not(.answer-view) .cell.free:not(.bonus):hover { box-shadow: inset 0 0 0 2px var(--road); }
+  #steinerGrid:not(.answer-view) .cell.free:not(.bonus):hover { filter: brightness(.96); transform: scale(.96); }
 }
 @keyframes steiner-settle {
   0%, 100% { box-shadow: 0 3px 14px var(--shadow); }
@@ -993,7 +997,7 @@ body:not([data-theme]) #viewSteiner {
 @media (prefers-reduced-motion: reduce) {
   #steinerGrid .cell, #steinerGrid .cell::before, #viewSteiner .btn { transition: none; }
 }
-body[data-theme="minimal"] #steinerGrid { border-color: #111; box-shadow: none; border-radius: 0; }
+body[data-theme="minimal"] #steinerGrid { border: 0; box-shadow: none; border-radius: 0; }
 body[data-theme="terminal"] #steinerGrid, body[data-theme="terminal"] #steinerGrid .cell { border-radius: 0; }
 
 /* ---------- Facility map ----------
