@@ -46,7 +46,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PLAYER = /^[a-z0-9]{8,40}$/;
 const HILLCLIMB_SCORE = /^(0|[1-9]\d{0,2})$/;
 const HILLCLIMB_SCORE_MAX = 152; // 100 climb + 40 landmarks + 12 field notes
-const ARCHIVE_DAYS = 90;
+const ARCHIVE_AGE_MAX = 90;
+const HILLCLIMB_AGE_MAX = 4; // three prior local days, plus date-line tolerance
 
 const validBucket = (game: Game, bucket: string) => game === "HillClimb"
   ? HILLCLIMB_SCORE.test(bucket) && Number(bucket) <= HILLCLIMB_SCORE_MAX
@@ -70,7 +71,8 @@ export function readResult(body: unknown, today: string): { row?: ResultRow; why
   // and anyone west of it a day behind. Both are playing today where they
   // stand, so a day either side of the window still counts.
   const age = dayNumber(today) - dayNumber(day);
-  if (!Number.isFinite(age) || age < -1 || age > ARCHIVE_DAYS) return { why: "day out of range" };
+  const oldest = game === "HillClimb" ? HILLCLIMB_AGE_MAX : ARCHIVE_AGE_MAX;
+  if (!Number.isFinite(age) || age < -1 || age > oldest) return { why: "day out of range" };
   return { row: { day, game: game as Game, player, bucket } };
 }
 

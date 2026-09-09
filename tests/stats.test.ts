@@ -47,6 +47,18 @@ test('HillClimb stores exact scores rather than grades', () => {
   }
 });
 
+test('HillClimb accepts only today and the three previous local days', () => {
+  const shift = (days: number) =>
+    new Date(Date.parse(TODAY + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
+  for (const daysAgo of [0, 1, 2, 3]) {
+    assert(readResult(ok({ game: 'HillClimb', bucket: '82', day: shift(-daysAgo) }), TODAY).row,
+      daysAgo + ' days ago should be playable');
+  }
+  // The server permits one additional UTC day for players west of the date
+  // line, whose local third-prior day is already four dates behind UTC.
+  assert.equal(readResult(ok({ game: 'HillClimb', bucket: '82', day: shift(-5) }), TODAY).row, undefined);
+});
+
 test('malformed submissions are refused rather than stored', () => {
   const bad: [unknown, string][] = [
     [null, 'null body'],

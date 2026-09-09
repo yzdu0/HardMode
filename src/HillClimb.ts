@@ -38,8 +38,9 @@ import type { Run, RunState } from "./HillClimb-run";
     const [y, m, d] = key.split("-").map(Number);
     return d + " " + months[m - 1] + " " + y;
   }
+  const ACCESS_DAYS = 4; // today, plus the three days immediately before it
   const TODAY = todayKey();
-  const OLDEST = addDays(TODAY, -89);
+  const OLDEST = addDays(TODAY, -(ACCESS_DAYS - 1));
   let day = TODAY;
 
   const $ = (id: string) => document.getElementById(id);
@@ -721,12 +722,11 @@ import type { Run, RunState } from "./HillClimb-run";
     const open = $("hcHelpBox").classList.toggle("hidden") === false;
     $("hcHelpBtn").setAttribute("aria-expanded", String(open));
   };
-  /* The archive: a month of planets, and how each one went. A day already
+  /* The archive: the four available planets, and how each one went. A day already
      walked shows its grade, so the strip doubles as a record of the run of
      them rather than only a way to get back to one. */
   const archive = $("hcArchive");
   const archiveDate = $("hcArchiveDate") as HTMLInputElement;
-  const ARCHIVE_DAYS = 30;
   function gradeOn(key: string): string {
     try {
       const d = JSON.parse(localStorage.getItem("hm-" + key + "-HillClimb-" + HILLCLIMB_REVISION) || "null");
@@ -740,7 +740,7 @@ import type { Run, RunState } from "./HillClimb-run";
     archiveDate.setAttribute("aria-label", "Pick a day");
     const list = $("hcArchiveList");
     list.innerHTML = "";
-    for (let i = 0; i < ARCHIVE_DAYS; i++) {
+    for (let i = 0; i < ACCESS_DAYS; i++) {
       const key = addDays(TODAY, -i);
       const grade = gradeOn(key);
       const b = document.createElement("button");
