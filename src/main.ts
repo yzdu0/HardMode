@@ -239,7 +239,7 @@ import { solveSteinerExact } from "./steiner-solver";
     if (!statsOn || !slot || !slot.total) { box.classList.add("hidden"); return; }
     const most = Math.max(...spec.order.map((b) => slot.buckets[b] || 0), 1);
     box.querySelector(".results-head").textContent =
-      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today · " + spec.head;
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today. " + spec.head;
     box.querySelector(".results-bars").innerHTML = spec.order.map((b) => {
       const n = slot.buckets[b] || 0;
       const label = spec.name ? spec.name[b] : b;
@@ -603,10 +603,10 @@ import { solveSteinerExact } from "./steiner-solver";
         gridEl.classList.add("celebrate");
       }
       let verdict;
-      if (cost <= S.target) verdict = "Perfect — matches the exact optimum! 🌟";
+      if (cost <= S.target) verdict = "Perfect, matches the exact optimum! 🌟";
       else if (cost <= S.target + 2) verdict = "Close to optimal.";
-      else verdict = "Valid, but the optimum is lower — look for shared trunks, free road and portals.";
-      steinerMsg.textContent = "Solved! Cost " + cost + " (target " + S.target + ") — " + verdict;
+      else verdict = "Valid, but the optimum is lower. Look for shared trunks, free road and portals.";
+      steinerMsg.textContent = "Solved! Cost " + cost + " (target " + S.target + "). " + verdict;
       steinerMsg.className = "msg good";
       saveSteiner(true);
       updateStreak(); renderArchive();
@@ -614,7 +614,7 @@ import { solveSteinerExact } from "./steiner-solver";
       return true;
     } else {
       if (verbose) {
-        steinerMsg.textContent = "Not yet — " + conn.reachedCount + "/" + S.terms.length + " towns linked. Cost so far: " + cost + ".";
+        steinerMsg.textContent = "Not yet. " + conn.reachedCount + "/" + S.terms.length + " towns linked. Cost so far: " + cost + ".";
         steinerMsg.className = "msg bad";
       }
       return false;
@@ -762,7 +762,7 @@ import { solveSteinerExact } from "./steiner-solver";
       return;
     }
     kindTitle.textContent = info[0];
-    kindBody.innerHTML = (G.kind === "sat reduction" && G.clauses ? "Today's formula: <b>" + G.clauses.map((c) => "(" + c.join(" ∨ ") + ")").join(" ∧ ") + "</b> — make it true.<br>" : "") + info[1];
+    kindBody.innerHTML = (G.kind === "sat reduction" && G.clauses ? "Today's formula: <b>" + G.clauses.map((c) => "(" + c.join(" ∨ ") + ")").join(" ∧ ") + "</b>. Make it true.<br>" : "") + info[1];
     kindBox.classList.remove("hidden");
   }
   hintBtn.onclick = () => {
@@ -771,20 +771,20 @@ import { solveSteinerExact } from "./steiner-solver";
   };
   // Solving guide per puzzle family.
   const KIND_INFO = {
-    "map": ["Map — colour the districts",
-      "Neighbouring districts (sharing a border, not just a point) must differ. Start with the most-bordered district and colour its neighbourhood first — constraints cascade from there. A triangle of three mutually adjacent districts forces 3 colours, and the four-colour theorem guarantees you never need a 5th. These maps are triangulated on purpose, so 4 is usually the honest answer: when you run out of room, back up to the last district that had a real choice rather than reaching for a 5th colour."],
-    "timetable": ["Timetable — schedule the exams",
-      "Each dot is an exam; an edge means shared students, so linked exams need different time slots (colours). Dots run left-to-right in start order. Sweep an imaginary vertical line across: the busiest slice — the most exams all pairwise clashing — is a clique and sets your minimum, and these days are built so that slice holds four. Greedy works here: take exams left to right, giving each the first slot none of its earlier neighbours uses."],
-    "frequencies": ["Frequencies — assign the channels",
-      "Each dot is a radio mast; two masts within range of each other interfere and need different channels. There is no tidy structure to lean on, so read it off the picture: find the tightest cluster first, because a clump of four mutually-in-range masts already uses up every channel you have. Colour that cluster, then work outwards along the masts with the fewest free channels left. When you stall, the mast to change is rarely the one you are stuck on — it is the one two steps back that had two options and took the wrong one."],
-    "triangle-free": ["Triangle-free — no clique to find",
-      "There is not one triangle in this graph. Every habit that says \"find three mutual neighbours and start there\" is useless, and yet three colours provably cannot finish it — that is the whole trick. It is built in layers: an odd ring on the outside, a mirror of each ring node just inside it (wired to that node's two ring neighbours, never to the node itself), and one hub joined to every mirror. Try it with three and watch what happens: colour the ring, and each mirror is squeezed towards a single colour, which leaves the hub with nothing. So the fourth colour has to go somewhere — spend it on the hub, or on one carefully chosen mirror, and let the rest fall out."],
-    "sat reduction": ["SAT reduction — colouring solves the formula",
-      "Two colours do all the work here: <b>pink (T) means TRUE, blue (F) means FALSE</b> — they arrive locked, and yellow B is just scaffolding. Your whole job is deciding x1, x2 and x3.<br>1. <b>Read the variables.</b> Each pair x/!x touches yellow, so each splits pink/blue. Painting those six dots <b>is</b> picking true/false for the three variables — 8 assignments in all.<br>2. <b>Read a fuse.</b> Each clause is a chain p → q → r → s → t. p touches its first two literals and pink T, so if both are blue, p is forced yellow — which forces q pink, r yellow, s pink — and then t, touching pink s plus blue and yellow, has no colour left. That dead end <b>is</b> the clause being false. Any pink literal breaks the fuse and leaves t paintable.<br>3. <b>Solve it.</b> Both fuses share the same six literal dots, so one assignment has to satisfy both clauses at once — that is the part that is actually hard. Pick an assignment that makes today's formula true, paint the six variable dots, then walk each chain left to right taking any non-clashing colour. Stuck at a t? First rewind to that chain's last free choice — r is the usual fork — and only flip a variable if the chain truly has no way through, then recheck the other clause.<br>All 19 coloured, no red: your pinks and blues satisfy the formula. ★★★."],
-    "propagation chain": ["Propagation chain — a planted puzzle",
-      "The clique across the top fixes the colour permutation (every colour appears exactly once up there). Middle dots touch all-but-one colour — they're forced, so paint them first like unit propagation in SAT. Bottom dots are genuine choices, and they are cross-linked to each other, so a choice that looks free can still collide two dots later: branch on one, propagate, and be ready to undo."],
-    "sudoku": ["Sudoku — the grid IS the graph",
-      "Every row, column and 2×3 box is one big clique — all six cells pairwise linked, which is why those edges aren't drawn (216 would blanket the board). The few links you <b>can</b> see are extra rivalries beyond Sudoku rules: those pairs must differ too, so factor them in early — they usually decide the hardest cells. Dark digits are locked givens; the chips are digits 1–6. Tactics carry straight over: naked singles (a cell with only one legal digit) and hidden singles (a digit with only one home in a row, column or box). Six colours is optimal — each row needs all six — so a clean fill is ★★★."],
+    "map": ["Map: colour the districts",
+      "Neighbouring districts (sharing a border, not just a point) must differ. Start with the most-bordered district and colour its neighbourhood first; constraints cascade from there. A triangle of three mutually adjacent districts forces 3 colours, and the four-colour theorem guarantees you never need a 5th. These maps are triangulated on purpose, so 4 is usually the honest answer: when you run out of room, back up to the last district that had a real choice rather than reaching for a 5th colour."],
+    "timetable": ["Timetable: schedule the exams",
+      "Each dot is an exam; an edge means shared students, so linked exams need different time slots (colours). Dots run left-to-right in start order. Sweep an imaginary vertical line across. The busiest slice, with the most exams all pairwise clashing, is a clique and sets your minimum, and these days are built so that slice holds four. Greedy works here: take exams left to right, giving each the first slot none of its earlier neighbours uses."],
+    "frequencies": ["Frequencies: assign the channels",
+      "Each dot is a radio mast; two masts within range of each other interfere and need different channels. There is no tidy structure to lean on, so read it off the picture: find the tightest cluster first, because a clump of four mutually-in-range masts already uses up every channel you have. Colour that cluster, then work outwards along the masts with the fewest free channels left. When you stall, the mast to change is rarely the one you are stuck on. It is the one two steps back that had two options and took the wrong one."],
+    "triangle-free": ["Triangle-free: no clique to find",
+      "There is not one triangle in this graph. Every habit that says \"find three mutual neighbours and start there\" is useless, and yet three colours provably cannot finish it. That is the whole trick. It is built in layers: an odd ring on the outside, a mirror of each ring node just inside it (wired to that node's two ring neighbours, never to the node itself), and one hub joined to every mirror. Try it with three and watch what happens: colour the ring, and each mirror is squeezed towards a single colour, which leaves the hub with nothing. So the fourth colour has to go somewhere. Spend it on the hub, or on one carefully chosen mirror, and let the rest fall out."],
+    "sat reduction": ["SAT reduction: colouring solves the formula",
+      "Two colours do all the work here: <b>pink (T) means TRUE, blue (F) means FALSE</b>. They arrive locked, and yellow B is just scaffolding. Your whole job is deciding x1, x2 and x3.<br>1. <b>Read the variables.</b> Each pair x/!x touches yellow, so each splits pink/blue. Painting those six dots <b>is</b> picking true/false for the three variables, 8 assignments in all.<br>2. <b>Read a fuse.</b> Each clause is a chain p → q → r → s → t. p touches its first two literals and pink T, so if both are blue, p is forced yellow, which forces q pink, r yellow, s pink, and then t, touching pink s plus blue and yellow, has no colour left. That dead end <b>is</b> the clause being false. Any pink literal breaks the fuse and leaves t paintable.<br>3. <b>Solve it.</b> Both fuses share the same six literal dots, so one assignment has to satisfy both clauses at once. That is the part that is actually hard. Pick an assignment that makes today's formula true, paint the six variable dots, then walk each chain left to right taking any non-clashing colour. Stuck at a t? First rewind to that chain's last free choice; r is the usual fork. Only flip a variable if the chain truly has no way through, then recheck the other clause.<br>All 19 coloured, no red: your pinks and blues satisfy the formula. ★★★."],
+    "propagation chain": ["Propagation chain: a planted puzzle",
+      "The clique across the top fixes the colour permutation (every colour appears exactly once up there). Middle dots touch all-but-one colour. They're forced, so paint them first like unit propagation in SAT. Bottom dots are genuine choices, and they are cross-linked to each other, so a choice that looks free can still collide two dots later: branch on one, propagate, and be ready to undo."],
+    "sudoku": ["Sudoku: the grid IS the graph",
+      "Every row, column and 2×3 box is one big clique. All six cells are pairwise linked, which is why those edges aren't drawn (216 would blanket the board). The few links you <b>can</b> see are extra rivalries beyond Sudoku rules: those pairs must differ too, so factor them in early; they usually decide the hardest cells. Dark digits are locked givens; the chips are digits 1–6. Tactics carry straight over: naked singles (a cell with only one legal digit) and hidden singles (a digit with only one home in a row, column or box). Six colours is optimal because each row needs all six, so a clean fill is ★★★."],
   };
   // The palette opens with exactly as many colours as the graph needs: one
   // spare turns most of these puzzles into a formality. "More colours" is there
@@ -1024,7 +1024,7 @@ import { solveSteinerExact } from "./steiner-solver";
     }
     const truth = trueTally(numColors);
     if (truth.capped && guess < COUNT_CAP) {
-      tallyMsg.textContent = "Higher — there are more than " + COUNT_CAP.toLocaleString()
+      tallyMsg.textContent = "Higher: there are more than " + COUNT_CAP.toLocaleString()
         + " with " + numColors + " colours. Try fewer colours.";
       tallyMsg.className = "msg bad";
       return;
@@ -1032,15 +1032,15 @@ import { solveSteinerExact } from "./steiner-solver";
     tallyTries++;
     if (guess === truth.count) {
       if (!tallySolved.includes(numColors)) tallySolved.push(numColors);
-      tallyMsg.textContent = "Exactly " + truth.count.toLocaleString() + " — right in "
+      tallyMsg.textContent = "Exactly " + truth.count.toLocaleString() + ", right in "
         + tallyTries + (tallyTries === 1 ? " try" : " tries") + ". 🔢";
       tallyMsg.className = "msg good";
       saveColor(false); updateStreak(); renderArchive();
       return;
     }
     const near = truth.count > 0 && Math.abs(guess - truth.count) <= Math.max(2, truth.count * 0.05);
-    tallyMsg.textContent = (guess > truth.count ? "Too high — there are fewer." : "Too low — there are more.")
-      + (near ? " Close, though." : tallyTries >= 3 ? " This one is meant to be hard — the tips below give a method." : "");
+    tallyMsg.textContent = (guess > truth.count ? "Too high; there are fewer." : "Too low; there are more.")
+      + (near ? " Close, though." : tallyTries >= 3 ? " This one is meant to be hard. The tips below give a method." : "");
     tallyMsg.className = "msg bad";
     saveColor(false);
   }
@@ -1061,10 +1061,10 @@ import { solveSteinerExact } from "./steiner-solver";
     drawGraph();
     document.getElementById("colorCountRow").style.display = G.kind === "sudoku" ? "none" : "";
     const st = colorStats();
-    colorMeta.innerHTML = (mode === "tutorial" ? "Tutorial · " : "") + (mode === "custom" ? "Custom · " : "") + "Using <b>" + st.usedCount + "</b> colour" + (st.usedCount === 1 ? "" : "s") +
-      " · " + (CN - st.uncolored) + "/" + CN + " painted" +
-      (st.bad ? " · <b>" + st.bad + " conflict" + (st.bad === 1 ? "" : "s") + "</b>" : "") +
-      (G.kind ? " · <span style='color:#6b7561'>" + G.kind + "</span>" : "");
+    colorMeta.innerHTML = (mode === "tutorial" ? "Tutorial: " : "") + (mode === "custom" ? "Custom: " : "") + "Using <b>" + st.usedCount + "</b> colour" + (st.usedCount === 1 ? "" : "s") +
+      ", " + (CN - st.uncolored) + "/" + CN + " painted" +
+      (st.bad ? ", <b>" + st.bad + " conflict" + (st.bad === 1 ? "" : "s") + "</b>" : "") +
+      (G.kind ? ", <span style='color:#6b7561'>" + G.kind + "</span>" : "");
     refreshTally();
     updateHintUI();
   }
@@ -1097,10 +1097,10 @@ import { solveSteinerExact } from "./steiner-solver";
       drawGraph(); return false;
     }
     if (st.bad > 0) {
-      if (verbose) { colorMsg.textContent = st.bad + " edge" + (st.bad === 1 ? "" : "s") + " with equal neighbours — fix the red edges."; colorMsg.className = "msg bad"; }
+      if (verbose) { colorMsg.textContent = st.bad + " edge" + (st.bad === 1 ? "" : "s") + " with equal neighbours. Fix the red edges."; colorMsg.className = "msg bad"; }
       drawGraph(); return false;
     }
-    const stars = st.usedCount <= G.chi ? "★★★ optimal! 🎉" : st.usedCount === G.chi + 1 ? "★★ — one over optimum (" + G.chi + ")." : "★ — valid, but optimum is " + G.chi + ". Can you use fewer?";
+    const stars = st.usedCount <= G.chi ? "★★★ optimal! 🎉" : st.usedCount === G.chi + 1 ? "★★, one over optimum (" + G.chi + ")." : "★, valid, but optimum is " + G.chi + ". Can you use fewer?";
     colorMsg.textContent = "Solved with " + st.usedCount + " colours. " + stars;
     colorMsg.className = "msg good";
     saveColor(true);
@@ -1339,8 +1339,8 @@ import { solveSteinerExact } from "./steiner-solver";
   let glDone = null; // 'won' | 'lost'
   function glDraftStats() {
     const p = glProps([...glDraft].map((k) => k.split("-").map(Number)));
-    return "E " + p.e + " · χ " + p.chi + " · △ " + p.tri + " · Cyc " + p.cyc +
-      " · Diam " + (isFinite(p.diam) ? p.diam : "∞");
+    return "E " + p.e + ", χ " + p.chi + ", △ " + p.tri + ", Cyc " + p.cyc +
+      ", Diam " + (isFinite(p.diam) ? p.diam : "∞");
   }
   function paintGraphle() {
     graphleSvg.innerHTML = "";
@@ -1398,7 +1398,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const left = GL_TRIES - glGuesses.length;
     graphleMeta.innerHTML = glDone === "won" ? "Solved!" :
       glDone === "lost" ? "Out of tries." :
-      GL_N + " vertices · Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
+      GL_N + " vertices, Guess <b>" + (glGuesses.length + 1) + "</b>/" + GL_TRIES;
     graphleGuessBtn.style.opacity = glDone || !left ? "0.4" : "1";
     graphleGuessBtn.disabled = Boolean(glDone || !left);
   }
@@ -1482,7 +1482,7 @@ import { solveSteinerExact } from "./steiner-solver";
     } else if (glGuesses.length >= GL_TRIES) {
       glDone = "lost";
       saveGraphle();
-      graphleMsg.textContent = "Out of tries — the answer is revealed below.";
+      graphleMsg.textContent = "Out of tries. The answer is revealed below.";
       graphleMsg.className = "msg bad";
       glRevealTarget();
       reportResult("graphle", "X", true);
@@ -1495,7 +1495,7 @@ import { solveSteinerExact } from "./steiner-solver";
     const emo = { "g-green": "🟩", "g-yellow": "🟨", "g-gray": "⬛" };
     const lines = glGuesses.map((g) => g.tiles.map((t) => emo[t.cls]).join(""));
     const score = glDone === "won" ? glGuesses.length + "/" + GL_TRIES : "X/" + GL_TRIES;
-    shareText("HardMode · Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score + "\n" + shareLink());
+    shareText("HardMode Graphle " + activeDate + "\n" + lines.join("\n") + "\n" + score + "\n" + shareLink());
   };
   function saveGraphle() {
     try {
@@ -1520,7 +1520,7 @@ import { solveSteinerExact } from "./steiner-solver";
           graphleMsg.className = "msg good";
         } else if (d.lost) {
           glDone = "lost";
-          graphleMsg.textContent = "Out of tries — the answer is revealed below.";
+          graphleMsg.textContent = "Out of tries. The answer is revealed below.";
           graphleMsg.className = "msg bad";
         }
       }
@@ -1649,7 +1649,7 @@ import { solveSteinerExact } from "./steiner-solver";
         const d = walk.get(k);
         // With nothing placed there is no distance to show yet, so the town is
         // just a town rather than a board full of failures.
-        glyph = depot ? "◆" : !shown.size ? "●" : d >= MAROONED ? "—" : String(d);
+        glyph = depot ? "◆" : !shown.size ? "●" : d >= MAROONED ? "–" : String(d);
         label = where + "town" + (!shown.size ? "" : d >= MAROONED ? ", no route to a depot" : ", walks " + d) +
           (depot ? ", depot here" : "");
       } else if (depot) {
@@ -1679,18 +1679,18 @@ import { solveSteinerExact } from "./steiner-solver";
 
     const missed = scored.served.filter((ok) => !ok).length;
     const count = "Depots <b>" + shown.size + "/" + F.slots + "</b>";
-    const target = facilityChecked ? " · Target " + F.target : "";
+    const target = facilityChecked ? ", Target " + F.target : "";
     // A verdict on a half-placed board is no verdict: "all served" while depots
     // are still in hand reads as a win that has not been won, and a town is only
     // cut off once there is nothing left to reach it with.
     const all = shown.size === F.slots;
-    const state = showingBest ? "Best placement · Travel <b>" + F.target + "</b>"
-      : !shown.size ? count + " · drop them anywhere on land"
-      : missed ? count + " · Travel <b>—</b>" + target + " · " + missed + " town" +
+    const state = showingBest ? "Best placement, Travel <b>" + F.target + "</b>"
+      : !shown.size ? count + ", drop them anywhere on land"
+      : missed ? count + ", Travel <b>not available</b>" + target + ", " + missed + " town" +
           (missed === 1 ? "" : "s") + (all ? " cut off" : " not reached yet")
-      : count + " · Travel <b>" + scored.total + "</b>" + target +
-          (all ? " · <b>ALL SERVED ✓</b>" : "");
-    facilityMeta.innerHTML = state + " · <span class='board-kind'>" + F.kind + "</span>";
+      : count + ", Travel <b>" + scored.total + "</b>" + target +
+          (all ? ", <b>ALL SERVED ✓</b>" : "");
+    facilityMeta.innerHTML = state + ", <span class='board-kind'>" + F.kind + "</span>";
     // Cell classes were just rewritten from scratch, so any hover marks went
     // with them; put them back if the pointer is still resting somewhere.
     fAimCells.clear();
@@ -1734,7 +1734,7 @@ import { solveSteinerExact } from "./steiner-solver";
     mark(k, "aim");
     const towns = taken + (taken === 1 ? " town" : " towns");
     if (standing) {
-      facilityAim.textContent = taken ? "This depot serves " + towns + "." : "This depot serves nobody — it is spare.";
+      facilityAim.textContent = taken ? "This depot serves " + towns + "." : "This depot serves nobody; it is spare.";
     } else if (!taken) {
       facilityAim.textContent = "A depot here would bring no town closer.";
     } else {
@@ -1742,8 +1742,8 @@ import { solveSteinerExact } from "./steiner-solver";
       const saved = now.served.every(Boolean) ? now.total - after : 0;
       facilityAim.textContent = "A depot here would take " + towns +
         (fSel.size < F.slots
-          ? " — total " + after + (saved > 0 ? " (−" + saved + ")" : "")
-          : " — drag one over to try it");
+          ? ", total " + after + (saved > 0 ? " (−" + saved + ")" : "")
+          : ", drag one over to try it");
     }
     facilityAim.hidden = false;
   }
@@ -1769,7 +1769,7 @@ import { solveSteinerExact } from "./steiner-solver";
     if (showingBest || !F.land.has(k)) return;
     if (fSel.has(k)) fSel.delete(k);
     else if (fSel.size >= F.slots) {
-      facilityMsg.textContent = "All " + F.slots + " depots are out — lift one first, or drag one over.";
+      facilityMsg.textContent = "All " + F.slots + " depots are out. Lift one first, or drag one over.";
       facilityMsg.className = "msg";
       return;
     } else fSel.add(k);
@@ -1831,19 +1831,19 @@ import { solveSteinerExact } from "./steiner-solver";
     const missed = scored.served.filter((ok) => !ok).length;
     if (missed) {
       if (verbose) {
-        facilityMsg.textContent = "Not yet — " + missed + " town" + (missed === 1 ? " has" : "s have") +
+        facilityMsg.textContent = "Not yet. " + missed + " town" + (missed === 1 ? " has" : "s have") +
           " no route to a depot. Remember nobody crosses water.";
         facilityMsg.className = "msg bad";
       }
       return false;
     }
     const over = scored.total - F.target;
-    const verdict = over <= 0 ? "Perfect — the exact optimum! 🌟"
+    const verdict = over <= 0 ? "Perfect, the exact optimum! 🌟"
       : fSel.size < F.slots ? "You still have " + (F.slots - fSel.size) +
-        " in hand — another depot can only shorten the walks."
+        " in hand; another depot can only shorten the walks."
       : over <= 2 ? "Close. One depot is a cell or two off."
-      : "Valid, but the optimum is lower — try serving the far towns from one depot placed between them.";
-    facilityMsg.textContent = "Solved! Travel " + scored.total + " (target " + F.target + ") — " + verdict;
+      : "Valid, but the optimum is lower. Try serving the far towns from one depot placed between them.";
+    facilityMsg.textContent = "Solved! Travel " + scored.total + " (target " + F.target + "). " + verdict;
     facilityMsg.className = "msg good";
     saveFacility(true);
     updateStreak(); renderArchive();
@@ -1902,7 +1902,7 @@ import { solveSteinerExact } from "./steiner-solver";
     } catch (_) { return false; }
   }
   function renderArchive() {
-    dateLabel.textContent = activeDate + (activeDate === TODAY_REAL ? " · today" : "");
+    dateLabel.textContent = activeDate + (activeDate === TODAY_REAL ? ", today" : "");
     archiveDate.value = activeDate;
     archiveDate.max = TODAY_REAL;
     archiveDate.min = MIN_DATE;
@@ -1926,9 +1926,9 @@ import { solveSteinerExact } from "./steiner-solver";
       const s = isSolved(k, "steiner"), c = isSolved(k, "color"), gr = isSolved(k, "graphle"), fa = isSolved(k, "facility");
       const b = document.createElement("button");
       b.className = "archive-item" + (k === activeDate ? " current" : "");
-      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "·") + (c ? "🎨" : "·") + (gr ? "◉" : "·") + (fa ? "📍" : "·") + "</span>";
+      b.innerHTML = shortLabel(k) + "<br><span class='dot'>" + (s ? "🌱" : "–") + (c ? "🎨" : "–") + (gr ? "◉" : "–") + (fa ? "📍" : "–") + "</span>";
       const done = [s && "steiner", c && "colouring", gr && "graphle", fa && "facility"].filter(Boolean);
-      b.title = k + (done.length ? " — " + done.join(", ") : "");
+      b.title = k + (done.length ? ": " + done.join(", ") : "");
       b.onclick = () => setActiveDate(k);
       archiveList.appendChild(b);
     }
@@ -2141,12 +2141,12 @@ import { solveSteinerExact } from "./steiner-solver";
   }
   function edSteinerStats() {
     const d = edSteinerData();
-    let s = "Towns <b>" + d.terms.length + "</b> · water " + d.walls.size;
+    let s = "Towns <b>" + d.terms.length + "</b>, water " + d.walls.size;
     if (d.terms.length >= 2 && stFreeConnected(d.N, d.terms, d.walls)) {
       const target = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
-      s += Number.isFinite(target) ? " · target <b>" + target + "</b> (exact)" : " · unsolvable shape";
-    } else if (d.terms.length >= 2) s += " · towns not all linked";
-    else s += " · place at least 2 towns";
+      s += Number.isFinite(target) ? ", target <b>" + target + "</b> (exact)" : ", unsolvable shape";
+    } else if (d.terms.length >= 2) s += ", towns not all linked";
+    else s += ", place at least 2 towns";
     edSteinerMeta.innerHTML = s;
   }
   function buildEdSteiner() {
@@ -2204,15 +2204,15 @@ import { solveSteinerExact } from "./steiner-solver";
   document.getElementById("edSteinerPlay").onclick = () => {
     const d = edSteinerData();
     if (d.terms.length < 2) return edMsg("Place at least 2 seeds first.", false);
-    if (!stFreeConnected(d.N, d.terms, d.walls)) return edMsg("Seeds aren't all linked — open a path first.", false);
+    if (!stFreeConnected(d.N, d.terms, d.walls)) return edMsg("Seeds aren't all linked. Open a path first.", false);
     const target = solveSteinerExact(d.N, d.terms, d.walls, d.special, d.portalPairs);
-    if (!Number.isFinite(target)) return edMsg("No valid network — check the layout.", false);
+    if (!Number.isFinite(target)) return edMsg("No valid network. Check the layout.", false);
     enterCustom("steiner", { id: "playtest", name: "Playtest", data: { ...d, target } });
   };
   document.getElementById("edSteinerSave").onclick = () => {
     const d = edSteinerData();
     if (d.terms.length < 2) return edMsg("Place at least 2 seeds first.", false);
-    if (!stFreeConnected(d.N, d.terms, d.walls)) return edMsg("Seeds aren't all linked — open a path first.", false);
+    if (!stFreeConnected(d.N, d.terms, d.walls)) return edMsg("Seeds aren't all linked. Open a path first.", false);
     const name = prompt("Name this level:", "My steiner " + (edLib("steiner").length + 1));
     if (!name) return;
     const list = edLib("steiner");
@@ -2328,10 +2328,10 @@ import { solveSteinerExact } from "./steiner-solver";
   window.addEventListener("pointerup", () => { edDrag = -1; });
   function updateEdStats() {
     const edges = edColorEdges();
-    let s = edN + " nodes · " + edges.length + " edges";
-    if (!edges.length) s += " · tap 🔗 then two dots to link them";
-    else if (!isConnected(edN, edges)) s += " · disconnected — link it up";
-    else s += " · χ " + chromaticNumber(edN, edges);
+    let s = edN + " nodes, " + edges.length + " edges";
+    if (!edges.length) s += ", tap 🔗 then two dots to link them";
+    else if (!isConnected(edN, edges)) s += ", disconnected; link it up";
+    else s += ", χ " + chromaticNumber(edN, edges);
     edColorMeta.innerHTML = s;
   }
   function buildEdColor() {
@@ -2358,7 +2358,7 @@ import { solveSteinerExact } from "./steiner-solver";
   document.getElementById("edColorPlay").onclick = () => {
     const edges = edColorEdges();
     if (!edges.length) return edCMsg("Link at least one edge first.", false);
-    if (!isConnected(edN, edges)) return edCMsg("Graph is disconnected — link it up.", false);
+    if (!isConnected(edN, edges)) return edCMsg("Graph is disconnected. Link it up.", false);
     const chi = chromaticNumber(edN, edges);
     enterCustom("color", {
       id: "playtest", name: "Playtest",
@@ -2368,7 +2368,7 @@ import { solveSteinerExact } from "./steiner-solver";
   document.getElementById("edColorSave").onclick = () => {
     const edges = edColorEdges();
     if (!edges.length) return edCMsg("Link at least one edge first.", false);
-    if (!isConnected(edN, edges)) return edCMsg("Graph is disconnected — link it up.", false);
+    if (!isConnected(edN, edges)) return edCMsg("Graph is disconnected. Link it up.", false);
     const name = prompt("Name this level:", "My graph " + (edLib("color").length + 1));
     if (!name) return;
     const list = edLib("color");
@@ -2408,9 +2408,9 @@ import { solveSteinerExact } from "./steiner-solver";
       const row = document.createElement("div");
       row.className = "lib-item";
       const v = validateCustom({ game: entry.game, data: entry.data });
-      const sub = !v ? "broken" : entry.game === "steiner" ? "target " + v.data.target : "χ " + v.data.chi + " · " + v.data.edges.length + " edges";
+      const sub = !v ? "broken" : entry.game === "steiner" ? "target " + v.data.target : "χ " + v.data.chi + ", " + v.data.edges.length + " edges";
       const sp = document.createElement("span");
-      sp.textContent = entry.name + " · " + sub;
+      sp.textContent = entry.name + ", " + sub;
       sp.title = entry.name;
       const load = document.createElement("button");
       load.textContent = "Load";
@@ -2418,7 +2418,7 @@ import { solveSteinerExact } from "./steiner-solver";
         const vv = validateCustom({ game: entry.game, data: entry.data });
         if (!vv) { (game === "steiner" ? edMsg : edCMsg)("That save is broken.", false); return; }
         applyCustomToEditor({ id: entry.id, name: entry.name, game: entry.game, data: vv.data });
-        (game === "steiner" ? edMsg : edCMsg)("Loaded “" + entry.name + "” — tweak it or Playtest.", true);
+        (game === "steiner" ? edMsg : edCMsg)("Loaded “" + entry.name + "”. Tweak it or Playtest.", true);
       };
       const del = document.createElement("button");
       del.textContent = "✕";
@@ -2620,7 +2620,7 @@ import { solveSteinerExact } from "./steiner-solver";
       daterowEl.style.display = "none";
       archiveEl.classList.add("hidden");
       showView("editor");
-      (got.game === "steiner" ? edMsg : edCMsg)("Shared level loaded — Playtest it or Save it.", true);
+      (got.game === "steiner" ? edMsg : edCMsg)("Shared level loaded. Playtest it or Save it.", true);
       try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {}
     }
   }

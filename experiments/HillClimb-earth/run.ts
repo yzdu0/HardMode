@@ -62,11 +62,11 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="590" v
 <rect width="1040" height="590" fill="#f7f4ec"/>
 <style>text{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;fill:#172535}.title{font-size:25px;font-weight:700}.sub{font-size:14px;fill:#596777}.share{font-size:12px;fill:#728091}</style>
 <text class="title" x="32" y="39">Earth through HillClimb’s biome generator</text>
-<text class="sub" x="32" y="64">ETOPO elevation replaces procedural noise · existing temperature, wind, rain and biome rules unchanged</text>
+<text class="sub" x="32" y="64">ETOPO elevation replaces procedural noise; existing temperature, wind, rain and biome rules unchanged</text>
 <g transform="translate(32 86) scale(4.8)" shape-rendering="crispEdges">${cells}</g>
 <rect x="32" y="86" width="768" height="441.6" fill="none" stroke="#172535" stroke-width="1.5"/>
 ${legend}
-<text class="sub" x="32" y="558">Offline sanity check · ${W} × ${H} cylindrical grid · land ${(summary.landShare * 100).toFixed(1)}%</text>
+<text class="sub" x="32" y="558">Offline sanity check, ${W} × ${H} cylindrical grid, land ${(summary.landShare * 100).toFixed(1)}%</text>
 <text class="sub" x="32" y="579">Elevation source: NOAA ETOPO1 Ice Surface; sampled at ~2° to match the game grid</text>
 </svg>`;
 

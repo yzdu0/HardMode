@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="HardMode is a daily set of four compact graph puzzles — Steiner, Colouring, Graphle and Facility — plus HillClimb, a daily planet to explore." />
+<meta name="description" content="HardMode is a daily set of four compact graph puzzles: Steiner, Colouring, Graphle and Facility, plus HillClimb, a daily planet to explore." />
 <meta name="theme-color" content="#f5f6f8" />
-<title>HardMode — Daily graph puzzles</title>
+<title>HardMode: Daily graph puzzles</title>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <link rel="manifest" href="./site.webmanifest" />
@@ -96,11 +96,11 @@
             <p><b>Pick a colour</b>, then tap a dot. Tap it again with the same colour to erase.</p>
             <p><b>Watch the lines.</b> Red means two neighbours clash.</p>
             <p><b>Use fewer colours.</b> A triangle needs three; start there and press Check.</p>
-            <p><b>Bonus: count them.</b> Under the buttons you can guess how many different colourings exist at the palette size you are on. Only the grouping matters — swapping two colours around gives the same answer, and every colour must be used. Be warned that this is markedly harder than the colouring itself; wrong guesses are told higher or lower, there is a full method behind &ldquo;Show me how to count these&rdquo;, and it never blocks the main win.</p>
+            <p><b>Bonus: count them.</b> Under the buttons you can guess how many different colourings exist at the palette size you are on. Only the grouping matters; swapping two colours around gives the same answer, and every colour must be used. Be warned that this is markedly harder than the colouring itself; wrong guesses are told higher or lower, there is a full method behind &ldquo;Show me how to count these&rdquo;, and it never blocks the main win.</p>
           </div>
         </div>
         <div id="colorMeta" class="meta"></div>
-        <div id="colorCustomBar" class="custombar hidden"><span>Custom: <b id="colorCustomName"></b> · χ <b id="colorCustomChi"></b></span><button id="colorCustomBack" class="btn small">← Editor</button></div>
+        <div id="colorCustomBar" class="custombar hidden"><span>Custom: <b id="colorCustomName"></b>, χ <b id="colorCustomChi"></b></span><button id="colorCustomBack" class="btn small">← Editor</button></div>
         <button id="hintBtn" class="linkbtn hidden">Show a strategy for this graph</button>
         <div id="kindBox" class="kindbox hidden"><strong id="kindTitle"></strong><span id="kindBody"></span></div>
         <div id="palette" class="palette"></div>
@@ -120,9 +120,9 @@
           <div class="results-bars"></div>
         </div>
         <div id="colorTally" class="tally">
-          <p class="tally-ask">Bonus — how many different ways can this graph be coloured with <b id="colorTallyK">3</b> colours?</p>
+          <p class="tally-ask">Bonus: how many different ways can this graph be coloured with <b id="colorTallyK">3</b> colours?</p>
           <p class="tally-note">Only the grouping counts: two colourings that put the same dots together are one answer, however the colours are swapped. Every colour has to be used, so a grouping that leaves one spare does not count.</p>
-          <p class="tally-warn"><b>Fair warning — this is the hard half.</b> Finding one colouring is a puzzle; counting all of them is a different order of difficulty, and there is no known shortcut for it in general. Wrong guesses are told higher or lower, so treat it as a long game. The main puzzle is won without it.</p>
+          <p class="tally-warn"><b>Fair warning: this is the hard half.</b> Finding one colouring is a puzzle; counting all of them is a different order of difficulty, and there is no known shortcut for it in general. Wrong guesses are told higher or lower, so treat it as a long game. The main puzzle is won without it.</p>
           <div class="row small">
             <input id="colorTallyInput" class="tally-input" type="number" min="0" step="1" inputmode="numeric" placeholder="your count" aria-label="How many distinct colourings" />
             <button id="colorTallyCheck" class="btn">Check count</button>
@@ -131,16 +131,16 @@
           <button id="tallyHintBtn" class="linkbtn" aria-expanded="false" aria-controls="tallyHintBox">Show me how to count these</button>
           <div id="tallyHintBox" class="kindbox hidden">
             <strong>Counting colourings, step by step</strong>
-            <p><b>1. Anchor on a clique, and the colour-swapping disappears.</b> Find a set of dots that are all joined to each other. If there are as many of them as you have colours, they must take one colour each — and because swaps do not count, you may simply fix them: this dot is colour 1, that one colour 2, and so on. That single move turns a symmetric mess into an ordinary count. If the biggest clique is smaller than your palette, anchor on it anyway and handle the leftover colours separately.</p>
-            <p><b>2. Take the forced dots next.</b> A dot already touching every colour but one has no choice at all. Fill those in and look again — each one you place often forces another. Forced dots never multiply your total, so clearing them all before you start branching keeps the arithmetic small.</p>
-            <p><b>3. Multiply independent choices.</b> Once the forced dots are placed, look for dots whose remaining options do not affect each other — typically dots hanging off the anchored part with no path between them except through fixed dots. If one has 2 options and another has 2, that region contributes 2 × 2. <i>Worked example:</i> a triangle with one spare dot hanging off each corner. The triangle is anchored, so it counts once; each spare dot is barred from its own corner's colour and can take either of the other two. The answer is 2 × 2 × 2 = <b>8</b>.</p>
+            <p><b>1. Anchor on a clique, and the colour-swapping disappears.</b> Find a set of dots that are all joined to each other. If there are as many of them as you have colours, they must take one colour each. Because swaps do not count, you may simply fix them: this dot is colour 1, that one colour 2, and so on. That single move turns a symmetric mess into an ordinary count. If the biggest clique is smaller than your palette, anchor on it anyway and handle the leftover colours separately.</p>
+            <p><b>2. Take the forced dots next.</b> A dot already touching every colour but one has no choice at all. Fill those in and look again; each one you place often forces another. Forced dots never multiply your total, so clearing them all before you start branching keeps the arithmetic small.</p>
+            <p><b>3. Multiply independent choices.</b> Once the forced dots are placed, look for dots whose remaining options do not affect each other, typically dots hanging off the anchored part with no path between them except through fixed dots. If one has 2 options and another has 2, that region contributes 2 × 2. <i>Worked example:</i> a triangle with one spare dot hanging off each corner. The triangle is anchored, so it counts once; each spare dot is barred from its own corner's colour and can take either of the other two. The answer is 2 × 2 × 2 = <b>8</b>.</p>
             <p><b>4. Branch on the most constrained dot left.</b> When nothing is forced and nothing separates, pick the dot with the fewest legal colours, count each case as its own smaller problem, and add the results. Fewest options first keeps the number of cases down.</p>
             <p><b>5. Split on a pair instead of a dot.</b> Take two dots that are <i>not</i> joined. Every colouring either puts them together or keeps them apart, so the total is (colourings with the pair merged into one dot) + (colourings with a new line drawn between them). Both are smaller graphs. Choosing a pair with many shared neighbours shrinks the problem fastest.</p>
-            <p><b>6. Use the symmetry of the picture.</b> If the graph looks the same after a rotation or a mirror, its colourings pair up under that same move. Count the ones that are unchanged by it, then work out the rest in matching pairs — this often halves the effort on the ring-shaped and star-shaped days.</p>
-            <p><b>7. Sanity-check with the no-lines ceiling.</b> With no lines at all, <i>n</i> dots split into <i>k</i> groups in a fixed number of ways — 5 dots into 2 groups is 15, into 3 groups is 25. Every line only removes possibilities, so your answer must come in under that ceiling. If it does not, recount.</p>
+            <p><b>6. Use the symmetry of the picture.</b> If the graph looks the same after a rotation or a mirror, its colourings pair up under that same move. Count the ones that are unchanged by it, then work out the rest in matching pairs. This often halves the effort on the ring-shaped and star-shaped days.</p>
+            <p><b>7. Sanity-check with the no-lines ceiling.</b> With no lines at all, <i>n</i> dots split into <i>k</i> groups in a fixed number of ways: 5 dots into 2 groups is 15, into 3 groups is 25. Every line only removes possibilities, so your answer must come in under that ceiling. If it does not, recount.</p>
             <p><b>8. Do not count the groupings that use fewer colours.</b> A grouping that leaves a colour spare is not an answer here. The 6-ring is the clean example: with 3 colours it has <b>10</b> answers, plus a single 2-colour grouping that does <i>not</i> count. Miss that and you will be one over.</p>
             <p><b>Two to test yourself on.</b> The 5-ring with 3 colours has <b>5</b> answers. The 6-ring with 3 has <b>10</b>. Both are worth doing by hand before trusting your method on a full board.</p>
-            <p><b>When to give up on exactness.</b> Below the optimum the answer is always <b>0</b> — a palette smaller than the graph needs has nothing to count. And if you are hunting a five-figure number, bisect: the higher/lower reply is all you need, and it costs nothing but guesses.</p>
+            <p><b>When to give up on exactness.</b> Below the optimum the answer is always <b>0</b>; a palette smaller than the graph needs has nothing to count. And if you are hunting a five-figure number, bisect: the higher/lower reply is all you need, and it costs nothing but guesses.</p>
           </div>
         </div>
       </section>
@@ -149,7 +149,7 @@
       <section id="viewGraphle" class="view hidden" role="tabpanel" aria-labelledby="tabGraphle">
         <div class="puzzle-heading"><h2>Graphle</h2><button id="graphleHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="graphleHelpBox">How to play</button></div>
         <div id="graphleHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>Rebuild the hidden 7–8 vertex graph.</b> Tap two dots to toggle a link. The second dot stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain — tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
+          <p class="help-copy"><b>Rebuild the hidden 7–8 vertex graph.</b> Tap two dots to toggle a link. The second dot stays selected, so tapping 1&nbsp;2&nbsp;3 draws a chain. Tap it again, or tap the empty board, to lift the pen. Then Guess: you have six tries.</p>
           <div class="feedback-key"><span><i class="g-green"></i> exact</span><span><i class="g-yellow"></i> off by one</span><span><i class="g-gray"></i> further away</span></div>
           <p class="property-copy">Each guess is scored on five numbers. An arrow means the hidden graph's value is higher&nbsp;↑ or lower&nbsp;↓ than yours.</p>
           <dl class="metric-list">
@@ -255,7 +255,7 @@
 
     <footer>
       <div class="footer-links">
-        <a class="editor-link" href="./HillClimb/">HillClimb — the daily planet <span aria-hidden="true">↗</span></a>
+        <a class="editor-link" href="./HillClimb/">HillClimb, the daily planet <span aria-hidden="true">↗</span></a>
         <button id="tabEditor" class="editor-link">Build a puzzle <span aria-hidden="true">↗</span></button>
         <a class="editor-link" href="https://docs.google.com/forms/d/e/1FAIpQLSc85g3I8F2oC6lUgh9V1qy-wA5UyYpBTa-cXq0bXSWPcfEZkQ/viewform" target="_blank" rel="noopener noreferrer">Send feedback <span aria-hidden="true">↗</span></a>
       </div>

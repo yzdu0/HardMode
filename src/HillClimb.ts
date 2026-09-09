@@ -395,10 +395,10 @@ import type { Run, RunState } from "./HillClimb-run";
         layer === "height" ? (world.land[i] ? metresLabel(world.metres[i]) : "sea, " + Math.round(world.depth[i] * 100) + "% deep")
         : layer === "temp" ? Math.round(world.tempC[i]) + "°C"
         : layer === "rain" ? (world.land[i] ? "rainfall " + Math.round(world.rain[i] * 100) + "%" : "sea")
-        : BIOMES[world.biome[i]].name + (world.land[i] ? " · " + metresLabel(world.metres[i]) : "");
-      tip.textContent = reading + " · " + latLabel(r) +
+        : BIOMES[world.biome[i]].name + (world.land[i] ? ", " + metresLabel(world.metres[i]) : "");
+      tip.textContent = reading + ", " + latLabel(r) +
         (goal === undefined ? "" :
-          " · " + world.goals[goal].name + (now.found.includes(goal) ? ", reached" : ", missed"));
+          ", " + world.goals[goal].name + (now.found.includes(goal) ? ", reached" : ", missed"));
     }
     // Above the pointer, flipped below it near the top edge, and reined in at
     // the sides — the map clips its own overflow, so a label centred on a
@@ -435,7 +435,7 @@ import type { Run, RunState } from "./HillClimb-run";
     // landmarks in the brief, the ground underfoot in the strip below the map.
     const used = MOVES - now.movesLeft;
     $("hcMoves").innerHTML = run.stopped
-      ? "<span class='hcmoves-n'>0</span><span class='hcmoves-label'>moves left · run over</span>" +
+      ? "<span class='hcmoves-n'>0</span><span class='hcmoves-label'>moves left, run over</span>" +
         "<span class='hcmoves-bar'><i style='width:0%'></i></span>"
       : "<span class='hcmoves-n'>" + now.movesLeft + "</span>" +
         "<span class='hcmoves-label'>" + (now.movesLeft === 1 ? "move left" : "moves left") + "</span>" +
@@ -470,7 +470,7 @@ import type { Run, RunState } from "./HillClimb-run";
       "<div class='hcscore" + (run.stopped ? " bare" : "") + "'>" +
         "<div class='hcscore-peak'><span>Highest so far</span><strong>" + metresLabel(now.best) + "</strong></div>" +
         (listed.length
-          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks (Bonus) · " +
+          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks (Bonus): " +
             now.found.length + " of " + world.goals.length + " found</span>" +
             "<ul class='hcgoals'>" + listed.map(g =>
               "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") +
@@ -481,7 +481,7 @@ import type { Run, RunState } from "./HillClimb-run";
         "<button id='hcWhere' class='linkbtn' aria-expanded='" + hintsOpen + "' aria-controls='hcWhereBox'>" +
         (hintsOpen ? "Hide where to look" : "Where to look") + "</button>" +
         "<div id='hcWhereBox' class='kindbox" + (hintsOpen ? "" : " hidden") + "'>" +
-        now.live.map(g => "<p><b>" + world.goals[g].name + "</b> · " + world.goals[g].hint + "</p>").join("") +
+        now.live.map(g => "<p><b>" + world.goals[g].name + ":</b> " + world.goals[g].hint + "</p>").join("") +
         "</div>");
 
     const where = $("hcWhere");
@@ -560,7 +560,7 @@ import type { Run, RunState } from "./HillClimb-run";
     buildPixels();
     measureLift();
     $("hcMsg").innerHTML =
-      "<b>" + now.score + ", grade " + now.grade + "</b> · " + now.climb + " for " + metresLabel(now.best) +
+      "<b>" + now.score + ", grade " + now.grade + "</b>. " + now.climb + " for " + metresLabel(now.best) +
       " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
       now.found.length + " of " + world.goals.length + " landmark" + (world.goals.length === 1 ? "" : "s") + ". " +
       verdict(now.peakShare, now.found.length > 0);
@@ -611,7 +611,7 @@ import type { Run, RunState } from "./HillClimb-run";
      it is two lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
   function showScore() {
-    $("hcScoreDay").textContent = "HillClimb · " + longLabel(day);
+    $("hcScoreDay").textContent = "HillClimb, " + longLabel(day);
     // The arithmetic, so the number that just counted up can be read back off
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
@@ -714,7 +714,7 @@ import type { Run, RunState } from "./HillClimb-run";
     if (!scores.length) { box.classList.add("hidden"); return; }
     const most = Math.max(...scores.map(score => slot.buckets[score] || 0), 1);
     box.querySelector(".results-head").textContent =
-      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today · score";
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today. Score";
     box.querySelector(".results-bars").innerHTML = scores.map(score => {
       const n = slot.buckets[score] || 0;
       return '<div class="results-row' + (mine === score ? " mine" : "") + '"><span>' + score +
@@ -754,9 +754,9 @@ import type { Run, RunState } from "./HillClimb-run";
   $("hcShare").onclick = () => {
     openShare(
       "HillClimb " + day + "\n" +
-      now.score + " · " + gradeSquares(now.grade) + "\n" +
-      "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + " · " + now.climb + "\n" +
-      "🧭 " + now.found.length + "/" + world.goals.length + " landmarks · +" + now.landmarkBonus + "\n" +
+      now.score + " " + gradeSquares(now.grade) + "\n" +
+      "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + ", " + now.climb + "\n" +
+      "🧭 " + now.found.length + "/" + world.goals.length + " landmarks, +" + now.landmarkBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 
@@ -788,7 +788,7 @@ import type { Run, RunState } from "./HillClimb-run";
       const grade = gradeOn(key);
       const b = document.createElement("button");
       b.className = "archive-item" + (key === day ? " current" : "");
-      b.innerHTML = shortLabel(key) + "<br><span class='dot'>" + (grade || "·") + "</span>";
+      b.innerHTML = shortLabel(key) + "<br><span class='dot'>" + (grade || "–") + "</span>";
       b.title = longLabel(key) + (grade ? ", grade " + grade : ", not played");
       b.onclick = () => goTo(key);
       list.appendChild(b);
@@ -827,7 +827,7 @@ import type { Run, RunState } from "./HillClimb-run";
     liftAt = null;
     front = 0;
     buildPixels();
-    $("hcDateLabel").textContent = day === TODAY ? "Today · " + longLabel(day) : longLabel(day);
+    $("hcDateLabel").textContent = day === TODAY ? "Today, " + longLabel(day) : longLabel(day);
     if (!archive.classList.contains("hidden")) renderArchive();
     ($("hcPrevDay") as HTMLButtonElement).disabled = day <= OLDEST;
     ($("hcNextDay") as HTMLButtonElement).disabled = day >= TODAY;
