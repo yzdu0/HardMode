@@ -1238,6 +1238,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 }
 .hcbrief p { margin: 0; }
 .hcbrief-line { font-size: 15px; }
+.hcbrief-sub { margin-top: 10px !important; color: var(--muted); font-size: 12px; font-weight: 750; }
 .hcbrief-hint { margin-top: 4px !important; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .hc-done { color: var(--good); font-weight: 700; }
 .hc-lost { color: var(--bad); font-weight: 700; }
@@ -1247,30 +1248,71 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 
 .hcbrief-count { margin-left: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 
-/* Every landmark the day is offering, all of them live at once. A tick is one
-   in hand, a struck-through one was lost to pressing on, and the rest are
-   still out there in whatever order the player fancies. */
-.hcgoals { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 0; padding: 0; list-style: none; }
-.hcgoal {
-  display: inline-flex;
-  align-items: center;
+/* The two landmarks on offer, as a checklist rather than a row of badges: a
+   square box to tick, square tiles to hold them, and the same corner the
+   buttons and cards on this site use. They are the bonus, so they read as
+   something to work through and not as the headline. */
+.hcgoals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
   gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--tut-line);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 650;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
-.hcgoal::before { content: "○"; font-size: 11px; }
+.hcgoal {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+}
+.hcgoal::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--hover-line);
+  border-radius: 4px;
+}
 .hcgoal.on { border-color: var(--good); background: var(--good-bg); color: var(--good-fg); }
-.hcgoal.on::before { content: "✓"; }
-.hcgoal.lost { border-color: var(--bad); color: var(--bad-fg); text-decoration: line-through; }
-.hcgoal.lost::before { content: "×"; text-decoration: none; }
+.hcgoal.on::before {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  border-color: var(--good);
+  background: var(--good);
+  color: var(--on-good);
+  font-size: 10px;
+  font-weight: 800;
+}
 
-.hcchoice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.hcchoice .btn { flex: 1 1 auto; }
+/* The move count. It is the one number a player must never have to hunt for,
+   so it gets a line of its own between the day's brief and the map, and the
+   bar drains as the budget does. */
+.hcmoves {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+.hcmoves-n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+.hcmoves-label { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.hcmoves-bar {
+  flex: 1;
+  align-self: center;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.hcmoves-bar i { display: block; height: 100%; border-radius: inherit; background: var(--fg); }
+.hcmoves.low .hcmoves-n { color: var(--bad); }
+.hcmoves.low .hcmoves-bar i { background: var(--bad); }
 
 /* Where to look. Folded away by default: knowing that rainforest sits on the
    equator is the puzzle, so it is there for whoever wants it and out of the

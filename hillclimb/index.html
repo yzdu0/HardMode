@@ -21,7 +21,7 @@
         <div>
           <h1><a class="brand-link" href="../"><span>NP-</span>HardMode</a></h1>
         </div>
-        <div class="streak-pill"><span id="hcMovesPill">28 moves left</span></div>
+        <div class="streak-pill"><span id="hcBestPill">0 m climbed</span></div>
       </div>
       <div class="daily-bar">
         <div class="daterow">
@@ -29,7 +29,7 @@
           <button id="hcDateBtn" class="datebtn" title="Jump to today"><span id="hcDateLabel"></span></button>
           <button id="hcNextDay" class="icon-btn" aria-label="Next day">→</button>
         </div>
-        <div class="today-progress"><span>Highest</span><strong id="hcBestPill">0 m</strong></div>
+        <div class="today-progress"><span>Landmarks</span><strong id="hcLandmarkPill">0 / 4</strong></div>
       </div>
     </header>
 
@@ -40,12 +40,11 @@
           <button id="hcHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="hcHelpBox">How to play</button>
         </div>
         <div id="hcHelpBox" class="tutbox hidden">
-          <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, five squares each — then the whole world is revealed and you find out what you walked past.</p>
+          <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, five squares each — the count is above the map — and then the whole world is revealed and you find out what you walked past.</p>
           <div class="tutorial-steps">
             <p><b>Move</b> five squares at a time: tap the map in the direction you want to go, or use the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals. East and west wrap right the way round; the top and bottom edges are the poles and you cannot step past them. You have a boat, so open water costs a move like anything else.</p>
-            <p><b>Climb.</b> Your score is the highest ground you stand on, measured against the true summit of the planet — which you will not be shown until the end.</p>
-            <p><b>Work the ladder.</b> Two landmarks are on offer at any moment &mdash; an archipelago, an inland sea, a great desert &mdash; and you may go after either. Step onto one, or within a couple of squares of it, and it is yours; a third comes up behind it, so the choice is always between exactly two. Each one you reach is worth more than the last, so the order you take them in is most of the game.</p>
-            <p><b>Bank, or press on.</b> The moment you reach one you choose: <b>bank</b> what you have and spend the rest of the budget climbing, or <b>press on</b> for the next. Press on and fail to arrive before the moves run out, and the one you were standing on is struck off &mdash; one rung down, never the whole ladder. The day's landmark score is measured against the number the budget is built to allow, and clearing them all means the whole budget went on landmarks and none of it on the climb.</p>
+            <p><b>Climb. That is the game.</b> Your score is mostly the highest ground you stand on, measured against the true summit of the planet &mdash; which you will not be shown until the end. Everything else on the page is worth less than the climb.</p>
+            <p><b>Landmarks are the bonus.</b> Two are on offer at any moment &mdash; an archipelago, an inland sea, a great desert &mdash; and you may go after either, or neither. Step onto one, or within a couple of squares of it, and it is yours; a third comes up behind it, so there are always two to choose between. Each one is worth a little more than the last, and none of it is ever at risk &mdash; the only thing a landmark costs you is the moves you spent going to it, and those were moves you could have spent climbing.</p>
             <p><b>Where to look</b> is folded away under the two on offer. Working out that a rainforest sits on the equator is the puzzle, so the note is there if you want it and out of the way if you do not.</p>
             <p><b>Keep field notes.</b> Every biome you set foot in is recorded. The day's full list is shown from the start, so you know what exists — but not where.</p>
             <p><b>The world is not random.</b> It is built the way a planet is: mountains, then sea level, then ocean currents, then the winds that carry rain off the sea and drop it on the first high ground they meet. So rainforest sits on the equator, deserts sit about a quarter of the way to the pole and in the dry lee of every range, cold forest sits below the tundra, and ice sits on both poles. Read the latitude down the side of the map and you can guess what is over the horizon before you spend a move on it.</p>
@@ -54,6 +53,7 @@
         </div>
 
         <div id="hcBrief" class="hcbrief"></div>
+        <div id="hcMoves" class="hcmoves" aria-live="polite"></div>
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
         </div>

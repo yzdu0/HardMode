@@ -5,21 +5,18 @@
  * while the run is live, and again when the run is read back out of storage
  * the next time the page is opened.
  *
- * Only three things are ever stored — where the walk has been, whether the
- * player has banked, and how many times they have pressed on. Everything else
- * below is derived from those and the world, so a restored run and a live one
- * cannot drift apart. */
+ * Nothing is stored but where the walk has been. Everything below is derived
+ * from that and the world, so a restored run and a live one cannot drift
+ * apart. */
 import { H, LIVE, MOVES, TOUCH, idx, rowOf, colOf, wrapC, ladderValue } from "./hillclimb-world.ts";
 import type { World } from "./hillclimb-world.ts";
 
 export interface Run {
   path: number[];        // every square stopped on, starting at the drop
-  banked: boolean;       // no more landmarks wanted; what is reached is kept
-  pressedOn: number;     // times the player took another one on
   stopped: boolean;      // the run is over and the whole map is shown
 }
 
-export const newRun = (world: World): Run => ({ path: [world.spawn], banked: false, pressedOn: 0, stopped: false });
+export const newRun = (world: World): Run => ({ path: [world.spawn], stopped: false });
 
 /** Standing on a landmark, or within a couple of squares of it. See TOUCH:
  *  the tolerance is what makes every landmark landable-beside at this stride. */
@@ -62,13 +59,9 @@ export function touchedOrder(world: World, path: number[]): number[] {
 }
 
 export interface RunState {
-  found: number[];       // landmark indices credited, in the order reached
+  found: number[];       // landmarks collected, in the order reached
   live: number[];        // the two now on offer
-  reached: number;       // how many, capped at the number taken on
-  kept: number;          // what survives the strike
-  awaiting: boolean;     // a landmark is reached and the choice is unanswered
-  struck: boolean;       // the run ended while still hunting one that was taken on
-  complete: boolean;     // every landmark on the day's list
+  complete: boolean;     // nothing left to find
   movesLeft: number;
   best: number;          // highest ground stood on, in metres
   peakShare: number;     // …as a fraction of the planet's true summit
@@ -78,32 +71,26 @@ export interface RunState {
 }
 
 export function runState(world: World, run: Run): RunState {
-  // A landmark only counts if it was taken on: banking, or simply not pressing
-  // on, closes the list at what is already in hand.
-  const order = touchedOrder(world, run.path);
-  const reached = Math.min(order.length, run.pressedOn + 1);
-  const credited = order.slice(0, reached);
-  const live = livePair(world, new Set(credited));
-  const awaiting = !run.stopped && !run.banked && reached > run.pressedOn && live.length > 0;
-  const struck = run.stopped && !run.banked && reached >= 1 && run.pressedOn === reached;
-  const kept = reached - (struck ? 1 : 0);
+  const found = touchedOrder(world, run.path);
+  const live = livePair(world, new Set(found));
 
   const best = run.path.reduce((high, i) => Math.max(high, world.metres[i]), 0);
   const peakShare = world.summitM > 0 ? best / world.summitM : 0;
   const walked = new Set(run.path.filter(i => world.land[i]).map(i => world.biome[i]));
   const biomes = world.checklist.filter(b => walked.has(b));
 
-  // Out of what the budget was built to allow, not out of the whole pool — the
-  // pool runs deeper only so the pair on offer never thins to one. A player
-  // who routes well enough to beat the budget simply tops out at full marks.
+  // The climb is the day; the landmarks and the field notes are what you
+  // picked up on the way to it. Landmarks are counted out of what the budget
+  // was built to allow rather than the whole pool — the pool runs deeper only
+  // so the pair on offer never thins to one — and a player who routes well
+  // enough to beat the budget simply tops that part out.
   const score = Math.round(
-    45 * peakShare +
-    30 * Math.min(1, ladderValue(kept) / ladderValue(world.rungs)) +
-    25 * (world.checklist.length ? biomes.length / world.checklist.length : 0));
+    55 * peakShare +
+    25 * Math.min(1, ladderValue(found.length) / ladderValue(world.rungs)) +
+    20 * (world.checklist.length ? biomes.length / world.checklist.length : 0));
 
   return {
-    found: credited, live,
-    reached, kept, awaiting, struck,
+    found, live,
     complete: live.length === 0,
     movesLeft: MOVES - (run.path.length - 1),
     best, peakShare, biomes, score,

@@ -73,13 +73,11 @@ test('the day is scored out of a number the budget can actually reach', () => {
     let got = 0;
     for (const goal of w.goals.slice(0, w.rungs)) {
       if (!walkTo(run, goal.cells, MOVES)) break;
-      run.pressedOn = ++got;
+      got++;
     }
     assert.equal(got, w.rungs,
       w.day + ': only ' + got + ' of ' + w.rungs + ' rungs reachable in ' + MOVES + ' moves');
-    // Brushing one of the pool's deeper entries on the way is a bonus, not a
-    // bug — the ladder half of the score simply tops out.
-    assert.ok(runState(w, run).kept >= w.rungs);
+    assert.ok(runState(w, run).found.length >= w.rungs);
   }
 });
 
@@ -99,7 +97,7 @@ test('always taking the nearer of the two is almost always right', () => {
       const here = run.path[run.path.length - 1];
       const near = live.reduce((a, b) => (movesTo(here, w.goals[b].cells) < movesTo(here, w.goals[a].cells) ? b : a));
       if (!walkTo(run, w.goals[near].cells, MOVES)) break;
-      run.pressedOn = ++got;
+      got++;
     }
     if (got >= w.rungs) cleared++;
   }
@@ -140,28 +138,15 @@ test('the ice cap counts at whichever pole you walk to', () => {
       if (w.biome[i] === B.icecap) assert.ok(cap.cells.has(i), w.day + ': ice cap square left out of the goal');
     }
     const run = newRun(w);
-    assert.ok(walkTo(run, cap.cells), w.day + ': could not reach the ice cap');
+    assert.ok(walkTo(run, cap.cells, MOVES * 8), w.day + ': could not reach the ice cap');
   }
   assert.ok(checked > 2, 'not enough ice cap days in the sample');
 });
 
-test('either of the two on offer may be taken first', () => {
-  const w = worlds.find(x => x.goals.length >= 3 && x.rungs >= 2);
-  for (const first of [0, 1]) {
-    const run = newRun(w);
-    assert.ok(walkTo(run, w.goals[first].cells, MOVES * 8));
-    const now = runState(w, run);
-    assert.deepEqual(now.found, [first], 'taking the ' + (first ? 'far' : 'near') + ' one first should count');
-    // …and the pair refills from behind, so there are still two to choose from.
-    assert.deepEqual(now.live, [first === 0 ? 1 : 0, 2].sort((a, b) => a - b));
-  }
-});
-
-/* The state machine is about decisions, not geography, so it is tested on a
-   world with landmarks planted a known distance apart along the drop's own
+/* Collection and scoring are about rules rather than geography, so they run on
+   a world with landmarks planted a known distance apart along the drop's own
    row. Two of the day's real landmarks can sit close enough that one walk
-   brushes both, which is a nice thing to happen in play and a poor thing to
-   assert against. */
+   brushes both, which is a nice thing in play and a poor thing to assert. */
 function planted(w: World, n: number): World {
   const r = rowOf(w.spawn);
   return {
@@ -174,92 +159,62 @@ function planted(w: World, n: number): World {
   };
 }
 
-test('one landmark is on offer until another is taken on', () => {
-  const w = planted(worlds[0], 3);      // three, so there is still one to press on to
-  const run = newRun(w);
-  walkTo(run, w.goals[0].cells);
-  let now = runState(w, run);
-  assert.equal(now.reached, 1);
-  assert.ok(now.awaiting, 'reaching one should put the choice on the table');
-
-  // Banking closes the list: ground wandered over afterwards does not count.
-  const bankedRun: Run = { ...run, path: [...run.path], banked: true };
-  walkTo(bankedRun, w.goals[1].cells, MOVES);
-  assert.equal(runState(w, bankedRun).kept, 1, 'a banked run should not keep collecting');
-
-  // Pressing on opens it again, and the next one is credited.
-  run.pressedOn = 1;
-  assert.ok(!runState(w, run).awaiting, 'pressing on clears the choice');
-  assert.ok(walkTo(run, w.goals[1].cells, MOVES), 'second landmark unreachable');
-  now = runState(w, run);
-  assert.equal(now.reached, 2, 'the second landmark did not register');
-  assert.equal(now.kept, 2);
-  assert.ok(now.awaiting, 'and the choice comes back');
+test('either of the two on offer may be taken first, and the pair refills', () => {
+  const w = worlds.find(x => x.goals.length >= 3 && x.rungs >= 2);
+  for (const first of [0, 1]) {
+    const run = newRun(w);
+    assert.ok(walkTo(run, w.goals[first].cells, MOVES * 8));
+    const now = runState(w, run);
+    assert.deepEqual(now.found, [first], 'taking the ' + (first ? 'far' : 'near') + ' one first should count');
+    assert.deepEqual(now.live, [first === 0 ? 1 : 0, 2].sort((a, b) => a - b));
+  }
 });
 
-test('pressing on and running out costs the last one, and only the last one', () => {
+test('a landmark reached is a landmark kept — there is nothing to lose', () => {
   const w = planted(worlds[0], 3);
   const run = newRun(w);
-  walkTo(run, w.goals[0].cells);
-  run.pressedOn = 1;
-  run.stopped = true;                       // ended still hunting the next
-  const now = runState(w, run);
-  assert.ok(now.struck);
-  assert.equal(now.reached, 1);
-  assert.equal(now.kept, 0);
-
-  const safe: Run = { ...run, banked: true };
-  assert.ok(!runState(w, safe).struck, 'banking should protect what is in hand');
-  assert.equal(runState(w, safe).kept, 1);
-});
-
-test('reaching one on the very last move is never struck off', () => {
-  const w = planted(worlds[0], 2);
-  const run = newRun(w);
-  walkTo(run, w.goals[0].cells);
-  run.stopped = true;                       // no choice was ever offered
-  const now = runState(w, run);
-  assert.ok(!now.struck);
-  assert.equal(now.kept, 1);
-});
-
-test('clearing the whole list is never a strike', () => {
-  const w = planted(worlds[0], 3);
-  const run = newRun(w);
-  let got = 0;
-  for (const goal of w.goals) { assert.ok(walkTo(run, goal.cells, MOVES)); run.pressedOn = ++got; }
-  run.pressedOn = w.goals.length - 1;       // the last press-on that was offered
+  assert.ok(walkTo(run, w.goals[0].cells, MOVES));
+  assert.equal(runState(w, run).found.length, 1);
+  // Wandering off after it, and running out of moves, changes nothing.
+  walkTo(run, w.goals[2].cells, MOVES);
   run.stopped = true;
-  const now = runState(w, run);
-  assert.equal(now.reached, w.goals.length);
-  assert.ok(now.complete && !now.struck && !now.awaiting);
-  assert.equal(now.kept, w.goals.length);
+  assert.ok(runState(w, run).found.includes(0), 'a landmark should never be taken back');
 });
 
-test('score rises with every landmark, and a full sweep tops the ladder', () => {
+test('standing where two landmarks meet collects both', () => {
+  const w = worlds[0];
+  const shared = new Set([idx(30, 30), idx(30, 31)]);
+  const fake: World = { ...w, rungs: 2, goals: [
+    { id: 'a', name: 'a', hint: 'x'.repeat(30), cells: shared, centre: idx(30, 30) },
+    { id: 'b', name: 'b', hint: 'x'.repeat(30), cells: shared, centre: idx(30, 31) },
+  ] };
+  assert.deepEqual(touchedOrder(fake, [w.spawn, idx(30, 30)]), [0, 1]);
+  assert.equal(runState(fake, { path: [w.spawn, idx(30, 30)], stopped: false }).found.length, 2);
+});
+
+test('the climb is worth more than everything else put together', () => {
+  const w = planted(worlds[0], 4);
+  // A run that reaches every landmark but never leaves sea level must score
+  // below one that climbs to the summit and finds nothing.
+  const flat = newRun(w);
+  for (const goal of w.goals) walkTo(flat, goal.cells, MOVES);
+  flat.stopped = true;
+  const climber: Run = { path: [w.spawn, w.summit], stopped: true };
+  assert.equal(runState(w, flat).found.length, w.goals.length);
+  assert.ok(runState(w, climber).score > runState(w, flat).score,
+    'the summit should beat a clean sweep of the bonuses');
+});
+
+test('score rises with every landmark, and a full sweep tops the bonus', () => {
   const w = planted(worlds[0], 4);
   const scores: number[] = [];
   for (let n = 0; n <= w.goals.length; n++) {
     const run = newRun(w);
-    let got = 0;
-    for (let g = 0; g < n; g++) { walkTo(run, w.goals[g].cells, MOVES); run.pressedOn = ++got; }
-    run.banked = true; run.stopped = true;
+    for (let g = 0; g < n; g++) walkTo(run, w.goals[g].cells, MOVES);
+    run.stopped = true;
     scores.push(runState(w, run).score);
   }
   for (let i = 1; i < scores.length; i++) assert.ok(scores[i] > scores[i - 1], 'landmark ' + i + ' added nothing');
-  assert.equal(runState(w, { ...newRun(w), stopped: true }).kept, 0);
-});
-
-test('standing where two landmarks meet collects both, once taken on', () => {
-  const w = worlds[0];
-  const shared = new Set([idx(30, 30), idx(30, 31)]);
-  const fake: World = { ...w, goals: [
-    { id: 'a', name: 'a', hint: 'x'.repeat(30), cells: shared, centre: idx(30, 30) },
-    { id: 'b', name: 'b', hint: 'x'.repeat(30), cells: shared, centre: idx(30, 31) },
-  ] };
-  const run: Run = { path: [w.spawn, idx(30, 30)], banked: false, pressedOn: 1, stopped: false };
-  assert.deepEqual(touchedOrder(fake, run.path), [0, 1]);
-  assert.equal(runState(fake, run).reached, 2);
 });
 
 test('touching is a square of the right size', () => {
