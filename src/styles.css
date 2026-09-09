@@ -1519,8 +1519,13 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .hillclimb-page .hcscore,
 .hillclimb-page .scorebox-rows { border-top: 0; }
 .hillclimb-page .hcmap-wrap { border: 0; }
-.hillclimb-page .hcgoal::before { border: 0; background: var(--raised); }
-.hillclimb-page .hcgoal.on::before { border: 0; background: var(--good); }
+.hillclimb-page .hcgoal::before {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  background: var(--hover-line);
+}
+.hillclimb-page .hcgoal.on::before { border: 0; background: var(--good); font-size: 9px; }
 .hillclimb-page .atlas-fig canvas { border: 0; }
 .hillclimb-page .atlas-table th,
 .hillclimb-page .atlas-table td { border-bottom: 0; }
