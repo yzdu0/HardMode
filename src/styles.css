@@ -1524,13 +1524,13 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .hillclimb-page .atlas-fig canvas { border: 0; }
 .hillclimb-page .atlas-table th,
 .hillclimb-page .atlas-table td { border-bottom: 0; }
-.hillclimb-page .hclayer { border: 0; background: var(--raised); }
+.hillclimb-page .hclayer { border: 0; background: var(--line); }
 .hillclimb-page .hclayer:hover { border-color: transparent; }
 .hillclimb-page .hclayer.on { border: 0; background: var(--fg); }
 .hillclimb-page .hcscale i { border: 0; }
 .hillclimb-page #hcRestart,
-.hillclimb-page #hcShare {
+.hillclimb-page #hcScoreShare {
   border: 0;
-  background: var(--raised);
+  background: var(--line);
   color: var(--fg);
 }
