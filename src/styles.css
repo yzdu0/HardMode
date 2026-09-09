@@ -1529,13 +1529,25 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .hillclimb-page .atlas-fig canvas { border: 0; }
 .hillclimb-page .atlas-table th,
 .hillclimb-page .atlas-table td { border-bottom: 0; }
-.hillclimb-page .hclayer { border: 0; background: var(--line); }
+.hillclimb-page .hclayer { border: 0; }
 .hillclimb-page .hclayer:hover { border-color: transparent; }
 .hillclimb-page .hclayer.on { border: 0; background: var(--fg); }
 .hillclimb-page .hcscale i { border: 0; }
-.hillclimb-page #hcRestart,
-.hillclimb-page #hcScoreShare {
+
+/* Every control except the date navigator sits visibly off its surface. */
+.hillclimb-page button:not(.datebtn):not(.icon-btn),
+.hillclimb-page a.learn-btn {
   border: 0;
   background: var(--line);
   color: var(--fg);
 }
+.hillclimb-page button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.hillclimb-page .hclayer.on {
+  background: var(--fg);
+  color: var(--page);
+}
+.hillclimb-page .tbtn.active { background: var(--hover-line); color: var(--fg); }
+.hillclimb-page .linkbtn { padding: 5px 9px; border-radius: 7px; text-decoration: none; }
