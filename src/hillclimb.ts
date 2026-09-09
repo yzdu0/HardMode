@@ -314,21 +314,27 @@ import type { World, Landmark } from "./hillclimb-world";
       ["Wind", windName(lat) + ", blowing " + (windDir(lat) > 0 ? "east" : "west")],
       ["Highest so far", metresLabel(bestMetres())],
     ];
-    $("hcRead").innerHTML = rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+    $("hcRead").innerHTML = rows.map(([k, v]) =>
+      "<div class='hcstat'><span>" + k + "</span><strong>" + v + "</strong></div>").join("");
     $("hcMovesPill").textContent = stopped ? "run over" : movesLeft() + (movesLeft() === 1 ? " move left" : " moves left");
     $("hcBestPill").textContent = metresLabel(bestMetres());
 
     drawBrief();
 
+    // Only the ground actually stood on: the list is a record of the walk, not
+    // a table of contents for the planet.
     const got = visitedBiomes();
     $("hcNotes").innerHTML =
       "<span class='hcnotes-head'>Field notes " + noteCount() + " / " + world.checklist.length + "</span>" +
-      world.checklist.map(b =>
-        "<span class='hcnote" + (got.has(b) ? " on" : "") + "'>" +
-        "<i style='background:" + (darkMap ? BIOMES[b].dark : BIOMES[b].colour) + "'></i>" + BIOMES[b].name + "</span>").join("");
+      world.checklist.filter(b => got.has(b)).map(b =>
+        "<span><i style='background:" + (darkMap ? BIOMES[b].dark : BIOMES[b].colour) + "'></i> " +
+        BIOMES[b].name + "</span>").join("");
 
     // Nothing moves while a rung is on the table: the choice is the move.
-    for (const btn of padButtons) btn.disabled = stopped || awaiting();
+    canvas.classList.toggle("frozen", stopped || awaiting());
+    // While a rung is on the table the map does not answer, so nothing should
+    // be telling the player to tap it.
+    $("hcHint").classList.toggle("hidden", stopped || awaiting());
     $("hcStop").classList.toggle("hidden", stopped || awaiting());
     $("hcRestart").classList.toggle("hidden", !stopped || day === TODAY);
   }
@@ -380,33 +386,30 @@ import type { World, Landmark } from "./hillclimb-world";
   }
 
   // ---------- moving ----------
-  const DIRS: [string, number, number, string][] = [
-    ["↖", -1, -1, "north-west"], ["↑", -1, 0, "north"], ["↗", -1, 1, "north-east"],
-    ["←", 0, -1, "west"], ["", 0, 0, ""], ["→", 0, 1, "east"],
-    ["↙", 1, -1, "south-west"], ["↓", 1, 0, "south"], ["↘", 1, 1, "south-east"],
-  ];
-  const padButtons: HTMLButtonElement[] = [];
-  function buildPad() {
-    const pad = $("hcPad");
-    pad.innerHTML = "";
-    padButtons.length = 0;
-    for (const [glyph, dr, dc, name] of DIRS) {
-      if (!glyph) {
-        const centre = document.createElement("div");
-        centre.className = "hcpad-centre";
-        centre.id = "hcPadCentre";
-        pad.appendChild(centre);
-        continue;
-      }
-      const b = document.createElement("button");
-      b.className = "hcpad-btn";
-      b.textContent = glyph;
-      b.setAttribute("aria-label", "Move " + name);
-      b.onclick = () => step(dr, dc);
-      pad.appendChild(b);
-      padButtons.push(b);
-    }
-  }
+  /* Tapping the map is the whole control: point at where you want to be and
+     you take one move of the stride towards it, snapped to the eight compass
+     directions. It reads the same on a phone and a desktop, and it puts the
+     decision on the map — which is the only thing worth looking at. */
+  canvas.addEventListener("click", (e) => {
+    if (stopped || awaiting()) return;
+    const box = canvas.getBoundingClientRect();
+    const c = Math.floor(((e.clientX - box.left) / box.width) * W);
+    const r = Math.floor(((e.clientY - box.top) / box.height) * H);
+    let dc = c - colOf(at());
+    if (dc > W / 2) dc -= W;                 // the short way round the world
+    if (dc < -W / 2) dc += W;
+    const dr = r - rowOf(at());
+    // Within half a stride of your own feet there is no direction being asked
+    // for, so nothing happens rather than something arbitrary.
+    if (Math.max(Math.abs(dr), Math.abs(dc)) < STRIDE / 2) return;
+    // Snap to the nearest of the eight, by angle: a shallow tap away to the
+    // east is east, not south-east, and only the middle of each 45° wedge
+    // counts as a diagonal.
+    const SPLIT = Math.tan((3 * Math.PI) / 8);          // 67.5°, the wedge edge
+    const flat = Math.abs(dc) > SPLIT * Math.abs(dr);
+    const steep = Math.abs(dr) > SPLIT * Math.abs(dc);
+    step(flat ? 0 : Math.sign(dr), steep ? 0 : Math.sign(dc));
+  });
   function step(dr: number, dc: number) {
     if (stopped || awaiting() || movesLeft() <= 0) return;
     const here = at();
@@ -602,7 +605,6 @@ import type { World, Landmark } from "./hillclimb-world";
     if (stopped) finish(false); else drawResults();
   }
 
-  buildPad();
   let stored = "light";
   try { stored = localStorage.getItem("hm-theme") || "light"; } catch (_) {}
   setTheme(stored);

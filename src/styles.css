@@ -1257,52 +1257,41 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 /* The map is an object on the page, not a panel: a thin surround and the
    corner radius the boards use, so it sits in the same family as the grids. */
 .hcmap-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--raised); line-height: 0; }
-#hcMap { display: block; width: 100%; image-rendering: pixelated; }
+/* The map is the control, so it takes a pointer — except while the run is
+   over or a rung is waiting on an answer. */
+#hcMap { display: block; width: 100%; image-rendering: pixelated; cursor: crosshair; }
+#hcMap.frozen { cursor: default; }
 
-/* Pad on the left, numbers on the right; on a phone the pad drops under them
-   where a thumb can reach it. */
-.hcbay { display: grid; grid-template-columns: 168px 1fr; gap: 14px; align-items: start; margin-top: 12px; }
-.hcpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.hcpad-btn {
-  aspect-ratio: 1;
-  min-height: 46px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  color: var(--fg);
-  font-size: 19px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.hcpad-btn:hover:not(:disabled) { border-color: var(--hover-line); }
-.hcpad-btn:active:not(:disabled) { transform: translateY(1px); }
-.hcpad-btn:disabled { cursor: not-allowed; opacity: .45; }
-.hcpad-centre { border-radius: 12px; background: var(--raised); }
+/* One line under it, because nothing about a canvas says "tap me". */
+.hchint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 
-.hcread { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; align-content: start; font-size: 13.5px; }
-.hcread dt { color: var(--muted); font-weight: 650; }
-.hcread dd { margin: 0; font-weight: 750; }
+/* The numbers, as a strip that fills whatever width there is rather than a
+   column propped against something. */
+.hcread { display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 12px; }
+.hcstat { display: flex; flex-direction: column; gap: 1px; }
+.hcstat span { color: var(--muted); font-size: 11px; font-weight: 650; }
+.hcstat strong { font-size: 14px; font-weight: 750; }
 
-.hcnotes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
-.hcnotes-head { margin-right: 4px; color: var(--muted); font-size: 12px; font-weight: 750; }
-.hcnote {
-  display: inline-flex;
+/* Field notes read as the map key reads, because they are the same thing: the
+   ground you have stood on, named. Ground you have not found is not listed —
+   the list is the record of a walk, not a table of contents. */
+.hcnotes {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-  padding: 4px 9px 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  gap: 5px 12px;
+  margin-top: 12px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
-  opacity: .5;
+  font-weight: 600;
 }
-.hcnote i { width: 11px; height: 11px; border-radius: 3px; opacity: .55; }
-.hcnote.on { color: var(--fg); border-color: var(--hover-line); opacity: 1; }
-.hcnote.on i { opacity: 1; }
-
-@media (max-width: 520px) {
-  .hcbay { grid-template-columns: 1fr; }
-  .hcpad { max-width: 260px; margin: 0 auto; order: 2; }
-  .hcread { order: 1; }
+.hcnotes-head { font-weight: 750; }
+.hcnotes span { display: inline-flex; align-items: center; gap: 5px; }
+.hcnotes i {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  font-style: normal;
 }

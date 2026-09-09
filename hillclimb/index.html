@@ -42,7 +42,7 @@
         <div id="hcHelpBox" class="tutbox hidden">
           <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, five squares each — then the whole world is revealed and you find out what you walked past.</p>
           <div class="tutorial-steps">
-            <p><b>Move</b> five squares at a time with the pad, the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals. East and west wrap right the way round; the top and bottom edges are the poles and you cannot step past them. You have a boat, so open water costs a move like anything else.</p>
+            <p><b>Move</b> five squares at a time: tap the map in the direction you want to go, or use the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals. East and west wrap right the way round; the top and bottom edges are the poles and you cannot step past them. You have a boat, so open water costs a move like anything else.</p>
             <p><b>Climb.</b> Your score is the highest ground you stand on, measured against the true summit of the planet — which you will not be shown until the end.</p>
             <p><b>Work the ladder.</b> The day names one landmark to reach &mdash; an archipelago, an inland sea, a great desert. Step onto it, or right beside it, and it is yours. Then you choose: <b>bank</b> what you have and spend the rest of the budget climbing, or <b>press on</b> to the next landmark, which is worth more than the last. Press on and fail to arrive before the moves run out, and the one you were standing on is struck off &mdash; one rung down, never the whole ladder.</p>
             <p><b>Keep field notes.</b> Every biome you set foot in is recorded. The day's full list is shown from the start, so you know what exists — but not where.</p>
@@ -55,12 +55,9 @@
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
         </div>
+        <p id="hcHint" class="hchint">Tap the map to head that way &mdash; or use the arrow keys, or W&nbsp;A&nbsp;S&nbsp;D with Q&nbsp;E&nbsp;Z&nbsp;C for the diagonals.</p>
         <div id="hcKey" class="mapkey hidden" aria-label="Map key"></div>
-
-        <div class="hcbay">
-          <div id="hcPad" class="hcpad" aria-label="Move"></div>
-          <dl id="hcRead" class="hcread"></dl>
-        </div>
+        <div id="hcRead" class="hcread"></div>
 
         <div class="row">
           <button id="hcStop" class="btn">Stop here</button>
