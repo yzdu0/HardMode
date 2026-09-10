@@ -6,11 +6,11 @@
  * The rules of a run live in HillClimb-run.ts, which is where the arithmetic
  * is tested. This file draws it. */
 import {
-  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
+  generateWorld, terrainAt, BIOMES, B, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir,
 } from "./HillClimb-world";
 import { gradeSquares, newRun, runState } from "./HillClimb-run";
-import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
+import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, HEIGHT_SEA, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
 import type { World } from "./HillClimb-world";
 import type { Run, RunState } from "./HillClimb-run";
@@ -143,23 +143,191 @@ import type { Run, RunState } from "./HillClimb-run";
   const tile = document.createElement("canvas");
   tile.width = W; tile.height = H;
   const tileCtx = tile.getContext("2d");
-  const viewTile = document.createElement("canvas");
-  viewTile.width = W; viewTile.height = H;
-  const viewCtx = viewTile.getContext("2d");
   let pixels: Uint8ClampedArray = null;    // rgb per square, before the fog
   let viewCol = 0;                         // world column at the viewport's left edge
-  let pan: { pointer: number; x: number; col: number } = null;
+  let viewRow = 0;
+  const ZOOM_LEVELS = [1, 2, 4, 8];
+  let zoomIndex = 0;
+  let detailSeed = 0;
+  let pan: { pointer: number; x: number; y: number; col: number; row: number } = null;
   let dragged = false;
-  let wheelCarry = 0;
 
-  const hex = (s: string) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
-  const FOG_LIGHT = hex("#e8eaef"), FOG_DARK = hex("#171b24");
+  const zoom = () => ZOOM_LEVELS[zoomIndex];
+  const visibleCols = () => W / zoom();
+  const visibleRows = () => H / zoom();
+  const clampViewRow = (r: number) => Math.max(0, Math.min(H - visibleRows(), r));
+
+  function updateZoomControls() {
+    $("hcZoomLabel").textContent = zoom() + "×";
+    ($("hcZoomOut") as HTMLButtonElement).disabled = zoomIndex === 0;
+    ($("hcZoomIn") as HTMLButtonElement).disabled = zoomIndex === ZOOM_LEVELS.length - 1;
+    ($("hcZoomFit") as HTMLButtonElement).disabled = zoomIndex === 0;
+  }
+
+  /** Keep the point under the cursor fixed while a wheel zooms. The buttons
+   *  have no cursor position, so they centre the closer view on the player. */
+  function setZoom(next: number, focus?: { x: number; y: number }) {
+    const nextIndex = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, next));
+    if (nextIndex === zoomIndex) return;
+    const oldCols = visibleCols(), oldRows = visibleRows();
+    const fx = focus ? Math.max(0, Math.min(1, focus.x)) : 0.5;
+    const fy = focus ? Math.max(0, Math.min(1, focus.y)) : 0.5;
+    const focusCol = focus ? viewCol + fx * oldCols : colOf(at()) + 0.5;
+    const focusRow = focus ? viewRow + fy * oldRows : rowOf(at()) + 0.5;
+    zoomIndex = nextIndex;
+    viewCol = wrapC(focusCol - fx * visibleCols());
+    viewRow = clampViewRow(focusRow - fy * visibleRows());
+    updateZoomControls();
+    paint();
+  }
+
+  const fogChannels = (s: string) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
+  const FOG_LIGHT = fogChannels("#e8eaef"), FOG_DARK = fogChannels("#171b24");
 
   /** The flat biome colour, shaded by how high the ground is and by which way
    *  the slope faces. Relief is what a climber reads, and a fifteen-colour
    *  palette cannot carry it on its own. */
   function buildPixels() {
     pixels = pixelsFor(world, run && run.stopped ? layer : "biome", darkMap);
+  }
+
+  function scalarAt(values: ArrayLike<number>, r: number, c: number): number {
+    const r0 = Math.max(0, Math.min(H - 1, Math.floor(r)));
+    const r1 = Math.min(H - 1, r0 + 1);
+    const c0 = Math.floor(c), c1 = c0 + 1;
+    const tr = Math.max(0, Math.min(1, r - r0));
+    const tc = c - Math.floor(c);
+    const a = values[idx(r0, wrapC(c0))] * (1 - tc) + values[idx(r0, wrapC(c1))] * tc;
+    const b = values[idx(r1, wrapC(c0))] * (1 - tc) + values[idx(r1, wrapC(c1))] * tc;
+    return a * (1 - tr) + b * tr;
+  }
+
+  function detailNoise(r: number, c: number, frequency: number, salt: number): number {
+    const period = Math.max(1, Math.round(W * frequency));
+    const x = wrapC(c) * frequency;
+    const y = r * frequency;
+    const x0 = Math.floor(x), y0 = Math.floor(y);
+    const tx0 = x - x0, ty0 = y - y0;
+    const tx = tx0 * tx0 * (3 - 2 * tx0);
+    const ty = ty0 * ty0 * (3 - 2 * ty0);
+    const hash = (xx: number, yy: number) => {
+      const wrappedX = ((xx % period) + period) % period;
+      let h = Math.imul(wrappedX + 104729, 374761393) ^ Math.imul((yy + salt) ^ detailSeed, 668265263);
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+    };
+    const north = hash(x0, y0) * (1 - tx) + hash(x0 + 1, y0) * tx;
+    const south = hash(x0, y0 + 1) * (1 - tx) + hash(x0 + 1, y0 + 1) * tx;
+    return north * (1 - ty) + south * ty;
+  }
+
+  function bilinearBiomeColour(
+    r: number, c: number, palette: [number, number, number][],
+  ): [number, number, number] {
+    const r0 = Math.max(0, Math.min(H - 1, Math.floor(r)));
+    const r1 = Math.min(H - 1, r0 + 1);
+    const c0 = Math.floor(c), c1 = c0 + 1;
+    const tr = Math.max(0, Math.min(1, r - r0));
+    const tc = c - Math.floor(c);
+    const colour = (rr: number, cc: number) => palette[world.biome[idx(rr, wrapC(cc))]];
+    const nw = colour(r0, c0), ne = colour(r0, c1), sw = colour(r1, c0), se = colour(r1, c1);
+    return [0, 1, 2].map(ch => {
+      const north = nw[ch] * (1 - tc) + ne[ch] * tc;
+      const south = sw[ch] * (1 - tc) + se[ch] * tc;
+      return north * (1 - tr) + south * tr;
+    }) as [number, number, number];
+  }
+
+  function blendedBiomeColour(
+    r: number, c: number, palette: [number, number, number][],
+  ): [number, number, number] {
+    const warpC = (detailNoise(r, c, 0.35, 911) - 0.5) * 1.8;
+    const warpR = (detailNoise(r, c, 0.35, 3571) - 0.5) * 1.8;
+    const radius = 0.7 + detailNoise(r, c, 0.22, 7919) * 0.75;
+    const out: [number, number, number] = [0, 0, 0];
+    let total = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const weight = dx === 0 && dy === 0 ? 4 : dx === 0 || dy === 0 ? 2 : 1;
+      const sample = bilinearBiomeColour(r + warpR + dy * radius, c + warpC + dx * radius, palette);
+      for (let ch = 0; ch < 3; ch++) out[ch] += sample[ch] * weight;
+      total += weight;
+    }
+    for (let ch = 0; ch < 3; ch++) out[ch] /= total;
+    return out;
+  }
+
+  /** A zoomed viewport still contains 160 by 92 rendered samples. Each level
+   *  reads the continuous terrain noise more closely, while play stays on the
+   *  original grid. */
+  function detailedViewPixels(): Uint8ClampedArray {
+    const n = W * H;
+    const land = new Uint8Array(n);
+    const metres = new Float32Array(n);
+    const depth = new Float32Array(n);
+    const temp = new Float32Array(n);
+    const rain = new Float32Array(n);
+    const biome = new Uint8Array(n);
+    const z = zoom();
+    const palette = BIOMES.map(b => hex(darkMap ? b.dark : b.colour));
+
+    for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+      const i = idx(py, px);
+      const wr = viewRow + py / z;
+      const wc = viewCol + px / z;
+      const ground = terrainAt(world, wr, wc);
+      const t = scalarAt(world.tempC, wr, wc);
+      const m = scalarAt(world.rain, wr, wc);
+      const nearest = idx(Math.max(0, Math.min(H - 1, Math.round(wr))), wrapC(Math.round(wc)));
+      land[i] = ground.land ? 1 : 0;
+      metres[i] = ground.metres;
+      depth[i] = ground.depth;
+      temp[i] = t;
+      rain[i] = m;
+      if (!ground.land) biome[i] = t <= -12 ? B.seaice : ground.depth < 0.12 ? B.shallow : B.ocean;
+      else if (t <= -11 && ground.metres >= 1400) biome[i] = B.snowline;
+      else if (t <= 0.5 && ground.metres >= 900) biome[i] = B.alpine;
+      else if (t <= -12) biome[i] = B.icecap;
+      else if (t <= -2) biome[i] = B.tundra;
+      else if (t <= 6) {
+        const nearby = world.biome[nearest];
+        biome[i] = nearby === B.taiga || nearby === B.tundra ? nearby : B.tundra;
+      } else if (t <= 19) biome[i] = m >= 0.62 ? B.forest : m >= 0.42 ? B.grassland : m >= 0.24 ? B.shrubland : B.desert;
+      else biome[i] = m >= 0.70 ? B.rainforest : m >= 0.52 ? B.monsoon : m >= 0.30 ? B.savannah : B.desert;
+    }
+
+    const out = new Uint8ClampedArray(n * 3);
+    const deepest = Math.max(...world.depth) || 1;
+    const highest = Math.max(1, world.summitM);
+    const blank: [number, number, number] = darkMap ? [22, 26, 34] : [232, 234, 239];
+    for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+      const i = idx(py, px);
+      let colour: [number, number, number];
+      if (layer === "height" && run.stopped) {
+        colour = land[i] ? ramp(HEIGHT_LAND, metres[i] / highest) : ramp(HEIGHT_SEA, 1 - depth[i] / deepest);
+      } else if (layer === "temp" && run.stopped) {
+        colour = ramp(TEMP, (temp[i] - TEMP_LOW) / (TEMP_HIGH - TEMP_LOW));
+      } else if (layer === "rain" && run.stopped) {
+        colour = land[i] ? ramp(RAIN, rain[i]) : blank;
+      } else {
+        const b = BIOMES[biome[i]];
+        const solid = hex(darkMap ? b.dark : b.colour);
+        const wr = viewRow + py / z, wc = viewCol + px / z;
+        const soft = blendedBiomeColour(wr, wc, palette);
+        const contrast = (Math.abs(solid[0] - soft[0]) + Math.abs(solid[1] - soft[1]) +
+          Math.abs(solid[2] - soft[2])) / (3 * 255);
+        const grain = (detailNoise(wr, wc, 3.2, 15401) - 0.5) * (0.035 + contrast * 0.11);
+        colour = [0, 1, 2].map(ch => (solid[ch] * 0.2 + soft[ch] * 0.8) * (1 + grain)) as [number, number, number];
+        if (layer !== "flat" && land[i]) {
+          const west = metres[idx(py, Math.max(0, px - 1))];
+          const east = metres[idx(py, Math.min(W - 1, px + 1))];
+          const slope = Math.max(-1, Math.min(1, ((west - east) * z) / 900));
+          const lift = 1 + slope * 0.13 - Math.min(0.22, metres[i] / 26000);
+          colour = [colour[0] * lift, colour[1] * lift, colour[2] * lift];
+        }
+      }
+      out[i * 3] = colour[0]; out[i * 3 + 1] = colour[1]; out[i * 3 + 2] = colour[2];
+    }
+    return out;
   }
 
   function sizeCanvas() {
@@ -174,15 +342,21 @@ import type { Run, RunState } from "./HillClimb-run";
     if (!world) return;
     sizeCanvas();
     const fog = darkMap ? FOG_DARK : FOG_LIGHT;
+    const detail = zoomIndex > 0 ? detailedViewPixels() : null;
     const img = tileCtx.createImageData(W, H);
-    for (let i = 0; i < W * H; i++) {
+    for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+      const i = idx(py, px);
+      const wr = viewRow + py / zoom();
+      const wc = viewCol + px / zoom();
+      const worldI = idx(Math.max(0, Math.min(H - 1, Math.round(wr))), wrapC(Math.round(wc)));
       // 1 where the ground is known, 0 where it is fog, and in between along
       // the edge of the reveal — which is what stops it looking like a switch.
-      const k = seen[i] ? 1
+      const k = seen[worldI] ? 1
         : !liftAt ? 0
-        : Math.max(0, Math.min(1, (front - liftAt[i]) / SOFT));
+        : Math.max(0, Math.min(1, (front - liftAt[worldI]) / SOFT));
       for (let ch = 0; ch < 3; ch++) {
-        img.data[i * 4 + ch] = fog[ch] + (pixels[i * 3 + ch] - fog[ch]) * k;
+        const colour = detail ? detail[i * 3 + ch] : pixels[worldI * 3 + ch];
+        img.data[i * 4 + ch] = fog[ch] + (colour - fog[ch]) * k;
       }
       img.data[i * 4 + 3] = 255;
     }
@@ -190,19 +364,12 @@ import type { Run, RunState } from "./HillClimb-run";
 
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Rotate at the native one-pixel-per-cell resolution first, then scale the
-    // completed image once. Scaling two slices separately can round their join
-    // onto different device pixels and expose a hairline between them.
-    const first = W - viewCol;
-    viewCtx.clearRect(0, 0, W, H);
-    viewCtx.drawImage(tile, viewCol, 0, first, H, 0, 0, first, H);
-    if (viewCol) viewCtx.drawImage(tile, 0, 0, viewCol, H, first, 0, viewCol, H);
-    ctx.drawImage(viewTile, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
 
-    const cell = canvas.width / W;
+    const cell = canvas.width / visibleCols();
     const screenCol = (c: number) => wrapC(c - viewCol);
     const x = (c: number) => (screenCol(c) + 0.5) * cell;
-    const y = (r: number) => (r + 0.5) * cell;
+    const y = (r: number) => (r - viewRow + 0.5) * cell;
     const ink = darkMap ? "#f4f7fa" : "#101114";
     const back = darkMap ? "#0b0d13" : "#ffffff";
 
@@ -211,10 +378,13 @@ import type { Run, RunState } from "./HillClimb-run";
     // is, thirty is where the deserts are, and the bands are where the wind
     // changes direction. So the guides are drawn over the fog as well as over
     // the ground, and they are the only furniture on the map.
-    ctx.font = "600 " + Math.max(9, Math.round(cell * 2.6)) + "px -apple-system, Helvetica, Arial, sans-serif";
+    const dpr = canvas.width / (canvas.getBoundingClientRect().width || canvas.width);
+    ctx.font = "600 " + Math.max(9, Math.min(Math.round(cell * 2.6), Math.round(14 * dpr))) +
+      "px -apple-system, Helvetica, Arial, sans-serif";
     ctx.textBaseline = "middle";
     for (const lat of [60, 30, 0, -30, -60]) {
-      const gy = ((90 - lat) / 180) * canvas.height;
+      const gy = (((90 - lat) / 180) * H - viewRow) * cell;
+      if (gy < 0 || gy > canvas.height) continue;
       ctx.strokeStyle = ink;
       ctx.globalAlpha = lat === 0 ? 0.2 : 0.13;
       ctx.lineWidth = 1;
@@ -224,7 +394,7 @@ import type { Run, RunState } from "./HillClimb-run";
       ctx.globalAlpha = 0.42;
       ctx.fillStyle = ink;
       ctx.textAlign = "left";
-      ctx.fillText(lat === 0 ? "0°" : Math.abs(lat) + "°" + (lat > 0 ? "N" : "S"), cell * 1.2, gy - cell * 2);
+      ctx.fillText(lat === 0 ? "0°" : Math.abs(lat) + "°" + (lat > 0 ? "N" : "S"), 8 * dpr, gy - 10 * dpr);
     }
     ctx.globalAlpha = 1;
 
@@ -242,7 +412,7 @@ import type { Run, RunState } from "./HillClimb-run";
       if (dc < -W / 2) dc += W;
       const start = screenCol(colOf(a));
       const end = start + dc;
-      for (const shift of end < 0 ? [0, W] : end >= W ? [0, -W] : [0]) {
+      for (const shift of [0, -W, W]) {
         ctx.beginPath();
         ctx.moveTo((start + shift + 0.5) * cell, y(rowOf(a)));
         ctx.lineTo((end + shift + 0.5) * cell, y(rowOf(b)));
@@ -277,14 +447,16 @@ import type { Run, RunState } from "./HillClimb-run";
         // wash that size would only recolour the terrain under it.
         if (cells.size <= 260) {
           ctx.fillStyle = darkMap ? "rgba(255,120,60,.18)" : "rgba(214,69,69,.15)";
-          for (const i of cells) ctx.fillRect(screenCol(colOf(i)) * cell, rowOf(i) * cell, cell, cell);
+          for (const i of cells) {
+            ctx.fillRect(screenCol(colOf(i)) * cell, (rowOf(i) - viewRow) * cell, cell, cell);
+          }
         }
         ctx.strokeStyle = darkMap ? "#ff9a63" : "#c23b3b";
         ctx.lineWidth = Math.max(1.2, cell * 0.26);
         ctx.beginPath();
         for (const i of cells) {
           const r = rowOf(i), c = colOf(i), sc = screenCol(c);
-          const px = sc * cell, py = r * cell;
+          const px = sc * cell, py = (r - viewRow) * cell;
           // Only the sides facing out of the landmark, so what is left is its
           // coastline rather than a grid drawn over it.
           if (r === 0 || !cells.has(idx(r - 1, c))) { ctx.moveTo(px, py); ctx.lineTo(px + cell, py); }
@@ -342,7 +514,7 @@ import type { Run, RunState } from "./HillClimb-run";
   const tip = $("hcTip");
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || !e.isPrimary) return;
-    pan = { pointer: e.pointerId, x: e.clientX, col: viewCol };
+    pan = { pointer: e.pointerId, x: e.clientX, y: e.clientY, col: viewCol, row: viewRow };
     dragged = false;
     canvas.setPointerCapture(e.pointerId);
     canvas.classList.add("panning");
@@ -351,9 +523,11 @@ import type { Run, RunState } from "./HillClimb-run";
     if (!pan || pan.pointer !== e.pointerId) return;
     const box = canvas.getBoundingClientRect();
     const dx = e.clientX - pan.x;
-    if (Math.abs(dx) >= 4) dragged = true;
+    const dy = e.clientY - pan.y;
+    if (Math.hypot(dx, dy) >= 4) dragged = true;
     if (dragged) {
-      viewCol = wrapC(pan.col - Math.round((dx / box.width) * W));
+      viewCol = wrapC(pan.col - (dx / box.width) * visibleCols());
+      viewRow = clampViewRow(pan.row - (dy / box.height) * visibleRows());
       tip.classList.add("hidden");
       paint();
       e.preventDefault();
@@ -368,24 +542,39 @@ import type { Run, RunState } from "./HillClimb-run";
   canvas.addEventListener("pointerup", endPan);
   canvas.addEventListener("pointercancel", endPan);
   canvas.addEventListener("wheel", (e) => {
-    const delta = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
-    if (!delta) return;
-    const cellWidth = canvas.getBoundingClientRect().width / W;
-    wheelCarry += delta / cellWidth;
-    const columns = Math.trunc(wheelCarry);
-    if (columns) {
-      viewCol = wrapC(viewCol + columns);
-      wheelCarry -= columns;
-      paint();
+    const box = canvas.getBoundingClientRect();
+    if ((e.ctrlKey || e.metaKey) && e.deltaY) {
+      setZoom(zoomIndex + (e.deltaY < 0 ? 1 : -1), {
+        x: (e.clientX - box.left) / box.width,
+        y: (e.clientY - box.top) / box.height,
+      });
+      e.preventDefault();
+      return;
     }
+    if (zoomIndex > 0) {
+      const dx = e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX;
+      const dy = e.shiftKey ? 0 : e.deltaY;
+      viewCol = wrapC(viewCol + dx / (box.width / visibleCols()));
+      viewRow = clampViewRow(viewRow + dy / (box.height / visibleRows()));
+      paint();
+      e.preventDefault();
+      return;
+    }
+    const dx = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!dx) return;
+    viewCol = wrapC(viewCol + dx / (box.width / W));
+    paint();
     e.preventDefault();
   }, { passive: false });
+  ($("hcZoomOut") as HTMLButtonElement).onclick = () => setZoom(zoomIndex - 1);
+  ($("hcZoomIn") as HTMLButtonElement).onclick = () => setZoom(zoomIndex + 1);
+  ($("hcZoomFit") as HTMLButtonElement).onclick = () => setZoom(0);
   canvas.addEventListener("pointermove", (e) => {
     if (pan) return;
     if (e.pointerType !== "mouse") return;          // a tap is a move, not a query
     const box = canvas.getBoundingClientRect();
-    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * W) + viewCol);
-    const r = Math.floor(((e.clientY - box.top) / box.height) * H);
+    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * visibleCols() + viewCol));
+    const r = Math.floor(((e.clientY - box.top) / box.height) * visibleRows() + viewRow);
     if (r < 0 || r >= H || c < 0 || c >= W) { tip.classList.add("hidden"); return; }
     const i = idx(r, c);
     if (!(run.stopped || seen[i])) tip.textContent = "unexplored";
@@ -499,8 +688,8 @@ import type { Run, RunState } from "./HillClimb-run";
     if (dragged) { dragged = false; return; }
     if (run.stopped) return;
     const box = canvas.getBoundingClientRect();
-    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * W) + viewCol);
-    const r = Math.floor(((e.clientY - box.top) / box.height) * H);
+    const c = wrapC(Math.floor(((e.clientX - box.left) / box.width) * visibleCols() + viewCol));
+    const r = Math.floor(((e.clientY - box.top) / box.height) * visibleRows() + viewRow);
     let dc = c - colOf(at());
     if (dc > W / 2) dc -= W;                 // the short way round the world
     if (dc < -W / 2) dc += W;
@@ -516,6 +705,19 @@ import type { Run, RunState } from "./HillClimb-run";
     const steep = Math.abs(dr) > SPLIT * Math.abs(dc);
     step(flat ? 0 : Math.sign(dr), steep ? 0 : Math.sign(dc));
   });
+  function keepPlayerVisible() {
+    if (zoomIndex === 0) return;
+    const c = colOf(at()), r = rowOf(at());
+    const cols = visibleCols(), rows = visibleRows();
+    const marginC = Math.min(3, cols * 0.18);
+    const marginR = Math.min(3, rows * 0.18);
+    const sc = wrapC(c - viewCol);
+    if (sc >= cols) viewCol = wrapC(c + 0.5 - cols / 2);
+    else if (sc < marginC) viewCol = wrapC(c - marginC);
+    else if (sc > cols - marginC) viewCol = wrapC(c - cols + marginC);
+    if (r < viewRow + marginR) viewRow = clampViewRow(r - marginR);
+    else if (r > viewRow + rows - marginR) viewRow = clampViewRow(r - rows + marginR);
+  }
   function step(dr: number, dc: number) {
     if (run.stopped || now.movesLeft <= 0) return;
     const here = at();
@@ -528,6 +730,7 @@ import type { Run, RunState } from "./HillClimb-run";
     run.path.push(next);
     light(next);
     settle();
+    keepPlayerVisible();
     if (now.movesLeft <= 0) finish(true);
     else { save(); paint(); refresh(); }
   }
@@ -815,9 +1018,13 @@ import type { Run, RunState } from "./HillClimb-run";
 
   function start() {
     viewCol = 0;
+    viewRow = 0;
+    zoomIndex = 0;
+    updateZoomControls();
     const stored = saved();
     const seed = dropSeed(stored);
     world = generateWorld(day, seed);
+    detailSeed = Number(day.replaceAll("-", "")) | 0;
     layer = "biome";
     if (!adopt(stored, seed)) {
       run = newRun(world, seed);

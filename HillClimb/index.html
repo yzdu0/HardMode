@@ -77,10 +77,16 @@
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
           <div id="hcTip" class="hctip hidden" aria-hidden="true"></div>
+          <div class="hczoom" role="group" aria-label="Map zoom">
+            <button id="hcZoomOut" type="button" aria-label="Zoom out">&minus;</button>
+            <span id="hcZoomLabel" aria-live="polite">1&times;</span>
+            <button id="hcZoomIn" type="button" aria-label="Zoom in">+</button>
+            <button id="hcZoomFit" type="button">Fit</button>
+          </div>
         </div>
         <div id="hcLayers" class="hclayers hidden" role="group" aria-label="What to show on the map"></div>
         <div id="hcScale" class="hcscale hidden" aria-hidden="true"></div>
-        <p id="hcHint" class="hchint">Tap the map to head that way, or use WASD or the arrow keys to move. Drag sideways to rotate the world. Hover a square to name it.</p>
+        <p id="hcHint" class="hchint">Tap the map to head that way, or use WASD or the arrow keys to move. Use the map buttons to zoom, then drag or scroll to pan. Hover a square to name it.</p>
         <div id="hcRead" class="hcread"></div>
 
         <div class="row">

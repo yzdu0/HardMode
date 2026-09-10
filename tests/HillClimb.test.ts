@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
+  generateWorld, terrainAt, components, centreOf, windDir, windName, movesBetween, dxWrap,
   BIOMES, B, W, H, MOVES, STRIDE, SIGHT, LIVE, goalValue, ladderValue, march,
   idx, rowOf, colOf, latOf,
 } from '../src/HillClimb-world.ts';
@@ -45,6 +45,17 @@ test('height and sea level agree everywhere', () => {
       else assert.ok(w.metres[i] === 0 && w.depth[i] >= 0 && w.depth[i] <= 1);
       assert.ok(w.land[i] === (isLandBiome(w.biome[i]) ? 1 : 0));
     }
+  }
+});
+
+test('fine terrain samples agree with the game grid at whole cells', () => {
+  const world = worlds[0];
+  for (let r = 0; r < H; r += 7) for (let c = 0; c < W; c += 11) {
+    const sample = terrainAt(world, r, c);
+    const i = idx(r, c);
+    assert.equal(sample.land, world.land[i] === 1);
+    assert.equal(sample.metres, world.metres[i]);
+    assert.ok(Math.abs(sample.depth - world.depth[i]) < 1e-6);
   }
 });
 
