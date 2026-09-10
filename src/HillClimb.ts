@@ -49,6 +49,7 @@ import type { Run, RunState } from "./HillClimb-run";
   const $ = (id: string) => document.getElementById(id);
   const storeKey = () => "hm-" + day + "-HillClimb-" + hillClimbRevision(day);
   const WELCOME_KEY = "hm-hillclimb-welcome-seen";
+  const SHARE_URL = "https://nphard.app/HillClimb/?v=2";
 
   // ---------- theme ----------
   const THEMES = {
@@ -990,7 +991,7 @@ import type { Run, RunState } from "./HillClimb-run";
       now.score + " " + gradeSquares(now.grade) + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + ", " + now.climb + "\n" +
       "🧭 " + now.found.length + "/" + world.goals.length + " challenges, +" + now.landmarkBonus + "\n" +
-      location.href.split("#")[0].split("?")[0]);
+      SHARE_URL);
   };
 
   // ---------- help, dates, boot ----------
