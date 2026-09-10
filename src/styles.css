@@ -868,7 +868,6 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
 }
 .hc-histogram-axis span:nth-child(2) { text-align: center; }
 .hc-histogram-axis span:last-child { text-align: right; }
-.hc-histogram-note { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .how { margin-top: 16px; color: var(--muted); font-size: 13px; }
 .how summary { min-height: 40px; display: flex; align-items: center; font-weight: 750; }
 .how p { margin: 4px 0 0; line-height: 1.55; }

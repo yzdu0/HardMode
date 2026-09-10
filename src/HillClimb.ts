@@ -935,9 +935,6 @@ import type { Run, RunState } from "./HillClimb-run";
     }).join("");
     box.querySelector(".hc-histogram-axis").innerHTML =
       "<span>" + first + "</span><span>Score</span><span>" + (last + width - 1) + "</span>";
-    box.querySelector(".hc-histogram-note").textContent = mineScore === null
-      ? "Scores are grouped in intervals of 10."
-      : "Scores are grouped in intervals of 10. Your score is " + mineScore + ".";
     box.classList.remove("hidden");
   }
 
