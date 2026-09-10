@@ -2,8 +2,8 @@
  *
  * The page next to this one explains the generator in words. Words are a poor
  * way to show that the rain shadow really does sit behind the range, so each
- * step of the pipeline is also drawn from a real world: the same date, the same
- * code the game runs, four views of what it produced. */
+ * step of the pipeline is also drawn from a real world: one fixed date, the
+ * same code the game runs, four views of what it produced. */
 import { generateWorld, BIOMES, W, H } from "./HillClimb-world";
 import { pixelsFor } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
@@ -12,14 +12,14 @@ import type { Layer } from "./HillClimb-layers";
   "use strict";
 
   const $ = (id: string) => document.getElementById(id);
-  const day = (() => {
-    const d = new Date();
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  })();
+  /* One fixed worked example rather than today's date: the prose below the maps
+   * points at particular coastlines and rain shadows, so the pictures have to
+   * stay put for it to keep making sense. */
+  const day = "2026-09-03";
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [y, m, dd] = day.split("-").map(Number);
   const atlasDay = $("atlasDay");
-  if (atlasDay) atlasDay.textContent = "Maps for " + dd + " " + months[m - 1] + " " + y;
+  if (atlasDay) atlasDay.textContent = "Maps for the world of " + dd + " " + months[m - 1] + " " + y;
 
   const world = generateWorld(day);
   const dark = ["dark", "terminal"].includes(document.body.dataset.theme || "");
