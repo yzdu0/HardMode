@@ -1434,6 +1434,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .scorebox::backdrop { background: rgba(16, 18, 24, .45); }
 .scorebox-day { margin: 0; color: var(--muted); font-size: 12px; font-weight: 700; }
 .scorebox-next { margin: 3px 0 0; color: var(--muted); font-size: 11.5px; font-weight: 650; }
+.hc-next-map { margin: 5px 0 0; color: var(--muted); font-size: 12px; font-weight: 650; text-align: center; }
 .scorebox-n {
   margin: 6px 0 0;
   font-size: 60px;

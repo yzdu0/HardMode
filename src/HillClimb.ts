@@ -552,6 +552,9 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcHint").classList.toggle("hidden", run.stopped);
     $("hcStop").classList.toggle("hidden", run.stopped);
     $("hcRestart").classList.toggle("hidden", !run.stopped);
+    $("hcNextMapPage").classList.toggle("hidden", !run.stopped);
+    if (run.stopped) startNextMapCountdown();
+    else clearInterval(nextMapTimer);
   }
 
   /** What the day is actually asking for — the climb — and then, under it, the
@@ -746,13 +749,16 @@ import type { Run, RunState } from "./HillClimb-run";
     const minutes = Math.max(0, Math.ceil((nextMapAt - Date.now()) / 60000));
     if (!minutes) {
       $("hcNextMap").textContent = "The next map is ready";
+      $("hcNextMapPage").textContent = "The next map is ready";
       return;
     }
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    $("hcNextMap").textContent = "Next map in " +
+    const text = "Next map in " +
       (hours ? hours + " hr" + (hours === 1 ? "" : "s") + (mins ? " " : "") : "") +
       (mins ? mins + " min" : "");
+    $("hcNextMap").textContent = text;
+    $("hcNextMapPage").textContent = text;
   }
   function startNextMapCountdown() {
     clearInterval(nextMapTimer);
@@ -818,7 +824,6 @@ import type { Run, RunState } from "./HillClimb-run";
   $("hcScoreDone").onclick = () => scoreBox.close();
   $("hcScoreShare").onclick = () => { scoreBox.close(); $("hcShare").click(); };
   scoreBox.addEventListener("pointerdown", (e) => { if (e.target === scoreBox) scoreBox.close(); });
-  scoreBox.addEventListener("close", () => clearInterval(nextMapTimer));
 
   $("hcStop").onclick = () => { if (!run.stopped) finish(true); };
   // Clearing the day's record is what mints a new drop: start() takes its seed
