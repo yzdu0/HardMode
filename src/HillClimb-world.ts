@@ -503,49 +503,6 @@ export interface World {
   rungs: number;             // how many of them the budget is built to allow
 }
 
-export interface TerrainSample {
-  land: boolean;
-  metres: number;
-  depth: number;
-}
-
-interface TerrainDetail {
-  shape: Noise;
-  crease: Noise;
-  pushX: Noise;
-  pushY: Noise;
-  pushHard: Noise;
-  sea: number;
-}
-
-// The fine noise stays attached to the in-memory world without becoming part
-// of saves, scores or the public world object. Game rules continue to use the
-// original 160 by 92 cells; this is only a visual sample for map zoom.
-const terrainDetail = new WeakMap<World, TerrainDetail>();
-
-/** Read the same terrain field between game cells for the zoomed map. */
-export function terrainAt(world: World, r: number, c: number): TerrainSample {
-  const detail = terrainDetail.get(world);
-  if (!detail) {
-    const rr = Math.max(0, Math.min(H - 1, Math.round(r)));
-    const cc = wrapC(Math.round(c));
-    const i = idx(rr, cc);
-    return { land: world.land[i] === 1, metres: world.metres[i], depth: world.depth[i] };
-  }
-  const reach = WARP_PUSH * (WARP_FLOOR + (1 - WARP_FLOOR) * noiseAt(detail.pushHard, r, c));
-  const dc = (noiseAt(detail.pushX, r, c) - 0.5) * 2 * reach;
-  const dr = (noiseAt(detail.pushY, r, c) - 0.5) * 2 * reach;
-  const read = Math.max(0, Math.min(H - 1, r + dr));
-  const base = noiseAt(detail.shape, read, c + dc);
-  if (base <= detail.sea) {
-    return { land: false, metres: 0, depth: clamp01((detail.sea - base) / Math.max(1e-6, detail.sea)) };
-  }
-  const ridge = noiseAt(detail.crease, read, c + dc, true);
-  const above = (base - detail.sea) / Math.max(1e-6, 1 - detail.sea);
-  const relief = clamp01(above * (0.42 + 1.5 * ridge));
-  return { land: true, metres: Math.round(7700 * Math.pow(relief, 1.55)), depth: 0 };
-}
-
 export interface Landmark {
   id: string;
   name: string;      // "an archipelago"
@@ -635,9 +592,7 @@ export function generateWorld(day: string, drop = ''): World {
   const spawn = pickSpawn(dice, land, biome, summit, marks);
   const { goals, rungs } = pickGoals(dice, marks, spawn, summit);
 
-  const world = { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs };
-  terrainDetail.set(world, { shape, crease, pushX, pushY, pushHard, sea });
-  return world;
+  return { day, metres, depth, tempC, rain, biome, land, summit, summitM, spawn, goals, rungs };
 }
 
 /* ---------- features ---------- */
