@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
-  generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
+  generateWorld, hillClimbRevision, components, centreOf, windDir, windName, movesBetween, dxWrap,
   BIOMES, B, W, H, STRIDE, SIGHT, LIVE, goalValue, ladderValue,
   idx, rowOf, colOf, latOf,
 } from '../src/HillClimb-world.ts';
@@ -18,6 +19,24 @@ const SAMPLE = days(40);
 const worlds = SAMPLE.map(d => generateWorld(d));
 const isLandBiome = (b: number) => !BIOMES[b].water;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+
+const worldFingerprint = (day: string, drop: string) => {
+  const w = generateWorld(day, drop);
+  const hash = createHash('sha256');
+  for (const values of [w.land, w.metres, w.depth, w.tempC, w.rain, w.biome]) {
+    hash.update(Buffer.from(values.buffer, values.byteOffset, values.byteLength));
+  }
+  return hash.digest('hex');
+};
+
+test('independent ridges begin on 11 September without changing earlier maps', () => {
+  assert.equal(hillClimbRevision('2026-09-10'), 'world-5-challenges-1');
+  assert.equal(hillClimbRevision('2026-09-11'), 'world-6-challenges-1');
+  assert.equal(
+    worldFingerprint('2026-09-10', 'compatibility-check'),
+    '6ed5365e2cc3293240822fed4245c6281cacbcc17e991ab8b10557ea79d39705',
+  );
+});
 
 test('the same date always draws the same planet', () => {
   const a = generateWorld('2026-03-14');

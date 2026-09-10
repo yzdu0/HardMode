@@ -6,7 +6,7 @@
  * The rules of a run live in HillClimb-run.ts, which is where the arithmetic
  * is tested. This file draws it. */
 import {
-  generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
+  generateWorld, hillClimbRevision, BIOMES, W, H, MOVES, STRIDE, SIGHT,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir, landmarkProgress,
 } from "./HillClimb-world";
 import { gradeSquares, newRun, runState } from "./HillClimb-run";
@@ -47,7 +47,7 @@ import type { Run, RunState } from "./HillClimb-run";
   let day = TODAY;
 
   const $ = (id: string) => document.getElementById(id);
-  const storeKey = () => "hm-" + day + "-HillClimb-" + HILLCLIMB_REVISION;
+  const storeKey = () => "hm-" + day + "-HillClimb-" + hillClimbRevision(day);
   const WELCOME_KEY = "hm-hillclimb-welcome-seen";
 
   // ---------- theme ----------
@@ -1019,7 +1019,7 @@ import type { Run, RunState } from "./HillClimb-run";
   const archiveDate = $("hcArchiveDate") as HTMLInputElement;
   function gradeOn(key: string): string {
     try {
-      const d = JSON.parse(localStorage.getItem("hm-" + key + "-HillClimb-" + HILLCLIMB_REVISION) || "null");
+      const d = JSON.parse(localStorage.getItem("hm-" + key + "-HillClimb-" + hillClimbRevision(key)) || "null");
       return d && d.stopped && typeof d.grade === "string" ? d.grade : "";
     } catch (_) { return ""; }
   }

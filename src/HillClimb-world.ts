@@ -14,9 +14,21 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-const HILLCLIMB_WORLD_REVISION = 'world-5';
-export const HILLCLIMB_REVISION = 'world-5-challenges-1';
+const RIDGE_SWITCH_DAY = '2026-09-11';
+const LEGACY_WORLD_REVISION = 'world-5';
+const RIDGE_WORLD_REVISION = 'world-9';
+const LEGACY_RUN_REVISION = 'world-5-challenges-1';
+const RIDGE_RUN_REVISION = 'world-6-challenges-1';
 const HILLCLIMB_SEED = 'HillClimb'.toLowerCase();
+
+/** Saved runs and player drops follow the terrain revision for their date. */
+export function hillClimbRevision(day: string): string {
+  return day < RIDGE_SWITCH_DAY ? LEGACY_RUN_REVISION : RIDGE_RUN_REVISION;
+}
+
+function worldRevision(day: string): string {
+  return day < RIDGE_SWITCH_DAY ? LEGACY_WORLD_REVISION : RIDGE_WORLD_REVISION;
+}
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
 // Two degrees of latitude to the row: fine enough for a coastline to have
@@ -487,7 +499,7 @@ export function climateFromHeightMap(day: string, elevation: ArrayLike<number>):
       depth[i] = clamp01(-h / deepest);
     }
   }
-  const climate = climateForTerrain(random(`${HILLCLIMB_SEED}-height-map-${HILLCLIMB_WORLD_REVISION}-${day}`), metres, depth, land);
+  const climate = climateForTerrain(random(`${HILLCLIMB_SEED}-height-map-${worldRevision(day)}-${day}`), metres, depth, land);
   return { metres, depth, land, ...climate };
 }
 
@@ -570,13 +582,18 @@ export function marchLandmark(from: number, goal: Landmark, history: number[] = 
  * point, or its move budget would only hold for one starting square.
  */
 export function generateWorld(day: string, drop = ''): World {
-  const rnd = random(HILLCLIMB_SEED + '-' + HILLCLIMB_WORLD_REVISION + '-' + day);
-  const dice = random(HILLCLIMB_SEED + '-drop-' + HILLCLIMB_REVISION + '-' + day + '-' + drop);
+  const independentRidges = day >= RIDGE_SWITCH_DAY;
+  const terrainRevision = worldRevision(day);
+  const runRevision = hillClimbRevision(day);
+  const rnd = random(HILLCLIMB_SEED + '-' + terrainRevision + '-' + day);
+  const dice = random(HILLCLIMB_SEED + '-drop-' + runRevision + '-' + day + '-' + drop);
 
   // ---- height ----
-  // One broad field decides where the continents are; a ridged field creases
-  // them into ranges, and only bites where the ground is already high, so
-  // ranges run through the middle of a landmass rather than out to sea.
+  // One broad field decides where the continents are. From 11 September 2026,
+  // a separate ridged field places ranges without favouring the already-high
+  // parts of a continent. Only the narrow shoreline fades the ridges out,
+  // avoiding a wall at the exact edge of the water while still allowing
+  // coastal ranges. Earlier maps retain their original crease-weighted relief.
   //
   // Both are read at a moved point rather than where they sit. That is the
   // warp: two more fields say how far to drag each square before reading it,
@@ -589,7 +606,7 @@ export function generateWorld(day: string, drop = ''): World {
   // stop following the coasts they belong to.
   const shape = noiseOf(rnd, 3, 7);
   const crease = noiseOf(rnd, 4, 6);
-  const drift = random(HILLCLIMB_SEED + '-warp-' + HILLCLIMB_WORLD_REVISION + '-' + day);
+  const drift = random(HILLCLIMB_SEED + '-warp-' + terrainRevision + '-' + day);
   const pushX = noiseOf(drift, WARP_SCALE, 3);
   const pushY = noiseOf(drift, WARP_SCALE, 3);
   const pushHard = noiseOf(drift, 2, 2);
@@ -621,7 +638,9 @@ export function generateWorld(day: string, drop = ''): World {
     }
     land[i] = 1;
     const above = (base[i] - sea) / Math.max(1e-6, 1 - sea);
-    const relief = clamp01(above * (0.42 + 1.5 * ridge[i]));
+    const relief = independentRidges
+      ? clamp01(0.55 * above + 0.72 * clamp01(above / 0.12) * Math.pow(ridge[i], 2.1))
+      : clamp01(above * (0.42 + 1.5 * ridge[i]));
     metres[i] = Math.round(7700 * Math.pow(relief, 1.55));
   }
 

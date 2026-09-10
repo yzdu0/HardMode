@@ -34,7 +34,7 @@
         <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of the example HillClimb world"></canvas>
           <figcaption></figcaption></figure>
         <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer doubles in frequency and halves in strength.</p>
-        <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. Its effect is strongest on ground that is already high, and that is why mountain ranges grow through the continents rather than scattering evenly across the planet.</p>
+        <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. From 11 September 2026, this field is independent of the broad continental height, so mountain ranges can appear across lowlands, beside coasts, or through the middle of continents. Its effect fades only within the narrow strip where land meets the sea, which prevents every coastline from becoming a wall. Earlier maps keep their original terrain.</p>
         <div class="atlas-eq">
           <math display="block" aria-label="Shape equals the sum from octave zero to six of two to the power minus octave times noise at that octave">
             <mi>shape</mi><mo>=</mo><munderover><mo>∑</mo><mrow><mi>o</mi><mo>=</mo><mn>0</mn></mrow><mn>6</mn></munderover><msup><mn>2</mn><mrow><mo>−</mo><mi>o</mi></mrow></msup><msub><mi>noise</mi><mi>o</mi></msub>
@@ -61,11 +61,11 @@
         <p>Every height is sorted from lowest to highest, and the lowest 67% is then flooded, which leaves roughly a third of the planet as land whatever noise values the day happens to produce.</p>
         <p>Most of what survives the flood lies low, and high ground grows steadily rarer the higher it climbs, which makes a true summit uncommon enough to be worth hunting for.</p>
         <div class="atlas-eq">
-          <math display="block" aria-label="Metres equals seven thousand seven hundred times above multiplied by zero point four two plus one point five times crease, all to the power one point five five">
-            <mi>metres</mi><mo>=</mo><mn>7700</mn><msup><mrow><mo>[</mo><mi>above</mi><mo>(</mo><mn>0.42</mn><mo>+</mo><mn>1.5</mn><mi>crease</mi><mo>)</mo><mo>]</mo></mrow><mn>1.55</mn></msup>
+          <math display="block" aria-label="Metres equals seven thousand seven hundred times zero point five five above plus zero point seven two shore times crease to the power two point one, all to the power one point five five">
+            <mi>metres</mi><mo>=</mo><mn>7700</mn><msup><mrow><mo>[</mo><mn>0.55</mn><mi>above</mi><mo>+</mo><mn>0.72</mn><mi>shore</mi><msup><mi>crease</mi><mn>2.1</mn></msup><mo>]</mo></mrow><mn>1.55</mn></msup>
           </math>
         </div>
-        <p><i>above</i> is height above sea level scaled from 0 to 1; the exponent of 1.55 is what keeps most land low while still permitting a handful of genuinely tall peaks.</p>
+        <p><i>above</i> is broad continental height above sea level scaled from 0 to 1, while <i>shore</i> rises quickly from 0 at the water&rsquo;s edge to 1 farther inland. The exponent of 2.1 concentrates the ridged field into narrow ranges, and the final exponent of 1.55 keeps high peaks rarer than low ground.</p>
 
         <h3>4. Warm and cool the coasts</h3>
         <p>Ocean currents are simplified down to a warm side and a cool side for each basin: water along one coast is warmed, water along the opposite coast is cooled, and the split matters most in the latitudes lying between the equator and the poles.</p>
