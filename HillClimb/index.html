@@ -57,7 +57,10 @@
       <section class="view" aria-label="HillClimb">
         <div class="puzzle-heading">
           <h2>HillClimb</h2>
-          <button id="hcHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="hcHelpBox">How to play</button>
+          <div class="hc-heading-actions">
+            <button id="hcSound" class="learn-btn" type="button" aria-pressed="false">Sound on</button>
+            <button id="hcHelpBtn" class="learn-btn" aria-expanded="false" aria-controls="hcHelpBox">How to play</button>
+          </div>
         </div>
         <div id="hcHelpBox" class="tutbox hidden">
           <p class="help-copy"><b>A new planet every day, and you are dropped on it blind.</b> You can see only the ground around you. Twenty-eight moves, and then the whole world is revealed and you find out what you walked past.</p>
@@ -77,6 +80,7 @@
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
           <div id="hcTip" class="hctip hidden" aria-hidden="true"></div>
+          <div id="hcToast" class="hc-toast" role="status" aria-live="polite"></div>
         </div>
         <div id="hcLayers" class="hclayers hidden" role="group" aria-label="What to show on the map"></div>
         <div id="hcScale" class="hcscale hidden" aria-hidden="true"></div>
@@ -116,11 +120,12 @@
     </footer>
   </div>
   <dialog id="hcScoreBox" class="scorebox" aria-labelledby="hcScoreN">
+    <div id="hcCelebration" class="hccelebration" aria-hidden="true"></div>
     <p class="scorebox-day" id="hcScoreDay"></p>
     <p class="scorebox-n" id="hcScoreN">0</p>
     <p class="scorebox-grade" id="hcScoreGrade"></p>
     <dl class="scorebox-rows" id="hcScoreRows"></dl>
-    <p class="scorebox-more">Up for another? <a href="../">Check out the other daily games&nbsp;&rarr;</a></p>
+    <p class="scorebox-more">HillClimb is new. <a href="https://docs.google.com/forms/d/e/1FAIpQLSc85g3I8F2oC6lUgh9V1qy-wA5UyYpBTa-cXq0bXSWPcfEZkQ/viewform" target="_blank" rel="noopener noreferrer">Share quick feedback&nbsp;&#8599;</a></p>
     <div class="row">
       <button id="hcScoreShare" class="btn">Share</button>
       <button id="hcScoreDone" class="btn primary" autofocus>Done</button>

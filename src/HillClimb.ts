@@ -71,6 +71,106 @@ import type { Run, RunState } from "./HillClimb-run";
   }
   for (const k of Object.keys(THEMES)) $(THEMES[k].id).onclick = () => setTheme(k);
 
+  // ---------- sound ----------
+  let audioContext: AudioContext = null;
+  let soundOn = true;
+  try { soundOn = localStorage.getItem("hm-hillclimb-sound") !== "off"; } catch (_) {}
+
+  function audio(): AudioContext | null {
+    if (!soundOn) return null;
+    try {
+      if (!audioContext) {
+        const Audio = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Audio) return null;
+        audioContext = new Audio();
+      }
+      if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+      return audioContext;
+    } catch (_) { return null; }
+  }
+
+  function tone(
+    from: number, to: number, duration: number, delay = 0, volume = 0.035,
+    type: OscillatorType = "sine",
+  ) {
+    const a = audio();
+    if (!a) return;
+    const began = a.currentTime + delay;
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, began);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, to), began + duration);
+    gain.gain.setValueAtTime(0.0001, began);
+    gain.gain.exponentialRampToValueAtTime(volume, began + Math.min(0.018, duration / 3));
+    gain.gain.exponentialRampToValueAtTime(0.0001, began + duration);
+    osc.connect(gain); gain.connect(a.destination);
+    osc.start(began); osc.stop(began + duration + 0.025);
+  }
+
+  function noise(duration: number, delay = 0, volume = 0.025, frequency = 650) {
+    const a = audio();
+    if (!a) return;
+    const frames = Math.max(1, Math.floor(a.sampleRate * duration));
+    const buffer = a.createBuffer(1, frames, a.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
+    const source = a.createBufferSource();
+    const filter = a.createBiquadFilter();
+    const gain = a.createGain();
+    const began = a.currentTime + delay;
+    filter.type = "lowpass"; filter.frequency.value = frequency;
+    gain.gain.setValueAtTime(volume, began);
+    gain.gain.exponentialRampToValueAtTime(0.0001, began + duration);
+    source.buffer = buffer; source.connect(filter); filter.connect(gain); gain.connect(a.destination);
+    source.start(began);
+  }
+
+  function soundMove(rise: number, water: boolean) {
+    if (water) {
+      noise(0.13, 0, 0.021, 520);
+      tone(155, 92, 0.13, 0, 0.025, "sine");
+      return;
+    }
+    tone(rise > 0 ? 145 : 125, 82, 0.09, 0, 0.026, "triangle");
+  }
+  function soundBest(rise: number) {
+    const lift = Math.min(180, Math.max(0, rise) / 7);
+    tone(285 + lift, 365 + lift, 0.12, 0.045, 0.026, "sine");
+  }
+  function soundLandmark(count: number) {
+    const lift = Math.min(160, count * 18);
+    [392, 494, 659].forEach((f, i) => tone(f + lift, f + lift, 0.16, 0.035 + i * 0.075, 0.034, "triangle"));
+  }
+  function soundReveal() {
+    [196, 247, 294, 392].forEach((f, i) => tone(f, f * 1.025, 0.3, i * 0.29, 0.027, "sine"));
+    noise(0.75, 0.2, 0.009, 1200);
+  }
+  function soundGrade(grade: string) {
+    const notes: Record<string, number[]> = {
+      D: [294, 247], C: [294, 370], B: [294, 370, 440],
+      A: [330, 415, 494, 659], S: [392, 494, 587, 784, 988],
+    };
+    (notes[grade] || notes.C).forEach((f, i) => tone(f, f, 0.24, i * 0.075, 0.038, "triangle"));
+  }
+  function updateSoundButton() {
+    const button = $("hcSound");
+    button.textContent = soundOn ? "Sound on" : "Sound off";
+    button.setAttribute("aria-pressed", String(soundOn));
+    button.setAttribute("title", soundOn ? "Mute sound effects" : "Turn on sound effects");
+  }
+  $("hcSound").onclick = () => {
+    soundOn = !soundOn;
+    try { localStorage.setItem("hm-hillclimb-sound", soundOn ? "on" : "off"); } catch (_) {}
+    updateSoundButton();
+    if (soundOn) tone(330, 440, 0.14, 0, 0.03, "sine");
+    else if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+  };
+  updateSoundButton();
+
   // ---------- run state ----------
   let world: World = null;
   let run: Run = null;
@@ -516,9 +616,21 @@ import type { Run, RunState } from "./HillClimb-run";
     const steep = Math.abs(dr) > SPLIT * Math.abs(dc);
     step(flat ? 0 : Math.sign(dr), steep ? 0 : Math.sign(dc));
   });
+  let toastTimer = 0;
+  function mapFeedback(text: string, kind: "climb" | "landmark") {
+    const toast = $("hcToast");
+    if (text) {
+      toast.textContent = text;
+      toast.classList.remove("show");
+      requestAnimationFrame(() => toast.classList.add("show"));
+      clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove("show"), kind === "landmark" ? 1500 : 950);
+    }
+  }
   function step(dr: number, dc: number) {
     if (run.stopped || now.movesLeft <= 0) return;
     const here = at();
+    const before = now;
     // The poles are the end of the map, not a wrap: a move north from the top
     // row simply runs along it rather than being refused outright.
     const r = Math.max(0, Math.min(H - 1, rowOf(here) + dr * STRIDE));
@@ -528,6 +640,16 @@ import type { Run, RunState } from "./HillClimb-run";
     run.path.push(next);
     light(next);
     settle();
+    const rise = world.metres[next] - world.metres[here];
+    soundMove(rise, !world.land[next]);
+    const found = now.found.slice(before.found.length);
+    if (found.length) {
+      soundLandmark(now.found.length);
+      mapFeedback(now.complete ? "All landmarks found" : "Landmark found: " + world.goals[found[0]].name, "landmark");
+    } else if (now.best > before.best) {
+      soundBest(now.best - before.best);
+      mapFeedback("New high: " + metresLabel(now.best), "climb");
+    }
     if (now.movesLeft <= 0) finish(true);
     else { save(); paint(); refresh(); }
   }
@@ -571,10 +693,15 @@ import type { Run, RunState } from "./HillClimb-run";
     // climb is still a climb, and the grade already says so.
     $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
     reportResult(String(now.score), fresh);
+    if (fresh) {
+      soundReveal();
+      mapFeedback("Revealing the world", "climb");
+    }
 
     // A run restored from storage is already over and has been seen; only a
     // run that ends here and now gets the reveal and the card.
-    if (!fresh || still()) { front = 1 + SOFT; paint(); refresh(); return; }
+    if (!fresh) { front = 1 + SOFT; paint(); refresh(); return; }
+    if (still()) { front = 1 + SOFT; paint(); refresh(); showScore(); return; }
     front = 0;
     paint(); refresh();
     lift(() => showScore());
@@ -613,6 +740,26 @@ import type { Run, RunState } from "./HillClimb-run";
      the run itself was twenty-eight moves of not knowing. Everything else on
      it is two lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
+  function celebrate() {
+    const box = $("hcCelebration");
+    box.innerHTML = "";
+    if (still()) return;
+    const count = ({ D: 16, C: 24, B: 34, A: 48, S: 64 } as Record<string, number>)[now.grade] || 24;
+    const colours = ["var(--accent)", "var(--good)", "#e5ad35", "var(--fg)"];
+    for (let i = 0; i < count; i++) {
+      const particle = document.createElement("i");
+      const angle = ((i * 137.5 - 94) * Math.PI) / 180;
+      const distance = 85 + (i % 7) * 13;
+      particle.style.setProperty("--x", Math.round(Math.cos(angle) * distance) + "px");
+      particle.style.setProperty("--y", Math.round(Math.sin(angle) * distance * 0.62 + 105) + "px");
+      particle.style.setProperty("--turn", (180 + (i % 5) * 105) + "deg");
+      particle.style.setProperty("--delay", ((i % 8) * 28) + "ms");
+      particle.style.setProperty("--w", (5 + (i % 4) * 2) + "px");
+      particle.style.setProperty("--h", (8 + (i % 5) * 2) + "px");
+      particle.style.setProperty("--particle", colours[i % colours.length]);
+      box.appendChild(particle);
+    }
+  }
   function showScore() {
     $("hcScoreDay").textContent = "HillClimb, " + longLabel(day);
     // The arithmetic, so the number that just counted up can be read back off
@@ -623,13 +770,28 @@ import type { Run, RunState } from "./HillClimb-run";
     ] as [string, string, string][]).map(([k, v, n]) =>
       "<dt>" + k + "</dt><dd>" + v + "</dd><dd class='scorebox-pts'>" + n + "</dd>").join("");
     $("hcScoreGrade").textContent = "Grade " + now.grade;
-    scoreBox.classList.remove("settled");
+    scoreBox.dataset.grade = now.grade;
+    scoreBox.classList.remove("settled", "arriving");
     $("hcScoreN").textContent = still() ? String(now.score) : "0";
     if (typeof scoreBox.showModal === "function" && !scoreBox.open) scoreBox.showModal();
-    if (still()) { scoreBox.classList.add("settled"); return; }
-    ease(1200,
-      (p) => { $("hcScoreN").textContent = String(Math.round(p * now.score)); },
-      () => scoreBox.classList.add("settled"));   // the grade and the rows land
+    void scoreBox.offsetWidth;
+    scoreBox.classList.add("arriving");
+    celebrate();
+    if (still()) { scoreBox.classList.add("settled"); soundGrade(now.grade); return; }
+    let lastTick = -1;
+    ease(1600,
+      (p) => {
+        $("hcScoreN").textContent = String(Math.round(p * now.score));
+        const tick = Math.floor(p * 9);
+        if (tick > lastTick) {
+          lastTick = tick;
+          tone(220 + tick * 19, 225 + tick * 19, 0.045, 0, 0.012, "square");
+        }
+      },
+      () => {
+        scoreBox.classList.add("settled");
+        soundGrade(now.grade);
+      });
   }
   $("hcScoreDone").onclick = () => scoreBox.close();
   $("hcScoreShare").onclick = () => { scoreBox.close(); $("hcShare").click(); };
