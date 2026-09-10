@@ -14,7 +14,8 @@
  * can reason about where the mountains are before they see them, which is the
  * whole game. */
 
-export const HILLCLIMB_REVISION = 'world-5';
+const HILLCLIMB_WORLD_REVISION = 'world-5';
+export const HILLCLIMB_REVISION = 'world-5-challenges-1';
 const HILLCLIMB_SEED = 'HillClimb'.toLowerCase();
 
 // The world is a cylinder: east and west wrap, north and south are the poles.
@@ -138,13 +139,14 @@ export const stepTo = (from: number, dr: number, dc: number) =>
  * straight-line figure never predicted. Costing the chain by actually walking
  * it is the only way the budget and the board agree.
  */
-export function march(from: number, cells: Set<number>): { cost: number; at: number } {
+export function march(from: number, cells: Set<number>): { cost: number; at: number; path: number[] } {
   let target = from, best = Infinity;
   for (const cell of cells) {
     const d = movesBetween(from, cell);
     if (d < best) { best = d; target = cell; }
   }
   let at = from, cost = 0;
+  const path = [from];
   while (!touching(cells, at) && cost <= MOVES * 2) {
     let dc = colOf(target) - colOf(at);
     if (dc > W / 2) dc -= W;
@@ -156,9 +158,10 @@ export function march(from: number, cells: Set<number>): { cost: number; at: num
     const next = stepTo(at, Math.abs(dr) <= TOUCH ? 0 : Math.sign(dr), Math.abs(dc) <= TOUCH ? 0 : Math.sign(dc));
     if (next === at) break;
     at = next;
+    path.push(at);
     cost++;
   }
-  return { cost, at };
+  return { cost, at, path };
 }
 
 /** How many moves to the nearest part of a landmark. Never the distance to its
@@ -484,7 +487,7 @@ export function climateFromHeightMap(day: string, elevation: ArrayLike<number>):
       depth[i] = clamp01(-h / deepest);
     }
   }
-  const climate = climateForTerrain(random(`${HILLCLIMB_SEED}-height-map-${HILLCLIMB_REVISION}-${day}`), metres, depth, land);
+  const climate = climateForTerrain(random(`${HILLCLIMB_SEED}-height-map-${HILLCLIMB_WORLD_REVISION}-${day}`), metres, depth, land);
   return { metres, depth, land, ...climate };
 }
 
@@ -500,15 +503,59 @@ export interface World {
   summitM: number;
   spawn: number;
   goals: Landmark[];         // the day's pool, in the order it comes on offer
-  rungs: number;             // how many of them the budget is built to allow
+  rungs: number;             // number of optional challenges in today's ladder
 }
 
 export interface Landmark {
   id: string;
-  name: string;      // "an archipelago"
-  hint: string;      // one line of guidance, shown when the rung is offered
+  name: string;
+  hint: string;      // explains what counts without revealing where to go
   cells: Set<number>;
   centre: number;
+  regions?: Set<number>[]; // distinct places that can count towards the challenge
+  required?: number;       // how many distinct regions must be visited
+}
+
+export interface LandmarkProgress {
+  visited: number;
+  required: number;
+  complete: boolean;
+}
+
+/** Progress is counted by distinct regions, not by the number of squares
+ * crossed inside one region. Older and test landmarks without `regions` keep
+ * the original single-destination behaviour. */
+export function landmarkProgress(goal: Landmark, path: number[]): LandmarkProgress {
+  const regions = goal.regions?.length ? goal.regions : [goal.cells];
+  const required = Math.min(goal.required ?? 1, regions.length);
+  let visited = 0;
+  for (const region of regions) {
+    if (path.some(stop => touching(region, stop))) visited++;
+  }
+  return { visited, required, complete: visited >= required };
+}
+
+/** A deterministic greedy walk through enough distinct regions to complete a
+ * challenge. This is used to order the daily challenge list and by tests, not
+ * to promise that the player can clear it inside the move budget. */
+export function marchLandmark(from: number, goal: Landmark, history: number[] = [from]) {
+  const regions = goal.regions?.length ? goal.regions : [goal.cells];
+  const required = Math.min(goal.required ?? 1, regions.length);
+  const path = history.length ? [...history] : [from];
+  let at = from, cost = 0;
+  const reached = () => regions.map(region => path.some(stop => touching(region, stop)));
+  while (reached().filter(Boolean).length < required) {
+    const done = reached();
+    const options = regions
+      .map((region, i) => ({ region, i, trip: march(at, region) }))
+      .filter(option => !done[option.i]);
+    if (!options.length) break;
+    const chosen = options.reduce((a, b) => b.trip.cost < a.trip.cost ? b : a);
+    path.push(...chosen.trip.path.slice(1));
+    at = chosen.trip.at;
+    cost += chosen.trip.cost;
+  }
+  return { cost, at, path };
 }
 
 /**
@@ -523,7 +570,7 @@ export interface Landmark {
  * point, or its move budget would only hold for one starting square.
  */
 export function generateWorld(day: string, drop = ''): World {
-  const rnd = random(HILLCLIMB_SEED + '-' + HILLCLIMB_REVISION + '-' + day);
+  const rnd = random(HILLCLIMB_SEED + '-' + HILLCLIMB_WORLD_REVISION + '-' + day);
   const dice = random(HILLCLIMB_SEED + '-drop-' + HILLCLIMB_REVISION + '-' + day + '-' + drop);
 
   // ---- height ----
@@ -542,7 +589,7 @@ export function generateWorld(day: string, drop = ''): World {
   // stop following the coasts they belong to.
   const shape = noiseOf(rnd, 3, 7);
   const crease = noiseOf(rnd, 4, 6);
-  const drift = random(HILLCLIMB_SEED + '-warp-' + HILLCLIMB_REVISION + '-' + day);
+  const drift = random(HILLCLIMB_SEED + '-warp-' + HILLCLIMB_WORLD_REVISION + '-' + day);
   const pushX = noiseOf(drift, WARP_SCALE, 3);
   const pushY = noiseOf(drift, WARP_SCALE, 3);
   const pushHard = noiseOf(drift, 2, 2);
@@ -652,39 +699,42 @@ interface Terrain {
   summit: number; summitM: number;
 }
 
-type Candidate = { id: string; name: string; hint: string; cells: number[] };
+type Candidate = {
+  id: string;
+  name: string;
+  hint: string;
+  cells: number[];
+  regions: number[][];
+  required: number;
+};
 
 /**
  * The landmarks this planet has to offer, one entry per kind.
  *
- * Every entry holds *every* instance of its kind on the world, not the nearest
- * or the largest one. A player standing in boreal forest has reached the boreal
- * forest, and it should not matter which patch of it they are standing in; the
- * same goes for a desert, an archipelago or an inland sea. Distances are then
- * measured to the nearest square of the union, so the goal is always the
- * closest instance without the player having to be told which one.
+ * Most entries are multi-place challenges. Their regions stay separate so
+ * revisiting one patch does not count as exploring two, while `cells` keeps a
+ * union for map outlines and broad distance checks.
  */
 function candidates(t: Terrain): Candidate[] {
   const found: Candidate[] = [];
   const landComps = components(i => t.land[i] === 1);
   const seaComps = components(i => t.land[i] === 0);
 
-  /** Every square of these biomes, if the planet has enough of them between
-   *  them to be worth naming. A scatter of three squares is not a desert. */
-  const belt = (ids: number[], min: number): number[] | null => {
-    const cells: number[] = [];
-    for (let i = 0; i < W * H; i++) if (t.land[i] && ids.includes(t.biome[i])) cells.push(i);
-    return cells.length >= min ? cells : null;
-  };
-  const add = (id: string, name: string, hint: string, cells: number[] | null) => {
-    if (cells && cells.length) found.push({ id, name, hint, cells });
+  const patches = (ids: number[], min: number) =>
+    components(i => t.land[i] === 1 && ids.includes(t.biome[i])).filter(group => group.length >= min);
+  const add = (id: string, name: string, hint: string, regions: number[][], required = 1) => {
+    if (regions.length >= required) found.push({ id, name, hint, regions, required, cells: regions.flat() });
   };
 
-  // Archipelagos: every cluster of three or more small islands sitting close
-  // together, all of them counting as the same find.
+  const continents = landComps.filter(group => group.length >= 120);
+  add('continents', 'visit 3 continents',
+    'Three separate large landmasses count. Small islands do not.', continents, 3);
+
+  // An archipelago challenge keeps its islands separate, so landing on three
+  // of them is meaningfully different from reaching the nearest cluster.
   const isles = landComps.filter(g => g.length <= ISLE_MAX);
   const used = new Set<number>();
-  const archipelago: number[] = [];
+  const archipelago: number[][] = [];
   for (let a = 0; a < isles.length; a++) {
     if (used.has(a)) continue;
     const group = [a];
@@ -696,48 +746,72 @@ function candidates(t: Terrain): Candidate[] {
     }
     if (group.length >= 3) {
       group.forEach(g => used.add(g));
-      archipelago.push(...group.flatMap(g => isles[g]));
+      archipelago.push(...group.map(g => isles[g]));
     }
   }
-  add('archipelago', 'an archipelago',
-    'Three or more small islands within sight of each other. Look offshore, never inland.', archipelago);
+  add('archipelago', 'land on 3 islands',
+    'Three separate islands in an archipelago count. Returning to one island does not.', archipelago, 3);
 
   // Inland seas: any water with no way out to the ocean.
   const openSea = seaComps.reduce((a, b) => (b.length > a.length ? b : a), [] as number[]);
-  add('inlandsea', 'an inland sea',
-    'Water with no way out to the ocean. It will be ringed by land on every side.',
-    seaComps.filter(g => g !== openSea && g.length >= 12).flat());
+  add('inlandsea', 'find an inland sea',
+    'Reach a body of water that is fully enclosed by land.',
+    seaComps.filter(g => g !== openSea && g.length >= 12));
 
   // Volcanic islands: small, and far taller than an island that size should be.
-  const volcanic: number[] = [];
+  const volcanic: number[][] = [];
   for (const g of landComps) {
     if (g.length > 70) continue;
     let peak = 0;
     for (const i of g) if (t.metres[i] > peak) peak = t.metres[i];
     if (peak < 1900) continue;
-    volcanic.push(...g.filter(i => t.metres[i] >= peak * 0.55));
+    volcanic.push(g.filter(i => t.metres[i] >= peak * 0.55));
   }
-  add('volcano', 'a volcanic island',
-    'One island on its own, rising far more steeply than its size suggests.', volcanic);
+  add('volcano', 'climb a volcanic island',
+    'Reach the high ground of a small, steep island.', volcanic);
 
-  add('desert', 'a desert',
-    'Under the subtropical highs, a quarter of the way to the pole, or in the dry lee of a range.',
-    belt([B.desert], 120));
-  add('rainforest', 'a rainforest',
-    'On the equator, where the trade winds meet, or on any coast the wind hits first.',
-    belt([B.rainforest], 90));
-  add('range', 'a mountain range',
-    'Bare rock and snow above the treeline. Once you are on high ground, stay on it.',
-    belt([B.alpine, B.snowline], 40));
-  add('icecap', 'the ice cap',
-    'Straight for a pole, either one. The cold is not the problem; the distance is.',
-    belt([B.icecap], 60));
-  add('taiga', 'boreal forest',
-    'The cold forest belt, between the tundra and the temperate ground below it.',
-    belt([B.taiga], 140));
-  add('savannah', 'a savannah',
-    'Between the rainforest and the desert: hot ground with a wet season and a dry one.',
-    belt([B.savannah], 120));
+  // Peninsula tips have nearby water in at least three cardinal directions,
+  // but must belong to a substantial landmass rather than an ordinary island.
+  const mainland = new Uint8Array(W * H);
+  for (const group of continents) for (const i of group) mainland[i] = 1;
+  const peninsulaCells = new Set<number>();
+  const waterWithin = (r: number, c: number, dr: number, dc: number) => {
+    for (let d = 2; d <= 7; d++) {
+      const rr = r + dr * d;
+      if (rr < 0 || rr >= H) return false;
+      if (!t.land[idx(rr, wrapC(c + dc * d))]) return true;
+    }
+    return false;
+  };
+  for (let r = 1; r < H - 1; r++) for (let c = 0; c < W; c++) {
+    const i = idx(r, c);
+    if (!mainland[i]) continue;
+    const wetSides = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+      .filter(([dr, dc]) => waterWithin(r, c, dr, dc)).length;
+    if (wetSides >= 3) peninsulaCells.add(i);
+  }
+  add('peninsula', 'reach a peninsula',
+    'Reach a narrow piece of a continent with sea on three sides.',
+    components(i => peninsulaCells.has(i)).filter(group => group.length >= 2));
+
+  add('jungles', 'visit 2 jungles',
+    'Two separate rainforest regions count. Crossing the same jungle twice does not.',
+    patches([B.rainforest], 18), 2);
+  add('deserts', 'visit 2 deserts',
+    'Two separate desert regions count. Each must be large enough to be more than a dry patch.',
+    patches([B.desert], 24), 2);
+  add('ranges', 'cross 2 mountain ranges',
+    'Two separate regions of alpine rock or snow count.',
+    patches([B.alpine, B.snowline], 20), 2);
+  add('icecaps', 'reach both ice caps',
+    'The northern and southern land ice count separately.',
+    patches([B.icecap], 24), 2);
+  add('taigas', 'visit 2 boreal forests',
+    'Two separate regions of cold forest count.',
+    patches([B.taiga], 24), 2);
+  add('savannahs', 'visit 2 savannahs',
+    'Two separate regions of savannah count.',
+    patches([B.savannah], 24), 2);
   return found;
 }
 
@@ -805,13 +879,14 @@ function pickSpawn(
   return pool[Math.floor(rnd() * pool.length)];
 }
 
-// How much a feature is worth asking for. The ice cap is on every world and
-// sits in the one place nobody has to search for, so it is the last resort;
-// an archipelago or a lone volcano is the day worth playing.
+// Rare geographic features are favoured when they exist. Common biome
+// challenges still fill out the daily choice, but no longer amount to touching
+// the nearest square of a biome that covers half a latitude band.
 const GOAL_WEIGHT: Record<string, number> = {
-  archipelago: 6, volcano: 6, inlandsea: 5, range: 4,
-  desert: 3, rainforest: 3, savannah: 2, taiga: 2, icecap: 1,
+  continents: 8, peninsula: 8, archipelago: 7, volcano: 7, inlandsea: 6,
+  jungles: 4, deserts: 4, ranges: 4, icecaps: 3, savannahs: 3, taigas: 3,
 };
+const MAX_CHALLENGES = 7;
 
 /** The summit as a landmark of last resort, for a world so bare that nothing
  *  else on it is worth naming. */
@@ -832,50 +907,33 @@ function summitGoal(summit: number): Landmark {
 /**
  * The day's landmarks, in the order they come on offer.
  *
- * They are chained nearest-ish first, each a fair walk on from the one before,
- * and every one a different kind of feature — kinds are drawn by weight, so an
- * archipelago comes up long before the ice cap does. Two of the chain are live
- * at any moment, which is what makes the order a decision: the near one now,
- * or the far one while there are still moves to spend on it.
- *
- * `rungs` is how far down the chain the move budget actually reaches, and it
- * is what a day is scored out of. The pool runs a little past it so there is
- * always a second option standing behind the first.
+ * They are chained roughly nearest first, but are not guaranteed to fit into
+ * 28 moves. These are difficult optional bonuses, and a full sweep is meant to
+ * be exceptional. Two are live at a time, so the player still chooses which
+ * challenge is worth pursuing without receiving a list of map locations.
  */
 function pickGoals(
   rnd: () => number, marks: Candidate[], spawn: number, summit: number,
 ): { goals: Landmark[]; rungs: number } {
-  // candidates() already returns one entry per kind, holding every instance of
-  // it on the planet, so there is nothing to choose between here.
-  const left: Landmark[] = marks.map(c => ({ ...c, cells: new Set(c.cells), centre: centreOf(c.cells) }));
+  const left: Landmark[] = marks.map(c => ({
+    ...c,
+    cells: new Set(c.cells),
+    regions: c.regions.map(region => new Set(region)),
+    centre: centreOf(c.cells),
+  }));
   if (!left.length) return { goals: [summitGoal(summit)], rungs: 1 };
 
   const ladder: Landmark[] = [];
   let from = spawn;
-  let spent = 0;
-  let rungs = 0;
-  while (left.length) {
-    // Costed by walking at each of them from where the last leg actually
-    // finished, so the budget is a route somebody could really take.
-    const trip = new Map<Landmark, { cost: number; at: number }>(left.map(g => [g, march(from, g.cells)]));
+  let history = [spawn];
+  while (left.length && ladder.length < MAX_CHALLENGES) {
+    const trip = new Map<Landmark, ReturnType<typeof marchLandmark>>(
+      left.map(g => [g, marchLandmark(from, g, history)]),
+    );
     const reach = (g: Landmark) => trip.get(g).cost;
-    // What the budget reaches is what the day is scored out of: a chain nobody
-    // could finish even by spending every move on it would be scored out of a
-    // number no one can hit. Which also fixes what the top is worth — clearing
-    // it means the whole budget went on landmarks and none of it on climbing.
-    let affordable = left.filter(g => spent + reach(g) <= MOVES);
-    if (affordable.length) rungs = ladder.length + 1;
-    // Past the budget, the chain carries on nearest-first anyway: those entries
-    // are the ones standing behind the pair on offer, so the choice never thins
-    // to a single option.
-    if (!affordable.length) affordable = [left.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
-    // A rung far enough to be a walk, near enough to leave room for another.
-    // Under MIN_LEG it is not a walk at all, so those are dropped rather than
-    // fallen back to; only a world with nothing else left will offer one, and
-    // that beats offering nothing.
-    const worth = affordable.filter(g => reach(g) >= MIN_LEG);
-    const usable = worth.length ? worth : affordable;
-    const fair = usable.filter(g => reach(g) >= 4 && reach(g) <= 11);
+    const worth = left.filter(g => reach(g) >= MIN_LEG);
+    const usable = worth.length ? worth : left;
+    const fair = usable.filter(g => reach(g) >= 4 && reach(g) <= 18);
     const pool = fair.length ? fair : [usable.reduce((a, b) => (reach(b) < reach(a) ? b : a))];
     const weights = pool.map(g => GOAL_WEIGHT[g.id] ?? 2);
     let roll = rnd() * weights.reduce((a, b) => a + b, 0);
@@ -883,12 +941,11 @@ function pickGoals(
     for (let i = 0; i < pool.length; i++) { roll -= weights[i]; if (roll < 0) { chosen = pool[i]; break; } }
     ladder.push(chosen);
     left.splice(left.indexOf(chosen), 1);
-    spent += reach(chosen);
-    from = trip.get(chosen).at;      // where that walk actually finishes
+    const walked = trip.get(chosen);
+    from = walked.at;
+    history = walked.path;
   }
-  // A rung has to have a full pair standing behind it, or the last one on the
-  // list would be offered on its own.
-  return { goals: ladder, rungs: Math.max(1, Math.min(rungs, ladder.length - LIVE + 1)) };
+  return { goals: ladder, rungs: ladder.length };
 }
 
 /** What a rung is worth, and what the whole ladder is worth. Later rungs count

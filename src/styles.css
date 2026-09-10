@@ -1317,6 +1317,14 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
   border-radius: 3px;
 }
 .hcgoal.on { color: var(--good-fg); }
+.hcgoal small {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font-size: 10px;
+  font-weight: 800;
+}
 .hcgoal.on::before {
   content: "✓";
   display: grid;

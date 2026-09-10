@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   generateWorld, components, centreOf, windDir, windName, movesBetween, dxWrap,
-  BIOMES, B, W, H, MOVES, STRIDE, SIGHT, LIVE, goalValue, ladderValue, march,
+  BIOMES, B, W, H, STRIDE, SIGHT, LIVE, goalValue, ladderValue,
   idx, rowOf, colOf, latOf,
 } from '../src/HillClimb-world.ts';
 
@@ -143,20 +143,12 @@ test('the landmark ladder is not capped at four', () => {
   assert.ok(worlds.some(w => w.rungs > 4), 'no sampled day offered more than four landmarks');
 });
 
-test('the rungs a day is scored out of fit inside one budget', () => {
-  for (const w of worlds) {
-    // Rung by rung from the drop, walked rather than measured in straight
-    // lines: a player who spent every move on landmarks and nothing else could
-    // finish them. The pool past `rungs` is deliberately out of reach; it is
-    // only there so the pair on offer never thins to one.
-    let moves = 0, from = w.spawn;
-    for (const g of w.goals.slice(0, w.rungs)) {
-      const trip = march(from, g.cells);
-      moves += trip.cost;
-      from = trip.at;
-    }
-    assert.ok(moves <= MOVES, w.day + ' needs ' + moves + ' moves for ' + w.rungs + ' rungs');
-  }
+test('most daily landmarks are multi-place challenges', () => {
+  const goals = worlds.flatMap(w => w.goals);
+  const multi = goals.filter(g => (g.required || 1) > 1);
+  assert.ok(multi.length >= goals.length * 0.65,
+    'only ' + multi.length + ' of ' + goals.length + ' challenges require multiple places');
+  assert.ok(worlds.every(w => w.goals.length <= 7), 'a daily challenge list is too cluttered');
 });
 
 test('later rungs are worth more, and the ladder adds up', () => {

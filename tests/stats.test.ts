@@ -38,10 +38,10 @@ test('every game accepts exactly its own buckets and no others', () => {
 });
 
 test('HillClimb stores exact scores rather than grades', () => {
-  for (const bucket of ['0', '1', '55', '115', '235']) {
+  for (const bucket of ['0', '1', '55', '115', '235', '240']) {
     assert(readResult(ok({ game: 'HillClimb', bucket }), TODAY).row, 'score ' + bucket + ' should be accepted');
   }
-  for (const bucket of ['S', 'A', '-1', '01', '236', '999', '55.5']) {
+  for (const bucket of ['S', 'A', '-1', '01', '241', '999', '55.5']) {
     assert.equal(readResult(ok({ game: 'HillClimb', bucket }), TODAY).row, undefined,
       bucket + ' is not an exact valid score');
   }

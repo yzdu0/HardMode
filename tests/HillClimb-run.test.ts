@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateWorld, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC, B } from '../src/HillClimb-world.ts';
+import { generateWorld, landmarkProgress, marchLandmark, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC } from '../src/HillClimb-world.ts';
 import { newRun, runState, touching, touchedOrder, livePair, gradeFor, gradeSquares } from '../src/HillClimb-run.ts';
 import type { Run } from '../src/HillClimb-run.ts';
 import type { World } from '../src/HillClimb-world.ts';
@@ -51,6 +51,14 @@ function walkTo(run: Run, cells: Set<number>, budget = MOVES) {
   return touching(cells, run.path[run.path.length - 1]);
 }
 
+/** Follow the generator's deterministic route through enough distinct regions
+ * to complete a whole challenge. */
+function walkChallenge(run: Run, goal: World['goals'][number], budget = MOVES) {
+  const trip = marchLandmark(run.path[run.path.length - 1], goal, run.path);
+  run.path = trip.path.slice(0, budget + 1);
+  return landmarkProgress(goal, run.path).complete;
+}
+
 test('a move is a whole stride, so every landmark must be landable beside', () => {
   // The squares a walk can stop on sit on a lattice STRIDE apart. A tolerance
   // below half a stride leaves landmarks no route can ever reach — which is
@@ -66,25 +74,21 @@ test('a move is a whole stride, so every landmark must be landable beside', () =
   }
 });
 
-test('the day is scored out of a number the budget can actually reach', () => {
-  // Every drop, not just one: the planet is the same for everybody but the
-  // landing is not, and each landing gets its own chain, so each chain has to
-  // fit its own budget. Taking them in the order they come on offer clears it.
+test('daily challenges are allowed to run beyond the move budget', () => {
+  let demanding = 0;
   for (const day of SAMPLE) for (const drop of ['', 'aaaaaa', 'bbbbbb', 'cccccc', 'dddddd']) {
     const w = generateWorld(day, drop);
-    assert.ok(w.rungs >= 1 && w.rungs <= w.goals.length);
-    const run = newRun(w, drop);
-    let got = 0;
-    for (const goal of w.goals.slice(0, w.rungs)) {
-      if (!walkTo(run, goal.cells, MOVES)) break;
-      got++;
+    assert.equal(w.rungs, w.goals.length);
+    let history = [w.spawn], from = w.spawn, cost = 0;
+    for (const goal of w.goals) {
+      const trip = marchLandmark(from, goal, history);
+      cost += trip.cost;
+      from = trip.at;
+      history = trip.path;
     }
-    assert.equal(got, w.rungs,
-      day + '/' + drop + ': only ' + got + ' of ' + w.rungs + ' rungs in ' + MOVES + ' moves');
-    // Brushing one of the pool's deeper entries on the way is a bonus, not a
-    // bug: the landmark bonus simply tops out.
-    assert.ok(runState(w, run).found.length >= w.rungs);
+    if (cost > MOVES) demanding++;
   }
+  assert.ok(demanding >= SAMPLE.length * 3, 'too many daily ladders still fit inside 28 moves');
 });
 
 test("the planet is the day's, and the drop is the player's", () => {
@@ -104,28 +108,17 @@ test("the planet is the day's, and the drop is the player's", () => {
   assert.equal(generateWorld('2026-09-09', 'aaaaaa').spawn, drops[0].spawn);
 });
 
-test('always taking the nearer of the two is almost always right', () => {
-  // Almost, and deliberately not always: if the near one were unconditionally
-  // correct there would be no decision in the pair. But a day where the
-  // obvious route cannot clear the rungs has to be the rare one.
-  let cleared = 0;
-  const sample = days(90);
-  for (const day of sample) {
-    const w = generateWorld(day);
-    const run = newRun(w);
-    let found = runState(w, run).found;
-    while (found.length < w.rungs) {
-      const live = livePair(w, new Set(found));
-      if (!live.length) break;
-      const here = run.path[run.path.length - 1];
-      const near = live.reduce((a, b) => (movesTo(here, w.goals[b].cells) < movesTo(here, w.goals[a].cells) ? b : a));
-      if (!walkTo(run, w.goals[near].cells, MOVES)) break;
-      found = runState(w, run).found;
-    }
-    if (found.length >= w.rungs) cleared++;
-  }
-  assert.ok(cleared >= sample.length * 0.85,
-    'the near option cleared the day only ' + cleared + ' times in ' + sample.length);
+test('multi-place challenges need distinct regions', () => {
+  const w = worlds.find(world => world.goals.some(goal => (goal.required || 1) > 1));
+  const goal = w.goals.find(item => (item.required || 1) > 1);
+  const first = goal.regions[0];
+  const run = newRun(w);
+  assert.ok(walkTo(run, first, MOVES * 8));
+  const partial = landmarkProgress(goal, run.path);
+  assert.equal(partial.visited, 1);
+  assert.equal(partial.complete, false);
+  assert.ok(walkChallenge(run, goal, MOVES * 8));
+  assert.ok(landmarkProgress(goal, run.path).complete);
 });
 
 test('exactly two landmarks are on offer, all the way down', () => {
@@ -133,9 +126,9 @@ test('exactly two landmarks are on offer, all the way down', () => {
     const had = new Set<number>();
     // Every day must be able to offer a full pair for each of its rungs; only
     // the very tail of the pool is allowed to thin out.
-    for (let n = 0; n < w.rungs; n++) {
-      assert.equal(livePair(w, had).length, LIVE,
-        w.day + ': only ' + livePair(w, had).length + ' on offer at rung ' + (n + 1));
+    for (let n = 0; n < w.goals.length; n++) {
+      assert.equal(livePair(w, had).length, Math.min(LIVE, w.goals.length - n),
+        w.day + ': wrong number on offer at challenge ' + (n + 1));
       had.add(livePair(w, had)[0]);
     }
   }
@@ -174,33 +167,17 @@ test('a newly unlocked landmark counts if it was visited earlier', () => {
   assert.deepEqual(touchedOrder(w, [w.spawn, locked, unlocksIt]), [0, 2]);
 });
 
-test('any instance of a landmark counts, not one chosen patch of it', () => {
-  // The bug this pins: a landmark used to be a single connected patch, so a
-  // player standing in boreal forest could be told they had not found the
-  // boreal forest because it was a different patch of it.
-  const named: [string, number[]][] = [
-    ['desert', [B.desert]],
-    ['rainforest', [B.rainforest]],
-    ['taiga', [B.taiga]],
-    ['savannah', [B.savannah]],
-    ['icecap', [B.icecap]],
-    ['range', [B.alpine, B.snowline]],
-  ];
+test('challenge regions stay distinct and their union is outlined', () => {
   let checked = 0;
   for (const w of worlds) {
-    for (const [id, biomes] of named) {
-      const goal = w.goals.find(g => g.id === id);
-      if (!goal) continue;
+    for (const goal of w.goals) {
+      if (!goal.regions || goal.regions.length < 2) continue;
       checked++;
-      for (let i = 0; i < W * H; i++) {
-        if (w.land[i] && biomes.includes(w.biome[i])) {
-          assert.ok(goal.cells.has(i),
-            w.day + ': a square of ' + goal.name + ' at ' + rowOf(i) + ',' + colOf(i) + ' is not part of it');
-        }
-      }
+      assert.ok(goal.required >= 1 && goal.required <= goal.regions.length);
+      for (const region of goal.regions) for (const i of region) assert.ok(goal.cells.has(i));
     }
   }
-  assert.ok(checked > 40, 'only checked ' + checked + ' landmarks');
+  assert.ok(checked > 80, 'only checked ' + checked + ' multi-place challenges');
 });
 
 test('a landmark kind is offered once, holding all of itself', () => {
@@ -211,25 +188,25 @@ test('a landmark kind is offered once, holding all of itself', () => {
 
 test('no landmark is underfoot at the drop', () => {
   for (const w of worlds) {
-    // A find you are standing on is not a find. Every rung has to be a walk.
-    assert.ok(movesTo(w.spawn, w.goals[0].cells) >= 3,
-      w.day + ': ' + w.goals[0].name + ' is on the doorstep');
+    // A starting continent may count as progress, but it must never complete
+    // the first challenge before the player has moved.
+    assert.equal(landmarkProgress(w.goals[0], [w.spawn]).complete, false,
+      w.day + ': ' + w.goals[0].name + ' was complete at the drop');
   }
 });
 
-test('the ice cap counts at whichever pole you walk to', () => {
+test('both ice caps are required when that challenge appears', () => {
   let checked = 0;
   for (const w of worlds) {
-    const cap = w.goals.find(g => g.id === 'icecap');
+    const cap = w.goals.find(g => g.id === 'icecaps');
     if (!cap) continue;
     checked++;
-    // Whatever ice cap the day has, all of it belongs to the goal — so the
-    // nearest ice on the planet is never ice that fails to count.
-    for (let i = 0; i < W * H; i++) {
-      if (w.biome[i] === B.icecap) assert.ok(cap.cells.has(i), w.day + ': ice cap square left out of the goal');
-    }
-    const run = newRun(w);
-    assert.ok(walkTo(run, cap.cells, MOVES * 8), w.day + ': could not reach the ice cap');
+    assert.equal(cap.required, 2);
+    assert.ok(cap.regions.length >= 2);
+    const one = [cap.regions[0].values().next().value];
+    assert.equal(landmarkProgress(cap, one).complete, false);
+    const both = [cap.regions[0].values().next().value, cap.regions[1].values().next().value];
+    assert.equal(landmarkProgress(cap, both).complete, true);
   }
   assert.ok(checked > 2, 'not enough ice cap days in the sample');
 });
@@ -254,7 +231,7 @@ test('either of the two on offer may be taken first, and the pair refills', () =
   const w = worlds.find(x => x.goals.length >= 3 && x.rungs >= 2);
   for (const first of [0, 1]) {
     const run = newRun(w);
-    assert.ok(walkTo(run, w.goals[first].cells, MOVES * 8));
+    assert.ok(walkChallenge(run, w.goals[first], MOVES * 8));
     const now = runState(w, run);
     // Either one can be gone after, and the walk always ends up holding it.
     // Not necessarily holding it *first*: a landmark covers every instance of
@@ -322,7 +299,7 @@ test('score rises with every landmark, and a full sweep tops the bonus', () => {
     for (let g = 0; g < n; g++) walkTo(run, w.goals[g].cells, MOVES);
     paid.push(runState(w, run).landmarkBonus);
   }
-  assert.deepEqual(paid, [0, 3, 9, 18, 30], 'landmarks should add +3, +6, +9, +12');
+  assert.deepEqual(paid, [0, 5, 15, 30, 50], 'challenges should add +5, +10, +15, +20');
   for (let i = 2; i < paid.length; i++) {
     assert.ok(paid[i] - paid[i - 1] > paid[i - 1] - paid[i - 2],
       'landmark ' + i + ' paid no more than the one before');

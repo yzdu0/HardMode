@@ -7,7 +7,7 @@
  * is tested. This file draws it. */
 import {
   generateWorld, BIOMES, W, H, MOVES, STRIDE, SIGHT, HILLCLIMB_REVISION,
-  idx, rowOf, colOf, wrapC, latOf, windName, windDir,
+  idx, rowOf, colOf, wrapC, latOf, windName, windDir, landmarkProgress,
 } from "./HillClimb-world";
 import { gradeSquares, newRun, runState } from "./HillClimb-run";
 import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
@@ -141,6 +141,11 @@ import type { Run, RunState } from "./HillClimb-run";
   function soundLandmark(count: number) {
     const lift = Math.min(160, count * 18);
     [392, 494, 659].forEach((f, i) => tone(f + lift, f + lift, 0.16, 0.035 + i * 0.075, 0.034, "triangle"));
+  }
+  function soundChallengeProgress(count: number) {
+    const lift = Math.min(140, count * 35);
+    tone(310 + lift, 390 + lift, 0.13, 0.025, 0.026, "sine");
+    tone(390 + lift, 465 + lift, 0.12, 0.11, 0.022, "triangle");
   }
   function soundReveal() {
     [196, 247, 294, 392].forEach((f, i) => tone(f, f * 1.025, 0.3, i * 0.29, 0.027, "sine"));
@@ -576,16 +581,20 @@ import type { Run, RunState } from "./HillClimb-run";
       "<div class='hcscore" + (run.stopped ? " bare" : "") + "'>" +
         "<div class='hcscore-peak'><span>Highest so far</span><strong>" + metresLabel(now.best) + "</strong></div>" +
         (listed.length
-          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmarks (Bonus): " +
-            now.found.length + " of " + world.goals.length + " found</span>" +
-            "<ul class='hcgoals'>" + listed.map(g =>
-              "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + "</li>").join("") +
+          ? "<div class='hcscore-marks'><span class='hcbrief-sub'>Landmark challenges (Bonus): " +
+            now.found.length + " of " + world.goals.length + " complete</span>" +
+            "<ul class='hcgoals'>" + listed.map(g => {
+              const progress = landmarkProgress(world.goals[g], run.path);
+              const count = !held.has(g) && progress.required > 1
+                ? "<small>" + progress.visited + "/" + progress.required + "</small>" : "";
+              return "<li class='hcgoal" + (held.has(g) ? " on" : "") + "'>" + world.goals[g].name + count + "</li>";
+            }).join("") +
             "</ul></div>"
           : "") +
       "</div>" +
       (run.stopped || !now.live.length ? "" :
         "<button id='hcWhere' class='linkbtn' aria-expanded='" + hintsOpen + "' aria-controls='hcWhereBox'>" +
-        (hintsOpen ? "Hide where to look" : "Where to look") + "</button>" +
+        (hintsOpen ? "Hide challenge details" : "Challenge details") + "</button>" +
         "<div id='hcWhereBox' class='kindbox" + (hintsOpen ? "" : " hidden") + "'>" +
         now.live.map(g => "<p><b>" + world.goals[g].name + ":</b> " + world.goals[g].hint + "</p>").join("") +
         "</div>");
@@ -634,6 +643,7 @@ import type { Run, RunState } from "./HillClimb-run";
     if (run.stopped || now.movesLeft <= 0) return;
     const here = at();
     const before = now;
+    const progressBefore = new Map(before.live.map(g => [g, landmarkProgress(world.goals[g], run.path).visited]));
     // The poles are the end of the map, not a wrap: a move north from the top
     // row simply runs along it rather than being refused outright.
     const r = Math.max(0, Math.min(H - 1, rowOf(here) + dr * STRIDE));
@@ -648,10 +658,17 @@ import type { Run, RunState } from "./HillClimb-run";
     const found = now.found.slice(before.found.length);
     if (found.length) {
       soundLandmark(now.found.length);
-      mapFeedback(now.complete ? "All landmarks found" : "Landmark found: " + world.goals[found[0]].name, "landmark");
-    } else if (now.best > before.best) {
+      mapFeedback(now.complete ? "All challenges complete" : "Challenge complete: " + world.goals[found[0]].name, "landmark");
+    } else {
+      const advanced = before.live.map(g => ({ g, progress: landmarkProgress(world.goals[g], run.path) }))
+        .find(({ g, progress }) => progress.visited > (progressBefore.get(g) || 0));
+      if (advanced) {
+        soundChallengeProgress(advanced.progress.visited);
+        mapFeedback(world.goals[advanced.g].name + ": " + advanced.progress.visited + " of " + advanced.progress.required, "landmark");
+      } else if (now.best > before.best) {
       soundBest(now.best - before.best);
       mapFeedback("New high: " + metresLabel(now.best), "climb");
+      }
     }
     if (now.movesLeft <= 0) finish(true);
     else { save(); paint(); refresh(); }
@@ -678,7 +695,7 @@ import type { Run, RunState } from "./HillClimb-run";
     if (share >= 0.95) return "You stood on the roof of the world.";
     if (share >= 0.75) return "A serious summit. The true peak was barely above you.";
     if (share >= 0.5) return "Halfway up the planet. The high ground was further in than it looked.";
-    if (share >= 0.25) return found ? "The budget went on the landmarks, and the mountains kept theirs." : "Low ground all the way. Next time follow the rising land rather than the coast.";
+    if (share >= 0.25) return found ? "The budget went on the challenges, and the mountains kept theirs." : "Low ground all the way. Next time follow the rising land rather than the coast.";
     return "Barely off the beach. The ranges sit inland; the coast will not take you up.";
   }
   function finish(fresh: boolean) {
@@ -690,7 +707,7 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcMsg").innerHTML =
       "<b>" + now.score + ", grade " + now.grade + "</b>. " + now.climb + " for " + metresLabel(now.best) +
       " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
-      now.found.length + " of " + world.goals.length + " landmark" + (world.goals.length === 1 ? "" : "s") + ". " +
+      now.found.length + " of " + world.goals.length + " challenge" + (world.goals.length === 1 ? "" : "s") + ". " +
       verdict(now.peakShare, now.found.length > 0);
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
@@ -794,7 +811,7 @@ import type { Run, RunState } from "./HillClimb-run";
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
       ["Climb", metresLabel(now.best) + " of " + metresLabel(world.summitM), String(now.climb)],
-      ["Landmarks", now.found.length + " of " + world.goals.length, "+" + now.landmarkBonus],
+      ["Challenges", now.found.length + " of " + world.goals.length, "+" + now.landmarkBonus],
     ] as [string, string, string][]).map(([k, v, n]) =>
       "<dt>" + k + "</dt><dd>" + v + "</dd><dd class='scorebox-pts'>" + n + "</dd>").join("");
     $("hcScoreGrade").textContent = "Grade " + now.grade;
@@ -971,7 +988,7 @@ import type { Run, RunState } from "./HillClimb-run";
       "HillClimb " + day + "\n" +
       now.score + " " + gradeSquares(now.grade) + "\n" +
       "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + ", " + now.climb + "\n" +
-      "🧭 " + now.found.length + "/" + world.goals.length + " landmarks, +" + now.landmarkBonus + "\n" +
+      "🧭 " + now.found.length + "/" + world.goals.length + " challenges, +" + now.landmarkBonus + "\n" +
       location.href.split("#")[0].split("?")[0]);
   };
 

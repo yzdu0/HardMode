@@ -8,7 +8,7 @@
  * Nothing is stored but where the walk has been. Everything below is derived
  * from that and the world, so a restored run and a live one cannot drift
  * apart. */
-import { LIVE, MOVES, ladderValue, touching } from "./HillClimb-world.ts";
+import { LIVE, MOVES, ladderValue, landmarkProgress, touching } from "./HillClimb-world.ts";
 import type { World } from "./HillClimb-world.ts";
 
 export interface Run {
@@ -45,7 +45,7 @@ export function touchedOrder(world: World, path: number[]): number[] {
   for (const stop of path) {
     visited.push(stop);
     for (;;) {
-      const g = livePair(world, had).find(i => visited.some(at => touching(world.goals[i].cells, at)));
+      const g = livePair(world, had).find(i => landmarkProgress(world.goals[i], visited).complete);
       if (g === undefined) break;
       had.add(g);
       order.push(g);
@@ -58,7 +58,7 @@ export function touchedOrder(world: World, path: number[]): number[] {
 /* What the bonuses are worth. The nth landmark reached pays n times the first:
    chasing the chain is the part of a day you actually choose, and it should
    pay like it. */
-export const LANDMARK_POINT = 3;
+export const LANDMARK_POINT = 5;
 export const gradeFor = (score: number) =>
   score >= 140 ? "S" : score >= 120 ? "A" : score >= 90 ? "B" : score >= 60 ? "C" : "D";
 
