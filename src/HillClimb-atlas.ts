@@ -5,8 +5,9 @@
  * step of the pipeline is also drawn from a real world: one fixed date, the
  * same code the game runs, four views of what it produced. */
 import { generateWorld, BIOMES, W, H } from "./HillClimb-world";
-import { pixelsFor } from "./HillClimb-layers";
+import { pixelsFor, hex } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
+import { earthBiomes } from "./HillClimb-earth";
 
 (function () {
   "use strict";
@@ -24,8 +25,8 @@ import type { Layer } from "./HillClimb-layers";
   const world = generateWorld(day);
   const dark = ["dark", "terminal"].includes(document.body.dataset.theme || "");
 
-  /** One layer, drawn at one pixel a square and scaled up crisp. */
-  function draw(id: string, layer: Layer) {
+  /** A grid of RGB triples, drawn at one pixel a square and scaled up crisp. */
+  function blit(id: string, pixels: Uint8ClampedArray) {
     const canvas = $(id) as HTMLCanvasElement;
     if (!canvas) return;
     const wide = canvas.parentElement.clientWidth || 640;
@@ -34,7 +35,6 @@ import type { Layer } from "./HillClimb-layers";
     canvas.width = Math.round(wide * dpr);
     canvas.height = Math.round(((wide * H) / W) * dpr);
 
-    const pixels = pixelsFor(world, layer, dark);
     const tile = document.createElement("canvas");
     tile.width = W; tile.height = H;
     const tc = tile.getContext("2d");
@@ -51,11 +51,27 @@ import type { Layer } from "./HillClimb-layers";
     ctx.drawImage(tile, 0, 0, canvas.width, canvas.height);
   }
 
+  const draw = (id: string, layer: Layer) => blit(id, pixelsFor(world, layer, dark));
+
+  /* The footnote. Biome colour flat, with none of the relief shading the
+     playing map gets: the point is the belts, not the ground. */
+  const earth = earthBiomes();
+  function drawEarth() {
+    const pixels = new Uint8ClampedArray(W * H * 3);
+    for (let i = 0; i < W * H; i++) {
+      const def = BIOMES[earth[i]];
+      const [r, g, b] = hex(dark ? def.dark : def.colour);
+      pixels[i * 3] = r; pixels[i * 3 + 1] = g; pixels[i * 3 + 2] = b;
+    }
+    blit("atlasEarth", pixels);
+  }
+
   function drawAll() {
     draw("atlasHeight", "height");
     draw("atlasTemp", "temp");
     draw("atlasRain", "rain");
     draw("atlasBiome", "biome");
+    drawEarth();
   }
   drawAll();
 

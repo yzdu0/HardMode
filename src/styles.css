@@ -1526,6 +1526,14 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
 .atlas-table td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .atlas-table td:first-child { white-space: nowrap; color: var(--muted); }
 
+/* The Earth footnote. Quieter and narrower than the page it hangs off: it is a
+   sanity check on the generator, not another step of it, so it is sized to be
+   read after the argument rather than inside it. */
+.atlas-note { margin: 30px 0 0; padding-top: 16px; border-top: 1px solid var(--line); max-width: 40em; }
+.atlas-note h4 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: -.01em; }
+.atlas-note .atlas-fig { max-width: 26em; }
+.atlas-note p { font-size: 13.5px !important; color: var(--muted); }
+
 /* What the finished map is showing. A row of quiet toggles under it, and for
    the layers that are numbers rather than names, the ramp itself with its two
    ends labelled: a temperature map cannot be read without one. */

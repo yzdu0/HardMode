@@ -33,7 +33,7 @@
         <h3>1. Shape the land</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of the example HillClimb world"></canvas>
           <figcaption></figcaption></figure>
-        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Because each new layer carries half the strength of the one before it, detail accumulates without ever disturbing the broad continental shapes.</p>
+        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer halves in frequency.</p>
         <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. Its effect is strongest on ground that is already high, and that is why mountain ranges grow through the continents rather than scattering evenly across the planet.</p>
         <div class="atlas-eq">
           <math display="block" aria-label="Shape equals the sum from octave zero to six of two to the power minus octave times noise at that octave">
@@ -46,8 +46,8 @@
         <p>Here <i>o</i> is the octave number: each octave doubles the frequency, halving the width of the features it draws, while the 2<sup>−<i>o</i></sup> term halves how much it contributes.</p>
 
         <h3>2. Domain warping</h3>
-        <p>Domain warping is function composition applied to noise: instead of reading the height field at a square&rsquo;s own coordinates, the game reads it at coordinates that other noise fields have already moved, so one field is evaluated at a point another field chose. Three further fields set the direction and the strength of that shift from place to place.</p>
-        <p>The results are easy to spot once you know to look for them. Straight coastlines buckle, headlands stretch out into the water, and some coasts shatter into island chains; now and then the same displacement closes a ring of land around open water and leaves an inland sea behind.</p>
+        <p>Domain warping is function composition applied to noise. Instead of reading the height field at a square&rsquo;s own coordinates, the game reads it at coordinates that other noise fields have already moved, so one field is evaluated at a point another field chose. Three further fields set the direction and the strength of that shift from place to place.</p>
+        <p></p>
         <div class="atlas-eq">
           <math display="block" aria-label="Height at row and column equals shape read at the shifted row and column">
             <mi>h</mi><mo>(</mo><mi>r</mi><mo>,</mo><mi>c</mi><mo>)</mo><mo>=</mo><mi>shape</mi><mo>(</mo><mi>r</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>y</mi></msub><mo>,</mo><mi>c</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>x</mi></msub><mo>)</mo>
@@ -56,7 +56,7 @@
             <mi>k</mi><mo>=</mo><mn>40</mn><mo>(</mo><mn>0.25</mn><mo>+</mo><mn>0.75</mn><mi>a</mi><mo>)</mo>
           </math>
         </div>
-        <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are the horizontal and vertical displacement fields, and the broader field <i>a</i> decides how strongly any given area is warped.</p>
+        <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are the horizontal and vertical displacement fields. The variable <i>a</i> is also a (low frequency) noise field that decides how strongly any given area is warped.</p>
 
         <h3>3. Add the sea</h3>
         <p>Every height is sorted from lowest to highest, and the lowest 67% is then flooded, which leaves roughly a third of the planet as land whatever noise values the day happens to produce.</p>
@@ -126,6 +126,12 @@
         <h3>8. Pick landmarks and a starting point</h3>
         <p>Landmarks are found by reading the finished map back for recognisable features; e.g. archipelagos, inland seas, volcanic islands, deserts, rainforests, mountain ranges, and ice caps.</p>
         <p>The planet is the same for everyone, but the starting point comes from a value stored in your browser. The game picks a start that sits neither hard against the summit nor impossibly far from it, then checks the route to make sure the intended landmark journey still fits inside the 28 available moves.</p>
+
+        <div class="atlas-note">
+          <h4>Footnote: sanity check by running these rules on Earth</h4>
+          <figure class="atlas-fig"><canvas id="atlasEarth" role="img" aria-label="Earth's biomes as drawn by HillClimb's own generator from real elevation data"></canvas>
+          <p>Swap step 1 and 2 (heightmap generation) for NOAA&rsquo;s measured elevations for Earth, and then run the biome generator. The result is pretty decent!</p>
+        </div>
       </section>
     </main>
 
