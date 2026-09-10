@@ -740,6 +740,27 @@ import type { Run, RunState } from "./HillClimb-run";
      the run itself was twenty-eight moves of not knowing. Everything else on
      it is two lines and two buttons. */
   const scoreBox = $("hcScoreBox") as HTMLDialogElement;
+  let nextMapTimer = 0;
+  let nextMapAt = 0;
+  function updateNextMapCountdown() {
+    const minutes = Math.max(0, Math.ceil((nextMapAt - Date.now()) / 60000));
+    if (!minutes) {
+      $("hcNextMap").textContent = "The next map is ready";
+      return;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    $("hcNextMap").textContent = "Next map in " +
+      (hours ? hours + " hr" + (hours === 1 ? "" : "s") + (mins ? " " : "") : "") +
+      (mins ? mins + " min" : "");
+  }
+  function startNextMapCountdown() {
+    clearInterval(nextMapTimer);
+    const now = new Date();
+    nextMapAt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    updateNextMapCountdown();
+    nextMapTimer = window.setInterval(updateNextMapCountdown, 30000);
+  }
   function celebrate() {
     const box = $("hcCelebration");
     box.innerHTML = "";
@@ -762,6 +783,7 @@ import type { Run, RunState } from "./HillClimb-run";
   }
   function showScore() {
     $("hcScoreDay").textContent = "HillClimb, " + longLabel(day);
+    startNextMapCountdown();
     // The arithmetic, so the number that just counted up can be read back off
     // the card: the climb, and what was picked up on the way to it.
     $("hcScoreRows").innerHTML = ([
@@ -796,6 +818,7 @@ import type { Run, RunState } from "./HillClimb-run";
   $("hcScoreDone").onclick = () => scoreBox.close();
   $("hcScoreShare").onclick = () => { scoreBox.close(); $("hcShare").click(); };
   scoreBox.addEventListener("pointerdown", (e) => { if (e.target === scoreBox) scoreBox.close(); });
+  scoreBox.addEventListener("close", () => clearInterval(nextMapTimer));
 
   $("hcStop").onclick = () => { if (!run.stopped) finish(true); };
   // Clearing the day's record is what mints a new drop: start() takes its seed

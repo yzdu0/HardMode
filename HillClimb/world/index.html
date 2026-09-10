@@ -33,7 +33,7 @@
         <h3>1. Shape the land</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of the example HillClimb world"></canvas>
           <figcaption></figcaption></figure>
-        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer halves in frequency.</p>
+        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer doubles in frequency and halves in strength.</p>
         <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. Its effect is strongest on ground that is already high, and that is why mountain ranges grow through the continents rather than scattering evenly across the planet.</p>
         <div class="atlas-eq">
           <math display="block" aria-label="Shape equals the sum from octave zero to six of two to the power minus octave times noise at that octave">
@@ -46,8 +46,7 @@
         <p>Here <i>o</i> is the octave number: each octave doubles the frequency, halving the width of the features it draws, while the 2<sup>−<i>o</i></sup> term halves how much it contributes.</p>
 
         <h3>2. Domain warping</h3>
-        <p>Domain warping is function composition applied to noise. Instead of reading the height field at a square&rsquo;s own coordinates, the game reads it at coordinates that other noise fields have already moved, so one field is evaluated at a point another field chose. Three further fields set the direction and the strength of that shift from place to place.</p>
-        <p></p>
+        <p>Domain warping is the function composition of noise fields. Instead of reading the height field at a square&rsquo;s own coordinates, the game first passes those coordinates through displacement noise, then feeds the displaced result into the height noise; in other words, one noise function supplies part of the input to another. Three further fields set the direction and strength of that shift from place to place.</p>
         <div class="atlas-eq">
           <math display="block" aria-label="Height at row and column equals shape read at the shifted row and column">
             <mi>h</mi><mo>(</mo><mi>r</mi><mo>,</mo><mi>c</mi><mo>)</mo><mo>=</mo><mi>shape</mi><mo>(</mo><mi>r</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>y</mi></msub><mo>,</mo><mi>c</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>x</mi></msub><mo>)</mo>
