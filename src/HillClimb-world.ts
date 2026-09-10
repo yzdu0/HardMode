@@ -66,7 +66,7 @@ const COLD = 6;
    the drag itself varies. The last matters most. A drag that changes more
    slowly than the terrain only slides continents about; it is the drag varying
    faster than what it moves that folds a coast back on itself. */
-const WARP_PUSH = 40;
+const WARP_PUSH = 20;
 const WARP_FLOOR = 0;
 const WARP_SCALE = 8;
 const TERRAIN_FREQUENCY = 1.5;
