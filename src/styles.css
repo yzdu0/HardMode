@@ -1510,14 +1510,17 @@ a.learn-btn { display: inline-flex; align-items: center; gap: 6px; text-decorati
    family as the rest of the site, only spaced out and centred, because a
    formula is read as a unit rather than as a line of prose. */
 .atlas-eq {
-  margin: 0 0 12px !important;
+  margin: 0 0 12px;
   padding: 9px 12px;
   border-radius: 10px;
   background: var(--raised);
   text-align: center;
   font-size: 14px;
   line-height: 1.7;
+  overflow-x: auto;
 }
+.atlas-eq math { margin: 0 auto; min-width: max-content; font-size: 1.05em; }
+.atlas-eq math + math { margin-top: 5px; }
 .atlas-table { width: 100%; max-width: 40em; border-collapse: collapse; margin: 0 0 12px; font-size: 13.5px; }
 .atlas-table th { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .atlas-table td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }

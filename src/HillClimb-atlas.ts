@@ -18,7 +18,8 @@ import type { Layer } from "./HillClimb-layers";
   })();
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [y, m, dd] = day.split("-").map(Number);
-  $("atlasDay").textContent = dd + " " + months[m - 1] + " " + y;
+  const atlasDay = $("atlasDay");
+  if (atlasDay) atlasDay.textContent = "Maps for " + dd + " " + months[m - 1] + " " + y;
 
   const world = generateWorld(day);
   const dark = ["dark", "terminal"].includes(document.body.dataset.theme || "");

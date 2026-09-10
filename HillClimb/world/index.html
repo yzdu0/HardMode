@@ -27,68 +27,105 @@
           <a class="learn-btn" href="../">Back to HillClimb</a>
         </div>
 
-        <p class="help-copy">The map is a 160&nbsp;&times;&nbsp;92 grid on a cylinder: east and west wrap, north and south are the poles. Row <i>r</i> has latitude 90&nbsp;&minus;&nbsp;180(<i>r</i>&nbsp;+&nbsp;0.5)/92. Everything below is computed from the date alone, in this order. Nothing is placed by hand; the biomes are whatever the temperature and rainfall come to.</p>
+        <p class="help-copy">Each day&rsquo;s date becomes the seed, a number that makes every later random choice repeatable, so everyone receives the same planet for that date. The map contains 160 by 92 squares; its left and right edges join together, while its top and bottom edges form the poles.</p>
+        <p id="atlasDay" class="atlas-day"></p>
 
-        <h3>1. Height</h3>
-        <figure class="atlas-fig"><canvas id="atlasHeight"></canvas>
-          <figcaption>Heightmap generated from noise</figcaption></figure>
-        <p>Firstly, two fields of layered value noise, each a sum of octaves at halving amplitude:</p>
-        <p class="atlas-eq"><i>shape</i> = &Sigma;<sub><i>o</i>=0..6</sub> 2<sup>&minus;<i>o</i></sup> &middot; noise<sub><i>o</i></sub> &nbsp;&nbsp;&nbsp; <i>crease</i> = &Sigma;<sub><i>o</i>=0..5</sub> 2<sup>&minus;<i>o</i></sup> &middot; (1 &minus; |2&thinsp;noise<sub><i>o</i></sub> &minus; 1|)</p>
-        <p><i>shape</i> gives rounded continents. <i>crease</i> is the same noise folded about its midpoint, which produces ridge lines rather than blobs; it is later multiplied by height above sea level, so it only bites where the ground is already high.</p>
-        <p>Each octave&rsquo;s lattice is periodic east&ndash;west, so the seam is invisible, and carries a random vertical offset.</p>
+        <h3>1. Shape the land</h3>
+        <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of today's HillClimb world"></canvas>
+          <figcaption>Dark water, low green land, and pale high ground.</figcaption></figure>
+        <p>The game begins with layered value noise, a smooth random field similar to Perlin noise: large, low-frequency layers make continents, while smaller, high-frequency layers add bays, islands, valleys, and mountain passes. Each new layer has half the strength of the one before it, which preserves the broad continental shapes while adding finer detail.</p>
+        <p>A second field uses ridged noise, which folds each smooth noise value around its midpoint and turns rounded blobs into long creases. Because this field has its strongest effect on land that is already high, mountain ranges grow through continents instead of appearing evenly across the planet.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Shape equals the sum from octave zero to six of two to the power minus octave times noise at that octave">
+            <mi>shape</mi><mo>=</mo><munderover><mo>∑</mo><mrow><mi>o</mi><mo>=</mo><mn>0</mn></mrow><mn>6</mn></munderover><msup><mn>2</mn><mrow><mo>−</mo><mi>o</mi></mrow></msup><msub><mi>noise</mi><mi>o</mi></msub>
+          </math>
+          <math display="block" aria-label="Crease equals the sum from octave zero to five of two to the power minus octave times one minus the absolute value of twice noise minus one">
+            <mi>crease</mi><mo>=</mo><munderover><mo>∑</mo><mrow><mi>o</mi><mo>=</mo><mn>0</mn></mrow><mn>5</mn></munderover><msup><mn>2</mn><mrow><mo>−</mo><mi>o</mi></mrow></msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mo>|</mo><mn>2</mn><msub><mi>noise</mi><mi>o</mi></msub><mo>−</mo><mn>1</mn><mo>|</mo><mo>)</mo></mrow>
+          </math>
+        </div>
+        <p>Here, <i>o</i> is the octave number; each octave doubles the frequency, making its features half as wide, while the 2<sup>−<i>o</i></sup> term halves its strength.</p>
 
         <h3>2. Domain warping</h3>
-        <p>When genereating the height at a given coordinate, a displacement is also considered, which warps the heightmap:</p>
-        <p class="atlas-eq"><i>h</i>(<i>r</i>,&thinsp;<i>c</i>) = <i>shape</i>(<i>r</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>y</sub></i>,&nbsp; <i>c</i> + <i>k</i>&thinsp;&middot;&thinsp;<i>d<sub>x</sub></i>) &nbsp;&nbsp; where <i>k</i> = 40&thinsp;(0.25 + 0.75&thinsp;<i>a</i>)</p>
-        <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are two more noise fields in the range &plusmn;0.5, and <i>a</i> is a third, very broad one that varies how hard the displacement pulls from place to place.</p>
-        <p>The displacement fields use a tighter lattice than the terrain they displace. That is what makes the difference: a displacement varying more slowly than the terrain would only translate continents, while one varying faster folds the field over itself. Measured effect, holding land area fixed: small islands roughly double, and the landmarks that depend on them stop being rare &mdash; archipelagos appear on 49 days in 80 rather than 30, inland seas on 57 rather than 40, volcanic islands at all.</p>
+        <p>Domain warping means shifting the coordinates before reading the height field, with three more noise fields controlling the direction and strength of that shift across the planet.</p>
+        <p>As the coordinates move, straight coastlines bend, headlands stretch outward, and some coasts break into island chains; occasionally the same process encloses a body of water and creates an inland sea.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Height at row and column equals shape read at the shifted row and column">
+            <mi>h</mi><mo>(</mo><mi>r</mi><mo>,</mo><mi>c</mi><mo>)</mo><mo>=</mo><mi>shape</mi><mo>(</mo><mi>r</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>y</mi></msub><mo>,</mo><mi>c</mi><mo>+</mo><mi>k</mi><msub><mi>d</mi><mi>x</mi></msub><mo>)</mo>
+          </math>
+          <math display="block" aria-label="Shift strength k equals forty times zero point two five plus zero point seven five times a">
+            <mi>k</mi><mo>=</mo><mn>40</mn><mo>(</mo><mn>0.25</mn><mo>+</mo><mn>0.75</mn><mi>a</mi><mo>)</mo>
+          </math>
+        </div>
+        <p><i>d<sub>x</sub></i> and <i>d<sub>y</sub></i> are the horizontal and vertical displacement fields, while the broader field <i>a</i> controls how strongly each area is warped.</p>
 
-        <h3>3. Sea level</h3>
-        <p>Sea level is the 67th percentile of <i>h</i>, so land is 33% of every planet regardless of what the noise did. Height above it is scaled to metres by</p>
-        <p class="atlas-eq">metres = 7700 &middot; (<i>above</i> &middot; (0.42 + 1.5&thinsp;&middot;&thinsp;<i>crease</i>))<sup>1.55</sup></p>
-        <p>with <i>above</i> the height above sea level normalised to 0&ndash;1. The exponent concentrates the high ground: most land is low, and summits are rare.</p>
+        <h3>3. Add the sea</h3>
+        <p>After sorting every height from lowest to highest, the game turns the lowest 67% into water, leaving about one third of the planet as land regardless of the exact noise values generated that day.</p>
+        <p>Most of the remaining land stays fairly low, and high ground becomes steadily less common as it rises, making a true summit rare enough to be worth searching for.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Metres equals seven thousand seven hundred times above multiplied by zero point four two plus one point five times crease, all to the power one point five five">
+            <mi>metres</mi><mo>=</mo><mn>7700</mn><msup><mrow><mo>[</mo><mi>above</mi><mo>(</mo><mn>0.42</mn><mo>+</mo><mn>1.5</mn><mi>crease</mi><mo>)</mo><mo>]</mo></mrow><mn>1.55</mn></msup>
+          </math>
+        </div>
+        <p><i>above</i> is the height above sea level scaled from 0 to 1, and raising the result to the power of 1.55 keeps most land low while still allowing a few tall peaks.</p>
 
-        <h3>4. Ocean currents</h3>
-        <p>Each sea square measures the distance to land to its east (<i>e</i>) and west (<i>w</i>) and takes a temperature offset</p>
-        <p class="atlas-eq">&Delta;<i>T</i> = 6.5 &middot; exp(&minus;((|lat| &minus; 38)/24)<sup>2</sup>) &middot; (<i>e</i> &minus; <i>w</i>)/(<i>e</i> + <i>w</i>)</p>
-        <p>Sea against a western shore is on the poleward-flowing side of its basin and runs warm; sea against an eastern shore runs cold. The Gaussian confines the effect to the mid-latitudes, where the real gyres are. Nothing rotates; the coasts simply end up on the correct sides.</p>
+        <h3>4. Warm and cool the coasts</h3>
+        <p>Ocean currents are simplified into a warm side and a cool side for each basin: water near one coast becomes warmer, water near the opposite coast becomes cooler, and the effect is strongest between the equator and the poles.</p>
+        <p>Because nearby land inherits some of that warmth or cold, two coasts at the same latitude can develop noticeably different climates.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Current temperature change equals six point five times a latitude factor times east distance minus west distance divided by their sum">
+            <mi>ΔT</mi><mo>=</mo><mn>6.5</mn><msup><mi>e</mi><mrow><mo>−</mo><msup><mrow><mo>(</mo><mfrac><mrow><mo>|</mo><mi>lat</mi><mo>|</mo><mo>−</mo><mn>38</mn></mrow><mn>24</mn></mfrac><mo>)</mo></mrow><mn>2</mn></msup></mrow></msup><mfrac><mrow><mi>east</mi><mo>−</mo><mi>west</mi></mrow><mrow><mi>east</mi><mo>+</mo><mi>west</mi></mrow></mfrac>
+          </math>
+        </div>
+        <p>The fraction compares the distance to land on each side, while the exponential term makes the current effect fade towards the equator and the poles.</p>
 
-        <h3>5. Temperature</h3>
-        <figure class="atlas-fig"><canvas id="atlasTemp"></canvas>
-          <figcaption>Annual mean temperature.</figcaption></figure>
-        <p class="atlas-eq"><i>T</i> = 33 &minus; 54&thinsp;(|lat*|/90)<sup>1.8</sup> &minus; 6.3&thinsp;&middot;&thinsp;<i>upland</i>/1000 + &Delta;<i>T</i><sub>coast</sub> + noise</p>
-        <p>33&thinsp;&deg;C at the equator falling to &minus;21&thinsp;&deg;C at the poles, minus a lapse rate of 6.3&thinsp;&deg;C per kilometre. <i>upland</i> is elevation averaged over a nine-square radius, not the square&rsquo;s own height: climate responds to the height of a region, and using raw height made every crinkle in a warped coastline its own climate. Land within seven squares downwind of sea takes a share of that sea&rsquo;s current offset, falling off with distance.</p>
-        <p>lat* is latitude displaced by up to &plusmn;9.5&deg; by a broad noise field. Without it every climate band would change along the same row and the planet would come out in stripes.</p>
+        <h3>5. Set the temperature</h3>
+        <figure class="atlas-fig"><canvas id="atlasTemp" role="img" aria-label="Temperature map of today's HillClimb world"></canvas>
+          <figcaption>Blue is cold, pale colours are mild, and red is hot.</figcaption></figure>
+        <p>The equator starts near 33°C and the poles near minus 21°C, with mountains losing about 6.3°C for every kilometre of height.</p>
+        <p>A broad, gentle noise field then bends the temperature bands north and south; without this wobble, every climate would change along the same perfectly straight line.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Temperature equals thirty three minus a latitude cooling term, minus six point three times upland height in kilometres, plus the coastal current change and noise">
+            <mi>T</mi><mo>=</mo><mn>33</mn><mo>−</mo><mn>54</mn><msup><mrow><mo>(</mo><mfrac><mrow><mo>|</mo><mi>latitude</mi><mo>|</mo></mrow><mn>90</mn></mfrac><mo>)</mo></mrow><mn>1.8</mn></msup><mo>−</mo><mn>6.3</mn><mfrac><mi>upland</mi><mn>1000</mn></mfrac><mo>+</mo><msub><mi>ΔT</mi><mi>coast</mi></msub><mo>+</mo><mi>noise</mi>
+          </math>
+        </div>
+        <p><i>upland</i> is the average height of nearby land in metres, rather than the height of one square, so whole mountain regions receive a colder climate without producing a sharp temperature jump at every peak.</p>
 
-        <h3>6. Wind and rain</h3>
-        <figure class="atlas-fig"><canvas id="atlasRain"></canvas>
-          <figcaption>Rainfall over land, driest to wettest.</figcaption></figure>
-        <p>Wind direction is set by latitude: westward below 30&deg; (trade winds), eastward from 30&deg; to 60&deg; (westerlies), westward above 60&deg; (polar easterlies). A parcel of air with water content <i>m</i> traverses each row twice in that direction, so it arrives at the seam already loaded. Per square:</p>
-        <p class="atlas-eq">over sea: &nbsp; <i>m</i> &larr; <i>m</i> + (1 &minus; <i>m</i>)(0.10 + 0.010&thinsp;<i>T</i>)</p>
-        <p class="atlas-eq">over land: &nbsp; <i>m</i> &larr; 0.988&thinsp;&middot;&thinsp;<i>m</i>&thinsp;(1 &minus; min(1, 0.07 + 0.42&thinsp;&Delta;<i>z</i>))</p>
-        <p>&Delta;<i>z</i> is the climb in kilometres from the previous square. The 0.42 term is the whole of orography: rain falls on the windward slope, and the air that crosses the crest has less left. Recorded rainfall is <i>m</i> scaled by a zonal factor &mdash; wet where the trades converge on the equator, dry under the subtropical highs near 27&deg;, wet again in the mid-latitude storm belt near 50&deg;, dry over the poles.</p>
+        <h3>6. Move wind and rain</h3>
+        <figure class="atlas-fig"><canvas id="atlasRain" role="img" aria-label="Rainfall map of today's HillClimb world"></canvas>
+          <figcaption>Pale land is dry and dark green land is wet.</figcaption></figure>
+        <p>Wind changes direction with latitude, blowing west near the equator, east through the middle latitudes, and west again near the poles.</p>
+        <p>As air crosses the sea it gathers water, then releases some of that moisture when it reaches land. Rising ground squeezes out even more rain, which often leaves the windward face of a mountain wet and the far side dry beneath a rain shadow.</p>
+        <p>The equator and middle latitudes receive extra rain, whereas the bands near 27° north and south are naturally drier and therefore produce many of the planet&rsquo;s deserts.</p>
+        <div class="atlas-eq">
+          <math display="block" aria-label="Over sea, moisture becomes moisture plus the unused moisture capacity times zero point one plus zero point zero one times temperature">
+            <mtext>over sea:</mtext><mspace width="0.8em"></mspace><mi>m</mi><mo>←</mo><mi>m</mi><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>m</mi><mo>)</mo><mo>(</mo><mn>0.10</mn><mo>+</mo><mn>0.010</mn><mi>T</mi><mo>)</mo>
+          </math>
+          <math display="block" aria-label="Over land, moisture becomes zero point nine eight eight times moisture times one minus the smaller of one and zero point zero seven plus zero point four two times the rise in height">
+            <mtext>over land:</mtext><mspace width="0.8em"></mspace><mi>m</mi><mo>←</mo><mn>0.988</mn><mi>m</mi><mo>[</mo><mn>1</mn><mo>−</mo><mi>min</mi><mo>(</mo><mn>1</mn><mo>,</mo><mn>0.07</mn><mo>+</mo><mn>0.42</mn><mi>Δz</mi><mo>)</mo><mo>]</mo>
+          </math>
+        </div>
+        <p><i>m</i> is the moisture carried by the air, and <i>Δz</i> is the rise in ground height since the previous square, measured in kilometres.</p>
 
-        <h3>7. Biomes</h3>
-        <figure class="atlas-fig"><canvas id="atlasBiome"></canvas>
-          <figcaption></figcaption></figure>
-        <p>Rainfall is averaged over a three-square radius, then converted to a rank between 0 and 1 &mdash; separately for land above 6&thinsp;&deg;C and land below it. The split matters. Cold air carries little water, so cold ground is dry ground; ranked against the whole world, the polar half of the land occupies the bottom of the scale and the warm half is never dry enough to be desert. Ranked apart, <i>dry</i> means dry for that temperature, and the proportions come out close to Earth&rsquo;s: deserts about 16% of land, permanent ice about 15%.</p>
-        <p>Each land square then takes the first rule that matches, with <i>T</i> in &deg;C, <i>z</i> in metres and <i>m</i> the rainfall rank:</p>
+        <h3>7. Choose the biomes</h3>
+        <figure class="atlas-fig"><canvas id="atlasBiome" role="img" aria-label="Biome map of today's HillClimb world"></canvas>
+          <figcaption>Temperature, rain, height, and water depth decide every colour.</figcaption></figure>
+        <p>Once temperature and rainfall have been calculated, the game compares each square with a set of biome thresholds. Forests and deserts are never placed by hand; they appear wherever the local combination of heat, moisture, height, and water depth suits them.</p>
         <table class="atlas-table">
-          <tr><th>condition</th><th>biome</th></tr>
-          <tr><td><i>T</i> &le; &minus;11 and <i>z</i> &ge; 1400</td><td>snowfield</td></tr>
-          <tr><td><i>T</i> &le; 0.5 and <i>z</i> &ge; 900</td><td>bare mountain</td></tr>
-          <tr><td><i>T</i> &le; &minus;12</td><td>ice cap</td></tr>
-          <tr><td><i>T</i> &le; &minus;2</td><td>tundra</td></tr>
-          <tr><td><i>T</i> &le; 6</td><td><i>m</i> &ge; 0.42 boreal forest, else tundra</td></tr>
-          <tr><td><i>T</i> &le; 19</td><td><i>m</i> &ge; 0.62 forest, &ge; 0.42 grassland, &ge; 0.24 shrubland, else desert</td></tr>
-          <tr><td>otherwise</td><td><i>m</i> &ge; 0.70 rainforest, &ge; 0.52 seasonal forest, &ge; 0.30 savannah, else desert</td></tr>
+          <tr><th>Conditions</th><th>Likely biome</th></tr>
+          <tr><td>Very cold land</td><td>ice cap or tundra</td></tr>
+          <tr><td>Cold, high land</td><td>bare mountain or snowfield</td></tr>
+          <tr><td>Cold, wetter land</td><td>boreal forest</td></tr>
+          <tr><td>Mild, wet land</td><td>temperate forest</td></tr>
+          <tr><td>Mild, drier land</td><td>grassland, shrubland, or desert</td></tr>
+          <tr><td>Hot, wet land</td><td>rainforest or seasonal forest</td></tr>
+          <tr><td>Hot, drier land</td><td>savannah or desert</td></tr>
+          <tr><td>Cold or shallow water</td><td>sea ice or shallow sea</td></tr>
         </table>
-        <p>Sea freezes below &minus;12&thinsp;&deg;C; otherwise it is shallow within the top 12% of depth and open ocean below that.</p>
         <div id="atlasKey" class="mapkey" aria-label="Biome key"></div>
 
-        <h3>8. Landmarks and the drop</h3>
-        <p>Landmarks are read off the finished map. An archipelago is three or more landmasses of 90 squares or fewer within 10 columns and 8 rows of one another; an inland sea is a body of water not connected to the largest one; a volcanic island is a landmass of 70 squares or fewer reaching 1900&thinsp;m. The rest are the biomes themselves. Each kind holds every instance of itself on the planet, so any desert is the desert.</p>
-        <p>The terrain comes from the date, so it is the same for everyone. The drop comes from a value stored in your browser, and the chain of landmarks is built around wherever it lands: each leg is costed by walking it, and the chain stops when the next leg would not fit in 28 moves. Drops are restricted to between 9 and 20 moves from the summit, so the one thing that differs between players is also the thing that differs least in difficulty.</p>
+        <h3>8. Pick landmarks and a starting point</h3>
+        <p>Landmarks are found by reading the finished map for recognisable features, including archipelagos, inland seas, volcanic islands, deserts, rainforests, mountain ranges, and ice caps.</p>
+        <p>Although the planet is the same for everyone, the starting point comes from a value stored in your browser. The game chooses a start that is neither too close to the summit nor impossibly far away, then checks the route so that its intended landmark journey can fit within the 28 available moves.</p>
       </section>
     </main>
 
