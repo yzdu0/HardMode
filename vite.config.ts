@@ -8,7 +8,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "./",
 
-  // Two real pages, not one page with routes. Without this the dev server
+  // Real pages, not one page with routes. Without this the dev server
   // answers every unknown path with index.html, so a broken link to a second
   // page comes back 200 with the wrong page in it and looks like a link that
   // does nothing — which is exactly how "/HillClimb" hid its missing slash.
@@ -25,6 +25,8 @@ export default defineConfig({
         index: "index.html",
         HillClimb: "HillClimb/index.html",
         HillClimbWorld: "HillClimb/world/index.html",
+        about: "about/index.html",
+        contact: "contact/index.html",
       },
     },
   },

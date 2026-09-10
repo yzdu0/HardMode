@@ -49,7 +49,7 @@ import type { Run, RunState } from "./HillClimb-run";
   const $ = (id: string) => document.getElementById(id);
   const storeKey = () => "hm-" + day + "-HillClimb-" + hillClimbRevision(day);
   const WELCOME_KEY = "hm-hillclimb-welcome-seen";
-  const SHARE_URL = "https://nphard.app/HillClimb/?v=2";
+  const SHARE_URL = "https://nphard.app/HillClimb/?v=3";
 
   // ---------- theme ----------
   const THEMES = {

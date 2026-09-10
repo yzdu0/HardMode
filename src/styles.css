@@ -142,6 +142,13 @@ header h1 span { color: var(--muted); font-weight: 500; }
 .editor-link:hover { color: var(--fg); }
 .footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 14px; margin-bottom: 4px; }
 .editor-link.active { color: var(--accent); }
+.info-page { font-size: 16px; line-height: 1.65; }
+.info-page h2 { margin: 0 0 16px; font-size: 32px; letter-spacing: -.035em; }
+.info-page p { margin: 0 0 14px; }
+.info-page p:last-child { margin-bottom: 0; }
+.contact-card { margin-top: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); }
+.contact-card h3 { margin: 0 0 8px; font-size: 18px; }
+.contact-card .btn { display: inline-flex; width: auto; margin-top: 4px; padding-inline: 18px; text-decoration: none; }
 .view.hidden { display: none; }
 .puzzle-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
 .puzzle-heading h2 { margin: 0; font-size: 28px; line-height: 1; letter-spacing: -.035em; }
