@@ -18,7 +18,7 @@ const RIDGE_SWITCH_DAY = '2026-09-11';
 const LEGACY_WORLD_REVISION = 'world-5';
 const RIDGE_WORLD_REVISION = 'world-9';
 const LEGACY_RUN_REVISION = 'world-5-challenges-1';
-const RIDGE_RUN_REVISION = 'world-6-challenges-1';
+const RIDGE_RUN_REVISION = 'world-6-polar-frequency-1-challenges-1';
 const HILLCLIMB_SEED = 'HillClimb'.toLowerCase();
 
 /** Saved runs and player drops follow the terrain revision for their date. */
@@ -67,8 +67,15 @@ const COLD = 6;
    slowly than the terrain only slides continents about; it is the drag varying
    faster than what it moves that folds a coast back on itself. */
 const WARP_PUSH = 40;
-const WARP_FLOOR = 0.25;
+const WARP_FLOOR = 0;
 const WARP_SCALE = 8;
+const TERRAIN_FREQUENCY = 1.5;
+
+// A small correction for the independent-ridge worlds. The noise sampler has
+// less room to vary beside its clamped north and south edges, which otherwise
+// leaves the polar rows a little more land-heavy than the rest of the planet.
+const POLAR_BIAS_FROM = 50;
+const POLAR_LAND_BIAS = 0.1;
 
 // How near counts as standing on a landmark. This is not generosity: a move
 // covers STRIDE squares, so the squares any walk can stop on form a lattice
@@ -248,7 +255,11 @@ export interface Noise { layers: Lattice[]; norm: number }
 export function noiseOf(rnd: () => number, base: number, octaves: number): Noise {
   const layers: Lattice[] = [];
   let norm = 0;
-  for (let o = 0; o < octaves; o++) { layers.push(lattice(rnd, base << o)); norm += Math.pow(0.5, o); }
+  for (let o = 0; o < octaves; o++) {
+    const frequency = Math.max(1, Math.round(base * Math.pow(2, o)));
+    layers.push(lattice(rnd, frequency));
+    norm += Math.pow(0.5, o);
+  }
   return { layers, norm };
 }
 
@@ -604,12 +615,13 @@ export function generateWorld(day: string, drop = ''): World {
   // planet shatters into archipelago while another keeps a clean continental
   // shore. Both layers are dragged by the same amount, or the ranges would
   // stop following the coasts they belong to.
-  const shape = noiseOf(rnd, 3, 7);
-  const crease = noiseOf(rnd, 4, 6);
+  const frequency = independentRidges ? TERRAIN_FREQUENCY : 1;
+  const shape = noiseOf(rnd, 3 * frequency, 7);
+  const crease = noiseOf(rnd, 4 * frequency, 6);
   const drift = random(HILLCLIMB_SEED + '-warp-' + terrainRevision + '-' + day);
-  const pushX = noiseOf(drift, WARP_SCALE, 3);
-  const pushY = noiseOf(drift, WARP_SCALE, 3);
-  const pushHard = noiseOf(drift, 2, 2);
+  const pushX = noiseOf(drift, WARP_SCALE * frequency, 3);
+  const pushY = noiseOf(drift, WARP_SCALE * frequency, 3);
+  const pushHard = noiseOf(drift, 2 * frequency, 2);
 
   const base = new Float32Array(W * H);
   const ridge = new Float32Array(W * H);
@@ -623,7 +635,9 @@ export function generateWorld(day: string, drop = ''): World {
     // at a weight that means nothing, and the correction above then widens a
     // spread that was never narrowed: land piles up at both ends of the map.
     const read = Math.max(0, Math.min(H - 1, r + dr));
-    base[i] = noiseAt(shape, read, c + dc);
+    const poleward = clamp01((Math.abs(latOf(r)) - POLAR_BIAS_FROM) / (90 - POLAR_BIAS_FROM));
+    const polarBias = independentRidges ? POLAR_LAND_BIAS * poleward * poleward : 0;
+    base[i] = noiseAt(shape, read, c + dc) - polarBias;
     ridge[i] = noiseAt(crease, read, c + dc, true);
   }
   const sea = quantile(base, 0.67);   // one square of land in every three

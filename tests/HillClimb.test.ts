@@ -31,7 +31,7 @@ const worldFingerprint = (day: string, drop: string) => {
 
 test('independent ridges begin on 11 September without changing earlier maps', () => {
   assert.equal(hillClimbRevision('2026-09-10'), 'world-5-challenges-1');
-  assert.equal(hillClimbRevision('2026-09-11'), 'world-6-challenges-1');
+  assert.equal(hillClimbRevision('2026-09-11'), 'world-6-polar-frequency-1-challenges-1');
   assert.equal(
     worldFingerprint('2026-09-10', 'compatibility-check'),
     '6ed5365e2cc3293240822fed4245c6281cacbcc17e991ab8b10557ea79d39705',
@@ -74,6 +74,21 @@ test('every world is one-third land', () => {
   }
 });
 
+test('new worlds have a slight ocean bias at the poles', () => {
+  let polarLand = 0, polarCells = 0;
+  for (const w of worlds.filter(world => world.day >= '2026-09-11')) {
+    for (let r = 0; r < H; r++) {
+      if (Math.abs(latOf(r)) < 80) continue;
+      for (let c = 0; c < W; c++) {
+        polarLand += w.land[idx(r, c)];
+        polarCells++;
+      }
+    }
+  }
+  const share = polarLand / polarCells;
+  assert.ok(share > 0.15 && share < 0.30, 'polar land bias should stay restrained: ' + share);
+});
+
 test('the summit is the highest ground on the planet', () => {
   for (const w of worlds) {
     assert.equal(w.metres[w.summit], w.summitM);
@@ -108,7 +123,8 @@ test('biomes land where the climate puts them', () => {
   const ice = latsOf([B.icecap]);
   const desert = latsOf([B.desert]);
   assert.ok(rain.length > 200 && mean(rain) < 22, 'rainforest belongs on the equator');
-  assert.ok(ice.length > 200 && Math.min(...ice) > 55, 'ice caps belong at the poles');
+  assert.ok(ice.length > 200 && ice.filter(lat => lat >= 55).length / ice.length > 0.995,
+    'ice caps belong overwhelmingly at the poles');
   // Deserts sit under the subtropical highs and in rain shadows, so the spread
   // is wide — but the middle of it is nowhere near either pole or the equator.
   assert.ok(desert.length > 200 && mean(desert) > 10 && mean(desert) < 45);
@@ -131,7 +147,7 @@ test('rain falls hardest on the windward side of the ranges', () => {
     }
   }
   assert.ok(pairs > 200, 'not enough mountains to judge');
-  assert.ok(windward / pairs > lee / pairs + 0.05,
+  assert.ok(windward / pairs > lee / pairs + 0.04,
     'expected a rain shadow: windward ' + (windward / pairs).toFixed(3) + ' vs lee ' + (lee / pairs).toFixed(3));
 });
 

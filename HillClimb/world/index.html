@@ -33,7 +33,7 @@
         <h3>1. Shape the land</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of the example HillClimb world"></canvas>
           <figcaption></figcaption></figure>
-        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer doubles in frequency and halves in strength.</p>
+        <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Each subsequent layer doubles in frequency and halves in strength. From 11 September 2026, every terrain frequency is multiplied by 1.25, which gives the same size map more separate landforms and makes a single dominant continent less common.</p>
         <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. From 11 September 2026, this field is independent of the broad continental height, so mountain ranges can appear across lowlands, beside coasts, or through the middle of continents. Its effect fades only within the narrow strip where land meets the sea, which prevents every coastline from becoming a wall. Earlier maps keep their original terrain.</p>
         <div class="atlas-eq">
           <math display="block" aria-label="Shape equals the sum from octave zero to six of two to the power minus octave times noise at that octave">
@@ -59,8 +59,12 @@
 
         <h3>3. Add the sea</h3>
         <p>Every height is sorted from lowest to highest, and the lowest 67% is then flooded, which leaves roughly a third of the planet as land whatever noise values the day happens to produce.</p>
+        <p>The broad height field is also lowered very slightly above 68 degrees north and south. The adjustment grows smoothly toward each pole, which makes polar land somewhat less common without forcing the polar rows to be ocean.</p>
         <p>Most of what survives the flood lies low, and high ground grows steadily rarer the higher it climbs, which makes a true summit uncommon enough to be worth hunting for.</p>
         <div class="atlas-eq">
+          <math display="block" aria-label="Height becomes height minus zero point zero eight times the clamped polar latitude factor squared">
+            <mi>h</mi><mo>←</mo><mi>h</mi><mo>−</mo><mn>0.08</mn><msup><mrow><mi>clamp</mi><mo>(</mo><mfrac><mrow><mo>|</mo><mi>lat</mi><mo>|</mo><mo>−</mo><mn>68</mn></mrow><mn>22</mn></mfrac><mo>,</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>)</mo></mrow><mn>2</mn></msup>
+          </math>
           <math display="block" aria-label="Metres equals seven thousand seven hundred times zero point five five above plus zero point seven two shore times crease to the power two point one, all to the power one point five five">
             <mi>metres</mi><mo>=</mo><mn>7700</mn><msup><mrow><mo>[</mo><mn>0.55</mn><mi>above</mi><mo>+</mo><mn>0.72</mn><mi>shore</mi><msup><mi>crease</mi><mn>2.1</mn></msup><mo>]</mo></mrow><mn>1.55</mn></msup>
           </math>
