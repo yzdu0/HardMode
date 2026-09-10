@@ -48,6 +48,7 @@ import type { Run, RunState } from "./HillClimb-run";
 
   const $ = (id: string) => document.getElementById(id);
   const storeKey = () => "hm-" + day + "-HillClimb-" + HILLCLIMB_REVISION;
+  const WELCOME_KEY = "hm-hillclimb-welcome-seen";
 
   // ---------- theme ----------
   const THEMES = {
@@ -997,6 +998,20 @@ import type { Run, RunState } from "./HillClimb-run";
     const open = $("hcHelpBox").classList.toggle("hidden") === false;
     $("hcHelpBtn").setAttribute("aria-expanded", String(open));
   };
+  const welcomeBox = $("hcWelcome") as HTMLDialogElement;
+  function rememberWelcome() {
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch (_) {}
+  }
+  function showWelcomeOnce() {
+    let seen = false;
+    try { seen = localStorage.getItem(WELCOME_KEY) === "1"; } catch (_) {}
+    if (!seen && typeof welcomeBox.showModal === "function") welcomeBox.showModal();
+  }
+  $("hcWelcomeStart").onclick = () => welcomeBox.close();
+  welcomeBox.addEventListener("close", rememberWelcome);
+  welcomeBox.addEventListener("pointerdown", (e) => {
+    if (e.target === welcomeBox) welcomeBox.close();
+  });
   /* The archive: the available planets, and how each one went. A day already
      walked shows its grade, so the strip doubles as a record of the run of
      them rather than only a way to get back to one. */
@@ -1074,6 +1089,7 @@ import type { Run, RunState } from "./HillClimb-run";
   try { stored = localStorage.getItem("hm-theme") || "light"; } catch (_) {}
   setTheme(stored);
   start();
+  showWelcomeOnce();
   let resizeTimer: number;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);

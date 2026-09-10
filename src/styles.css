@@ -1515,6 +1515,35 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .scorebox.settled .scorebox-rows { opacity: 1; }
 .scorebox.settled .scorebox-more { opacity: 1; }
 .scorebox .row { margin-top: 16px; }
+.hc-welcome {
+  width: min(390px, calc(100vw - 32px));
+  padding: 22px;
+  text-align: left;
+}
+.hc-welcome-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.hc-welcome h3 { margin: 4px 0 0; font-size: 24px; letter-spacing: -.03em; }
+.hc-welcome-intro { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.hc-welcome-steps { display: grid; gap: 8px; margin-top: 16px; }
+.hc-welcome-steps p {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 10px;
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--raised);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hc-welcome-steps span { color: var(--muted); }
+.hc-welcome > .btn { width: 100%; margin-top: 16px; }
 @media (prefers-reduced-motion: reduce) {
   .scorebox-grade, .scorebox-rows, .scorebox-more { opacity: 1; transform: none; transition: none; }
   .scorebox.arriving, .scorebox.settled .scorebox-n, .hccelebration i { animation: none; }
