@@ -903,16 +903,41 @@ import type { Run, RunState } from "./HillClimb-run";
     if (!slot || !slot.total) { statsOn = Boolean(slot); box.classList.add("hidden"); return; }
     const scores = Object.keys(slot.buckets)
       .filter(score => /^(0|[1-9]\d*)$/.test(score))
-      .sort((a, b) => Number(b) - Number(a));
+      .map(Number)
+      .sort((a, b) => a - b);
     if (!scores.length) { box.classList.add("hidden"); return; }
-    const most = Math.max(...scores.map(score => slot.buckets[score] || 0), 1);
+
+    // Equal-width, contiguous bins make this a histogram rather than a list of
+    // exact scores. Empty bins are kept so gaps in the distribution stay true.
+    const width = 10;
+    const first = Math.floor(scores[0] / width) * width;
+    const last = Math.floor(scores[scores.length - 1] / width) * width;
+    const bins = Array.from({ length: (last - first) / width + 1 }, (_, i) => ({
+      from: first + i * width,
+      count: 0,
+    }));
+    for (const score of scores) bins[(score - first) / width | 0].count += slot.buckets[String(score)] || 0;
+    const most = Math.max(...bins.map(bin => bin.count), 1);
+    const mineScore = mine === null ? null : Number(mine);
     box.querySelector(".results-head").textContent =
-      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today. Score";
-    box.querySelector(".results-bars").innerHTML = scores.map(score => {
-      const n = slot.buckets[score] || 0;
-      return '<div class="results-row' + (mine === score ? " mine" : "") + '"><span>' + score +
-        '</span><i style="width:' + Math.max(6, Math.round((n / most) * 100)) + '%">' + n + "</i></div>";
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today";
+    const bars = box.querySelector(".results-bars") as HTMLElement;
+    bars.style.setProperty("--histogram-bins", String(bins.length));
+    bars.setAttribute("aria-label", "Player score distribution in groups of 10 points");
+    bars.innerHTML = bins.map(bin => {
+      const to = bin.from + width - 1;
+      const isMine = mineScore !== null && mineScore >= bin.from && mineScore <= to;
+      const players = bin.count + (bin.count === 1 ? " player" : " players");
+      const height = bin.count ? Math.max(4, Math.round((bin.count / most) * 100)) : 0;
+      return '<span class="hc-histogram-bin' + (isMine ? " mine" : "") + '" role="listitem" ' +
+        'aria-label="Score ' + bin.from + ' to ' + to + ': ' + players + '" ' +
+        'title="' + bin.from + " to " + to + ": " + players + '"><i style="height:' + height + '%"></i></span>';
     }).join("");
+    box.querySelector(".hc-histogram-axis").innerHTML =
+      "<span>" + first + "</span><span>Score</span><span>" + (last + width - 1) + "</span>";
+    box.querySelector(".hc-histogram-note").textContent = mineScore === null
+      ? "Scores are grouped in intervals of 10."
+      : "Scores are grouped in intervals of 10. Your score is " + mineScore + ".";
     box.classList.remove("hidden");
   }
 

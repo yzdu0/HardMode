@@ -841,6 +841,34 @@ button:focus-visible, summary:focus-visible, .cell:focus-visible, circle.node:fo
   text-align: right;
 }
 .results-row.mine i { background: var(--accent); color: var(--on-accent); }
+.hc-histogram {
+  display: grid;
+  grid-template-columns: repeat(var(--histogram-bins), minmax(3px, 1fr));
+  align-items: end;
+  gap: 2px;
+  height: 108px;
+  padding: 6px 2px 0;
+  border-bottom: 1px solid var(--line);
+}
+.hc-histogram-bin { display: flex; align-items: flex-end; height: 100%; min-width: 0; }
+.hc-histogram-bin i {
+  display: block;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--line);
+}
+.hc-histogram-bin.mine i { background: var(--accent); }
+.hc-histogram-axis {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.hc-histogram-axis span:nth-child(2) { text-align: center; }
+.hc-histogram-axis span:last-child { text-align: right; }
+.hc-histogram-note { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .how { margin-top: 16px; color: var(--muted); font-size: 13px; }
 .how summary { min-height: 40px; display: flex; align-items: center; font-weight: 750; }
 .how p { margin: 4px 0 0; line-height: 1.55; }
