@@ -27,12 +27,12 @@
           <a class="learn-btn" href="../">Back to HillClimb</a>
         </div>
 
-        <p class="help-copy">Each day&rsquo;s date becomes the seed, so everyone receives the same planet for that date. The map is 160 squares wide and 92 tall; its left and right edges join, while its top and bottom edges are the poles. The maps below are all drawn from one fixed example world, so the pictures always match the text.</p>
+        <p class="help-copy">Each day&rsquo;s date becomes the seed, so everyone receives the same planet for that date. The map is 160 squares wide and 92 tall; its left and right edges join, while its top and bottom edges are the poles.</p>
         <p id="atlasDay" class="atlas-day"></p>
 
         <h3>1. Shape the land</h3>
         <figure class="atlas-fig"><canvas id="atlasHeight" role="img" aria-label="Height map of the example HillClimb world"></canvas>
-          <figcaption>Dark water, low green land, and pale high ground.</figcaption></figure>
+          <figcaption></figcaption></figure>
         <p>Generation begins with layered value noise, a smooth random field much like Perlin noise. Large, low-frequency layers rough out the continents; smaller, high-frequency layers cut in the bays, islands, valleys, and mountain passes. Because each new layer carries half the strength of the one before it, detail accumulates without ever disturbing the broad continental shapes.</p>
         <p>A second field uses ridged noise, which folds every smooth value back around its midpoint so that rounded blobs become long creases. Its effect is strongest on ground that is already high, and that is why mountain ranges grow through the continents rather than scattering evenly across the planet.</p>
         <div class="atlas-eq">
@@ -80,7 +80,7 @@
 
         <h3>5. Set the temperature</h3>
         <figure class="atlas-fig"><canvas id="atlasTemp" role="img" aria-label="Temperature map of the example HillClimb world"></canvas>
-          <figcaption>Blue is cold, pale colours are mild, and red is hot.</figcaption></figure>
+          <figcaption></figcaption></figure>
         <p>The equator starts near 33°C and the poles near minus 21°C, while mountains shed about 6.3°C for every kilometre they rise.</p>
         <p>A broad, gentle noise field then bends the temperature bands north and south. Without that wobble, every climate boundary on the planet would run along the same ruler-straight line.</p>
         <div class="atlas-eq">
@@ -92,7 +92,7 @@
 
         <h3>6. Move wind and rain</h3>
         <figure class="atlas-fig"><canvas id="atlasRain" role="img" aria-label="Rainfall map of the example HillClimb world"></canvas>
-          <figcaption>Pale land is dry and dark green land is wet.</figcaption></figure>
+          <figcaption></figcaption></figure>
         <p>Wind direction depends on latitude: it blows west near the equator, east through the middle latitudes, and west once more near the poles.</p>
         <p>Air crossing the sea gathers water and gives some of it back on reaching land, and rising ground wrings out more. This is why the windward face of a range is so often wet while the country behind it sits dry in a rain shadow.</p>
         <p>Extra rain falls at the equator and through the middle latitudes, whereas the bands near 27° north and south are naturally dry, and that is where most of the planet&rsquo;s deserts end up.</p>
