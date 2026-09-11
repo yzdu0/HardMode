@@ -76,7 +76,7 @@
 
         <p id="hcLinkNotice" class="hchint hidden" role="status"></p>
         <div id="hcBrief" class="hcbrief"></div>
-        <div id="hcMoves" class="hcmoves" aria-live="polite"></div>
+        <div id="hcMoves" class="hcmoves" aria-live="polite" aria-atomic="true"></div>
         <div class="hcmap-wrap">
           <canvas id="hcMap" role="img" aria-label="World map"></canvas>
           <div id="hcTip" class="hctip hidden" aria-hidden="true"></div>
@@ -104,6 +104,7 @@
           <button id="hcShare" class="btn primary">Share</button>
         </div>
         <div id="hcMsg" class="msg" role="status" aria-live="polite"></div>
+        <p id="hcPercentilePage" class="hc-percentile hidden" role="status"></p>
         <p id="hcNextMapPage" class="hc-next-map hidden"></p>
         <div id="hcResults" class="results hidden" aria-live="polite">
           <strong class="results-head"></strong>
@@ -149,6 +150,7 @@
     <p class="scorebox-next" id="hcNextMap"></p>
     <p class="scorebox-n" id="hcScoreN">0</p>
     <p class="scorebox-grade" id="hcScoreGrade"></p>
+    <p id="hcScorePercentile" class="hc-percentile hidden" role="status"></p>
     <dl class="scorebox-rows" id="hcScoreRows"></dl>
     <p id="hcScoreInsight" class="hc-score-insight"></p>
     <p class="scorebox-more">HillClimb is new. <a href="../contact/">Share quick feedback</a></p>

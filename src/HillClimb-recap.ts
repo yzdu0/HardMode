@@ -3,6 +3,21 @@ import { gradeSquares, highestNear, livePair, touchedOrder, touching } from './H
 import type { World } from './HillClimb-world.ts';
 import type { Run, RunState } from './HillClimb-run.ts';
 
+/** Midrank percentile of total score. Ties share a rank; legacy grades are excluded. */
+export function scorePercentile(score: number, buckets: Record<string, number>) {
+  if (!Number.isFinite(score)) return null;
+  let total = 0, below = 0, tied = 0;
+  for (const [key, count] of Object.entries(buckets)) {
+    if (!/^(0|[1-9]\d*)$/.test(key) || !Number.isSafeInteger(Number(key)) ||
+        !Number.isSafeInteger(count) || count <= 0) continue;
+    total += count;
+    if (Number(key) < score) below += count;
+    if (Number(key) === score) tied += count;
+  }
+  if (total < 2) return null;
+  return { value: Math.round(100 * (below + tied / 2) / total), total };
+}
+
 export function recapFor(world: World, run: Run) {
   const heights = run.path.map(stop => highestNear(world, stop));
   const best = Math.max(...heights);
@@ -37,7 +52,7 @@ export function recapFor(world: World, run: Run) {
       : biggestGain > 0
         ? `Your biggest climb was ${biggestGain.toLocaleString('en-GB')} m on move ${gainMove}.`
         : `You came within ${closest} squares of the summit.`;
-  return { heights, bestMove, closest, moments, insight, missed };
+  return { heights, bestMove, closest, moments, missed };
 }
 
 /** Relative to this run only: no world height, coordinates or biome clues. */

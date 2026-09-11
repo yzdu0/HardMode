@@ -10,7 +10,7 @@ import {
   idx, rowOf, colOf, wrapC, latOf, windName, windDir, landmarkProgress,
 } from "./HillClimb-world";
 import { highestNear, newRun, runState } from "./HillClimb-run";
-import { dailyLink, linkedDay, recapFor, shareResult } from "./HillClimb-recap";
+import { dailyLink, linkedDay, recapFor, scorePercentile, shareResult } from "./HillClimb-recap";
 import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
 import type { World } from "./HillClimb-world";
@@ -566,14 +566,16 @@ import type { Run, RunState } from "./HillClimb-run";
     // looking for it, so it sits full width between the brief and the map. Every
     // other figure on this page appears exactly once: the climb and the
     // landmarks in the brief, the ground underfoot in the strip below the map.
-    const used = MOVES - now.movesLeft;
-    $("hcMoves").innerHTML = run.stopped
-      ? "<span class='hcmoves-n'>0</span><span class='hcmoves-label'>moves left, run over</span>" +
-        "<span class='hcmoves-bar'><i style='width:0%'></i></span>"
-      : "<span class='hcmoves-n'>" + now.movesLeft + "</span>" +
-        "<span class='hcmoves-label'>" + (now.movesLeft === 1 ? "move left" : "moves left") + "</span>" +
-        "<span class='hcmoves-bar'><i style='width:" + Math.round((now.movesLeft / MOVES) * 100) + "%'></i></span>";
+    const count = run.stopped ? MOVES - now.movesLeft : now.movesLeft;
+    const label = (count === 1 ? "move" : "moves") + (run.stopped ? " used" : " left");
+    const warning = run.stopped ? "Run complete" : now.movesLeft === 1 ? "Last move" : now.movesLeft <= 8 ? "Final stretch" : "";
+    $("hcMoves").innerHTML = "<span class='hcmoves-n'>" + count + "</span>" +
+      "<span class='hcmoves-label'>" + label + (warning ? "<small>" + warning + "</small>" : "") + "</span>" +
+      "<span class='hcmoves-bar' aria-hidden='true'>" + Array.from({ length: MOVES }, (_, i) =>
+        "<i" + (!run.stopped && i < now.movesLeft ? " class='remaining'" : "") + "></i>").join("") + "</span>";
+    $("hcMoves").classList.toggle("warning", !run.stopped && now.movesLeft <= 8 && now.movesLeft > 5);
     $("hcMoves").classList.toggle("low", !run.stopped && now.movesLeft <= 5);
+    $("hcMoves").classList.toggle("complete", run.stopped);
 
     drawBrief();
 
@@ -944,8 +946,15 @@ import type { Run, RunState } from "./HillClimb-run";
   }
 
   // ---------- the day's tally ----------
-  let statsOn = true;
+  let tallyRequest = 0;
   let mine: string = null;
+  function showPercentile(text: string, title = "") {
+    for (const id of ["hcPercentilePage", "hcScorePercentile"]) {
+      $(id).textContent = text;
+      $(id).title = title;
+      $(id).classList.toggle("hidden", !text || !run.stopped);
+    }
+  }
   function playerId() {
     try {
       let id = localStorage.getItem("hm-player");
@@ -959,7 +968,8 @@ import type { Run, RunState } from "./HillClimb-run";
   async function reportResult(bucket: string, fresh: boolean) {
     const resultDay = day, resultRun = run;
     mine = bucket;
-    if (!statsOn) return;
+    ++tallyRequest; // Ignore a pre-finish tally while this score is being submitted.
+    showPercentile("Comparing scores…");
     if (fresh) {
       const player = playerId();
       if (player) {
@@ -967,6 +977,7 @@ import type { Run, RunState } from "./HillClimb-run";
           await fetch("/api/result", {
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ day: resultDay, game: "HillClimb", bucket, player }),
+            signal: AbortSignal.timeout(8000),
           });
         } catch (_) { /* the run is already over; the tally is not worth an error */ }
       }
@@ -975,15 +986,32 @@ import type { Run, RunState } from "./HillClimb-run";
   }
   async function drawResults() {
     const resultDay = day, resultRun = run;
+    const request = ++tallyRequest;
     const box = $("hcResults");
     let data: any = null;
     try {
-      const res = await fetch("/api/stats?date=" + encodeURIComponent(resultDay), { cache: "no-store" });
+      const res = await fetch("/api/stats?date=" + encodeURIComponent(resultDay), {
+        cache: "no-store", signal: AbortSignal.timeout(8000),
+      });
       if (res.ok) data = await res.json();
     } catch (_) { /* offline, or no database attached */ }
-    if (day !== resultDay || run !== resultRun) return;
+    if (day !== resultDay || run !== resultRun || request !== tallyRequest) return;
     const slot = data && data.enabled !== false && data.games ? data.games.HillClimb : null;
-    if (!slot || !slot.total) { statsOn = Boolean(slot); box.classList.add("hidden"); return; }
+    if (!slot || !slot.total || !slot.buckets) {
+      box.classList.add("hidden");
+      showPercentile(slot ? "More results needed for a percentile." : "Daily percentile unavailable.");
+      return;
+    }
+    if (run.stopped && mine !== null) {
+      const rank = scorePercentile(Number(mine), slot.buckets);
+      if (rank) {
+        const suffix = rank.value % 100 >= 11 && rank.value % 100 <= 13 ? "th"
+          : ({ 1: "st", 2: "nd", 3: "rd" }[rank.value % 10] || "th");
+        showPercentile(rank.value + suffix + " percentile so far",
+          "Total score compared with " + rank.total.toLocaleString("en-GB") +
+          " recorded results for " + longLabel(resultDay) + ". Tied scores share a rank.");
+      } else showPercentile("More results needed for a percentile.");
+    }
     const scores = Object.keys(slot.buckets)
       .filter(score => /^(0|[1-9]\d*)$/.test(score))
       .map(Number)
@@ -1164,6 +1192,7 @@ import type { Run, RunState } from "./HillClimb-run";
     ($("hcNextDay") as HTMLButtonElement).disabled = day >= TODAY;
     $("hcMsg").textContent = ""; $("hcMsg").className = "msg";
     $("hcResults").classList.add("hidden");
+    showPercentile("");
     mine = null;
     paint(); refresh();
     if (run.stopped) finish(false); else drawResults();

@@ -2,8 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { H, W, idx } from '../src/HillClimb-world.ts';
 import { newRun, runState } from '../src/HillClimb-run.ts';
-import { climbSparkline, dailyLink, linkedDay, recapFor, shareResult } from '../src/HillClimb-recap.ts';
+import { climbSparkline, dailyLink, linkedDay, recapFor, scorePercentile, shareResult } from '../src/HillClimb-recap.ts';
 import type { World } from '../src/HillClimb-world.ts';
+
+test('score percentile uses exact daily score counts and gives ties the same midrank', () => {
+  const buckets = { '20': 2, '60': 3, '100': 5 };
+  assert.deepEqual(scorePercentile(60, buckets), { value: 35, total: 10 });
+  assert.deepEqual(scorePercentile(20, buckets), { value: 10, total: 10 });
+  assert.deepEqual(scorePercentile(100, buckets), { value: 75, total: 10 });
+  assert.deepEqual(scorePercentile(80, buckets), { value: 50, total: 10 });
+  assert.deepEqual(scorePercentile(60, { '60': 10 }), { value: 50, total: 10 });
+});
+
+test('score percentile needs at least two valid results and ignores legacy grades', () => {
+  for (const buckets of [{}, { '60': 1 }, { A: 5, S: 10 }]) {
+    assert.equal(scorePercentile(60, buckets), null);
+  }
+  assert.equal(scorePercentile(NaN, { '60': 3 }), null);
+  assert.deepEqual(scorePercentile(60, {
+    '20': 1, '60': 1, A: 50, '-1': 10, '01': 20, '1.5': 10, '80': -1, '90': 0.5, '100': NaN,
+  }), { value: 75, total: 2 });
+});
 
 function fixture(): World {
   const metres = new Int16Array(W * H);

@@ -1364,26 +1364,38 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 
 /* The move count. It is the one number a player must never have to hunt for,
    so it gets a line of its own between the day's brief and the map, and the
-   bar drains as the budget does. */
+   one tick disappears with every move. No flashing or map animation. */
 .hcmoves {
+  --move-color: var(--accent);
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 12px 0 8px;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: var(--move-color);
+  background: color-mix(in srgb, var(--move-color) 8%, var(--surface));
 }
-.hcmoves-n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
-.hcmoves-label { color: var(--muted); font-size: 12.5px; font-weight: 700; }
+.hcmoves-n { min-width: 2ch; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.04em; line-height: 1; }
+.hcmoves-label { font-size: 14px; font-weight: 750; white-space: nowrap; }
+.hcmoves-label small { display: block; margin-top: 3px; font-size: 11px; font-weight: 600; }
 .hcmoves-bar {
   flex: 1;
-  align-self: center;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(28, minmax(0, 1fr));
+  gap: 3px;
+  height: 18px;
 }
-.hcmoves-bar i { display: block; height: 100%; border-radius: inherit; background: var(--fg); }
-.hcmoves.low .hcmoves-n { color: var(--bad); }
-.hcmoves.low .hcmoves-bar i { background: var(--bad); }
+.hcmoves-bar i { border-radius: 2px; background: color-mix(in srgb, var(--move-color) 14%, var(--surface)); }
+.hcmoves-bar i.remaining { background: var(--move-color); }
+.hcmoves.warning { --move-color: #996309; }
+body:is([data-theme="dark"], [data-theme="terminal"]) .hcmoves.warning { --move-color: #f2bd58; }
+.hcmoves.low { --move-color: var(--bad); }
+.hcmoves.complete { --move-color: var(--muted); }
+@media (max-width: 480px) {
+  .hcmoves { flex-wrap: wrap; gap: 8px 12px; }
+  .hcmoves-bar { flex-basis: 100%; height: 10px; }
+}
 
 /* Where to look. Folded away by default: knowing that rainforest sits on the
    equator is the puzzle, so it is there for whoever wants it and out of the
@@ -1444,6 +1456,7 @@ body[data-theme="minimal"] #graphSvg path.edge.lit:not(.conflict) { stroke: #111
 .hc-map-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .hc-map-key .hc-missed-key { color: var(--bad); }
 .hc-score-insight { margin: 12px 0 0; font-size: 14px; line-height: 1.45; }
+.hc-percentile { margin: 8px 0; color: var(--muted); font-size: 14px; font-weight: 650; text-align: center; }
 .scorebox .hc-finish-actions { display: grid; grid-template-columns: 1fr; gap: 7px; }
 .hc-finish-actions .btn { width: 100%; }
 .hcstat { display: flex; flex-direction: column; gap: 1px; }
