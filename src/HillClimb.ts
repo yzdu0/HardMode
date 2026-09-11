@@ -9,7 +9,7 @@ import {
   generateWorld, hillClimbRevision, BIOMES, W, H, MOVES, STRIDE, SIGHT,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir, landmarkProgress,
 } from "./HillClimb-world";
-import { gradeSquares, newRun, runState } from "./HillClimb-run";
+import { gradeSquares, highestNear, newRun, runState } from "./HillClimb-run";
 import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
 import type { World } from "./HillClimb-world";
@@ -655,7 +655,7 @@ import type { Run, RunState } from "./HillClimb-run";
     run.path.push(next);
     light(next);
     settle();
-    const rise = world.metres[next] - world.metres[here];
+    const rise = highestNear(world, next) - highestNear(world, here);
     soundMove(rise, !world.land[next]);
     const found = now.found.slice(before.found.length);
     if (found.length) {

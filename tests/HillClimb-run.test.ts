@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateWorld, landmarkProgress, marchLandmark, movesTo, movesBetween, W, H, MOVES, STRIDE, TOUCH, LIVE, idx, rowOf, colOf, wrapC } from '../src/HillClimb-world.ts';
-import { newRun, runState, touching, touchedOrder, livePair, gradeFor, gradeSquares } from '../src/HillClimb-run.ts';
+import { CLIMB_RADIUS, gradeFor, gradeSquares, highestNear, livePair, newRun, runState, touchedOrder, touching } from '../src/HillClimb-run.ts';
 import type { Run } from '../src/HillClimb-run.ts';
 import type { World } from '../src/HillClimb-world.ts';
 
@@ -269,16 +269,44 @@ test('standing where two landmarks meet collects both', () => {
 });
 
 test('the climb is worth more than everything else put together', () => {
-  const w = planted(worlds[0], 4);
+  const plantedWorld = planted(worlds[0], 4);
+  const flat = newRun(plantedWorld);
+  for (const goal of plantedWorld.goals) walkTo(flat, goal.cells, MOVES);
+  flat.stopped = true;
+
+  // Keep this a rules test rather than letting the generated terrain decide
+  // it. The landmark route is genuinely flat and the summit sits well beyond
+  // the climb radius of every stop on it.
+  const summit = Array.from({ length: W * H }, (_, i) => i)
+    .find(i => flat.path.every(stop => movesBetween(stop, i) > 1));
+  assert.notEqual(summit, undefined);
+  const metres = new Int16Array(W * H);
+  metres[summit] = 3000;
+  const w: World = { ...plantedWorld, metres, summit, summitM: 3000 };
   // A run that reaches every landmark but never leaves sea level must score
   // below one that climbs to the summit and finds nothing.
-  const flat = newRun(w);
-  for (const goal of w.goals) walkTo(flat, goal.cells, MOVES);
-  flat.stopped = true;
   const climber: Run = { path: [w.spawn, w.summit], stopped: true };
   assert.equal(runState(w, flat).found.length, w.goals.length);
   assert.ok(runState(w, climber).score > runState(w, flat).score,
     'the summit should beat a clean sweep of the bonuses');
+});
+
+test('the climb uses the highest ground within two squares of each stop', () => {
+  assert.equal(CLIMB_RADIUS, 2);
+  const stop = idx(40, 40);
+  const metres = new Int16Array(W * H);
+  metres[idx(40 + CLIMB_RADIUS, 40 - CLIMB_RADIUS)] = 2200;
+  metres[idx(40 + CLIMB_RADIUS + 1, 40)] = 3000;
+  const w: World = {
+    ...worlds[0], metres, summit: idx(40 + CLIMB_RADIUS + 1, 40),
+    summitM: 3000, goals: [], rungs: 0,
+  };
+
+  assert.equal(highestNear(w, stop), 2200);
+  assert.equal(runState(w, { path: [stop], stopped: false, seed: '' }).best, 2200);
+
+  metres[idx(40, W - 1)] = 2400;
+  assert.equal(highestNear(w, idx(40, 0)), 2400, 'the climb radius should wrap east to west');
 });
 
 test('score rises with every landmark, and a full sweep tops the bonus', () => {

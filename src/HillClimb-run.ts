@@ -8,7 +8,10 @@
  * Nothing is stored but where the walk has been. Everything below is derived
  * from that and the world, so a restored run and a live one cannot drift
  * apart. */
-import { LIVE, MOVES, ladderValue, landmarkProgress, touching } from "./HillClimb-world.ts";
+import {
+  H, LIVE, MOVES, STRIDE, W, idx, ladderValue, landmarkProgress,
+  rowOf, touching, wrapC,
+} from "./HillClimb-world.ts";
 import type { World } from "./HillClimb-world.ts";
 
 export interface Run {
@@ -62,6 +65,23 @@ export const LANDMARK_POINT = 5;
 export const gradeFor = (score: number) =>
   score >= 140 ? "S" : score >= 120 ? "A" : score >= 90 ? "B" : score >= 60 ? "C" : "D";
 
+// Stops sit five squares apart, so the two-square neighbourhood around each
+// one accounts for the terrain between reachable points. It uses the same
+// square shape as landmark proximity and still respects the world's seam.
+export const CLIMB_RADIUS = Math.floor(STRIDE / 2);
+export function highestNear(world: World, stop: number): number {
+  const r = rowOf(stop), c = stop % W;
+  let high = 0;
+  for (let dr = -CLIMB_RADIUS; dr <= CLIMB_RADIUS; dr++) {
+    const rr = r + dr;
+    if (rr < 0 || rr >= H) continue;
+    for (let dc = -CLIMB_RADIUS; dc <= CLIMB_RADIUS; dc++) {
+      high = Math.max(high, world.metres[idx(rr, wrapC(c + dc))]);
+    }
+  }
+  return high;
+}
+
 /** Five-square share bar: D fills one square and each grade up fills one more. */
 export function gradeSquares(grade: string): string {
   const filled = Math.max(0, 'DCBAS'.indexOf(grade) + 1);
@@ -73,7 +93,7 @@ export interface RunState {
   live: number[];        // the two now on offer
   complete: boolean;     // nothing left to find
   movesLeft: number;
-  best: number;          // highest ground stood on, in metres
+  best: number;          // highest ground reached within the climb radius
   peakShare: number;     // …as a fraction of the planet's true summit
   climb: number;         // 0–100: the day, as a percentage of the true summit
   landmarkBonus: number; // added on top
@@ -85,9 +105,9 @@ export function runState(world: World, run: Run): RunState {
   const found = touchedOrder(world, run.path);
   const live = livePair(world, new Set(found));
 
-  const best = run.path.reduce((high, i) => Math.max(high, world.metres[i]), 0);
+  const best = run.path.reduce((high, i) => Math.max(high, highestNear(world, i)), 0);
   const peakShare = world.summitM > 0 ? best / world.summitM : 0;
-  /* The climb is the score: how high you stood, as a percentage of the true
+  /* The climb is the score: how high you reached, as a percentage of the true
      summit. The landmarks are added on top of it — what you picked up on the
      way — so the arithmetic can be read off the card.
 
