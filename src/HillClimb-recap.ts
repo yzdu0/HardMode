@@ -52,7 +52,7 @@ export function recapFor(world: World, run: Run) {
       : biggestGain > 0
         ? `Your biggest climb was ${biggestGain.toLocaleString('en-GB')} m on move ${gainMove}.`
         : `You came within ${closest} squares of the summit.`;
-  return { heights, bestMove, closest, moments, missed };
+  return { heights, bestMove, closest, moments, insight, missed };
 }
 
 /** Relative to this run only: no world height, coordinates or biome clues. */
