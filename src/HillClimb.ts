@@ -9,7 +9,8 @@ import {
   generateWorld, hillClimbRevision, BIOMES, W, H, MOVES, STRIDE, SIGHT,
   idx, rowOf, colOf, wrapC, latOf, windName, windDir, landmarkProgress,
 } from "./HillClimb-world";
-import { gradeSquares, highestNear, newRun, runState } from "./HillClimb-run";
+import { highestNear, newRun, runState } from "./HillClimb-run";
+import { dailyLink, linkedDay, recapFor, shareResult } from "./HillClimb-recap";
 import { LAYERS, pixelsFor, ramp, hex, HEIGHT_LAND, TEMP, TEMP_LOW, TEMP_HIGH, RAIN } from "./HillClimb-layers";
 import type { Layer } from "./HillClimb-layers";
 import type { World } from "./HillClimb-world";
@@ -44,12 +45,12 @@ import type { Run, RunState } from "./HillClimb-run";
   const ACCESS_DAYS = LOCAL_TESTING ? 30 : 4;
   const TODAY = todayKey();
   const OLDEST = addDays(TODAY, -(ACCESS_DAYS - 1));
-  let day = TODAY;
+  const requestedDay = new URL(location.href).searchParams.get("date");
+  let day = linkedDay(requestedDay, OLDEST, TODAY) || TODAY;
 
   const $ = (id: string) => document.getElementById(id);
   const storeKey = () => "hm-" + day + "-HillClimb-" + hillClimbRevision(day);
   const WELCOME_KEY = "hm-hillclimb-welcome-seen";
-  const SHARE_URL = "https://nphard.app/HillClimb/";
 
   // ---------- theme ----------
   const THEMES = {
@@ -194,6 +195,9 @@ import type { Run, RunState } from "./HillClimb-run";
   // What the revealed map is showing. Only offered once the run is over: the
   // height and the rainfall are the answers, not the question.
   let layer: Layer = "biome";
+  let recap: ReturnType<typeof recapFor> = null;
+  let journeyMove = 0;
+  let mapDetails = true;
 
   const at = () => run.path[run.path.length - 1];
   const settle = () => { now = runState(world, run); };
@@ -335,28 +339,33 @@ import type { Run, RunState } from "./HillClimb-run";
     }
     ctx.globalAlpha = 1;
 
-    /* The walk: one translucent line, so the route shows without hiding the
-       ground it crosses. A leg over the seam is drawn a second time running
-       off the far side, so the line never shoots back across the whole world. */
-    ctx.strokeStyle = ink;
-    ctx.globalAlpha = 0.45;
-    ctx.lineWidth = Math.max(2, cell * 0.42);
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    for (let k = 1; k < run.path.length; k++) {
-      const a = run.path[k - 1], b = run.path[k];
-      let dc = colOf(b) - colOf(a);
-      if (dc > W / 2) dc -= W;
-      if (dc < -W / 2) dc += W;
-      const start = screenCol(colOf(a));
-      const end = start + dc;
-      for (const shift of end < 0 ? [0, W] : end >= W ? [0, -W] : [0]) {
+    const routeColour = darkMap ? "#91b4ff" : "#254cca";
+    const drawRoute = () => {
+      // A light casing keeps the completed route readable over every biome.
+      const strokes = run.stopped
+        ? [{ colour: back, width: 1.05, alpha: .9 }, { colour: routeColour, width: .55, alpha: 1 }]
+        : [{ colour: ink, width: .42, alpha: .45 }];
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (const stroke of strokes) {
+        ctx.strokeStyle = stroke.colour;
+        ctx.globalAlpha = stroke.alpha;
+        ctx.lineWidth = Math.max(stroke.width > 1 ? 3.5 : 1.8, cell * stroke.width);
         ctx.beginPath();
-        ctx.moveTo((start + shift + 0.5) * cell, y(rowOf(a)));
-        ctx.lineTo((end + shift + 0.5) * cell, y(rowOf(b)));
+        for (let k = 1; k < run.path.length; k++) {
+          const a = run.path[k - 1], b = run.path[k];
+          let dc = colOf(b) - colOf(a);
+          if (dc > W / 2) dc -= W;
+          if (dc < -W / 2) dc += W;
+          const start = screenCol(colOf(a)), end = start + dc;
+          for (const shift of end < 0 ? [0, W] : end >= W ? [0, -W] : [0]) {
+            ctx.moveTo((start + shift + .5) * cell, y(rowOf(a)));
+            ctx.lineTo((end + shift + .5) * cell, y(rowOf(b)));
+          }
+        }
         ctx.stroke();
       }
-    }
-    ctx.globalAlpha = 1;
+      ctx.globalAlpha = 1;
+    };
 
     const mark = (i: number, glyph: string, fill: string, ring: string) => {
       const cx = x(colOf(i)), cy = y(rowOf(i)), rad = Math.max(4, cell * 1.5);
@@ -371,14 +380,11 @@ import type { Run, RunState } from "./HillClimb-run";
       }
     };
 
-    if (run.stopped && front >= 1) {
+    if (run.stopped && recap && mapDetails && front >= 1) {
       /* Only worth drawing once it is all visible: unreached landmarks that
          were on the table, and where the summit you were aiming at turned out
          to sit. Reached areas need no overlay; the walk already records them. */
-      const held = new Set(now.found);
-      for (const g of shownGoals()) {
-        if (held.has(g)) continue;
-        const { cells } = world.goals[g];
+      for (const cells of recap.missed) {
         // Small ones get a tint so an island or a lake is not just four lines.
         // A landmark the size of a continent needs no help being found, and a
         // wash that size would only recolour the terrain under it.
@@ -401,10 +407,27 @@ import type { Run, RunState } from "./HillClimb-run";
         }
         ctx.stroke();
       }
-      mark(world.summit, "▲", back, ink);
     }
+    drawRoute();
+    if (run.stopped && !mapDetails) return;
     mark(run.path[0], "", back, darkMap ? "#7fa8ff" : "#3157d5");
     mark(at(), "", ink, back);
+    if (run.stopped && recap && front >= 1) {
+      mark(world.summit, "▲", back, ink);
+      mark(run.path[recap.bestMove], "★", back, routeColour);
+      const selected = run.path[journeyMove];
+      const cx = x(colOf(selected)), cy = y(rowOf(selected));
+      const label = journeyMove ? String(journeyMove) : "Start";
+      ctx.font = "700 " + Math.round(Math.max(11, cell * 2.6)) + "px -apple-system, Helvetica, Arial, sans-serif";
+      const pad = Math.max(4, cell * 1.2), width = ctx.measureText(label).width + pad * 2, height = Math.max(16, cell * 4.4);
+      const left = Math.max(0, Math.min(canvas.width - width, cx - width / 2));
+      const top = cy < height + cell * 2 ? cy + cell * 2 : cy - height - cell * 2;
+      ctx.fillStyle = routeColour;
+      ctx.beginPath(); ctx.roundRect(left, top, width, height, cell); ctx.fill();
+      ctx.fillStyle = darkMap ? "#0b0d13" : "#ffffff";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(label, left + width / 2, top + height / 2);
+    }
   }
 
   /* Once the run is over, the map can show what it was made of rather than
@@ -559,6 +582,7 @@ import type { Run, RunState } from "./HillClimb-run";
     $("hcHint").classList.toggle("hidden", run.stopped);
     $("hcStop").classList.toggle("hidden", run.stopped);
     $("hcRestart").classList.toggle("hidden", !run.stopped);
+    $("hcJourney").classList.toggle("hidden", !run.stopped);
     $("hcNextMapPage").classList.toggle("hidden", !run.stopped);
     if (run.stopped) startNextMapCountdown();
     else clearInterval(nextMapTimer);
@@ -574,7 +598,7 @@ import type { Run, RunState } from "./HillClimb-run";
     // Ticked ones stay on the list so it reads as a checklist filling up, with
     // the two still open at the end of it. Once the run is over that same list
     // is the whole account: what was reached, and what was left out there.
-    const listed = [...now.found, ...now.live];
+    const listed = run.stopped ? [...now.found, ...world.goals.map((_, g) => g).filter(g => !held.has(g))] : [...now.found, ...now.live];
 
     box.innerHTML =
       // Nothing above the score once it is over: the result line under the map
@@ -676,6 +700,7 @@ import type { Run, RunState } from "./HillClimb-run";
     else { save(); paint(); refresh(); }
   }
   document.addEventListener("keydown", (e) => {
+    if (run.stopped || document.querySelector("dialog[open]")) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -693,24 +718,54 @@ import type { Run, RunState } from "./HillClimb-run";
   });
 
   // ---------- the end of a run ----------
-  function verdict(share: number, found: boolean) {
-    if (share >= 0.95) return "You stood on the roof of the world.";
-    if (share >= 0.75) return "A serious summit. The true peak was barely above you.";
-    if (share >= 0.5) return "Halfway up the planet. The high ground was further in than it looked.";
-    if (share >= 0.25) return found ? "The budget went on the challenges, and the mountains kept theirs." : "Low ground all the way. Next time follow the rising land rather than the coast.";
-    return "Barely off the beach. The ranges sit inland; the coast will not take you up.";
+  const journeySlider = $("hcJourneyMove") as HTMLInputElement;
+  const profileX = (move: number) => 5 + 590 * move / Math.max(1, run.path.length - 1);
+  const profileY = (height: number) => 68 - 60 * height / Math.max(1, now.best);
+  function selectJourneyMove(move: number) {
+    if (!run.stopped || !recap) return;
+    journeyMove = Math.max(0, Math.min(run.path.length - 1, move));
+    journeySlider.value = String(journeyMove);
+    const reading = [journeyMove ? "Move " + journeyMove : "Start", metresLabel(recap.heights[journeyMove])];
+    if (journeyMove === recap.bestMove) reading.push("your high point");
+    if (recap.moments[journeyMove].length) reading.push("Completed: " + recap.moments[journeyMove].join(", "));
+    const text = reading.join(". ");
+    $("hcJourneyReading").textContent = text;
+    journeySlider.setAttribute("aria-valuetext", text);
+    $("hcProfileCursor").setAttribute("cx", String(profileX(journeyMove)));
+    $("hcProfileCursor").setAttribute("cy", String(profileY(recap.heights[journeyMove])));
+    paint();
   }
+  function drawJourney() {
+    $("hcInsight").textContent = recap.insight;
+    const points = recap.heights.map((height, move) => profileX(move).toFixed(1) + "," + profileY(height).toFixed(1));
+    $("hcProfile").innerHTML =
+      '<path class="hc-profile-fill" d="M5,68 L' + points.join(' L') + ' L' + profileX(run.path.length - 1) + ',68 Z" />' +
+      '<polyline class="hc-profile-line" points="' + points.join(' ') + '" />' +
+      '<circle class="hc-profile-dot" id="hcProfileCursor" r="4" />';
+    $("hcProfile").setAttribute("aria-label", "Elevation over " + (run.path.length - 1) + " moves. High point " + metresLabel(now.best) +
+      (recap.bestMove ? " on move " + recap.bestMove : " at the start") + ".");
+    journeySlider.max = String(run.path.length - 1);
+    journeySlider.disabled = run.path.length === 1;
+    selectJourneyMove(recap.bestMove);
+  }
+  journeySlider.oninput = () => selectJourneyMove(Number(journeySlider.value));
+  $("hcMapDetails").onchange = () => {
+    mapDetails = ($("hcMapDetails") as HTMLInputElement).checked;
+    paint();
+  };
+
   function finish(fresh: boolean) {
     run.stopped = true;
     settle();
     save();
     buildPixels();
     measureLift();
+    recap = recapFor(world, run);
+    drawJourney();
     $("hcMsg").innerHTML =
       "<b>" + now.score + ", grade " + now.grade + "</b>. " + now.climb + " for " + metresLabel(now.best) +
       " of a " + metresLabel(world.summitM) + " summit, +" + now.landmarkBonus + " for " +
-      now.found.length + " of " + world.goals.length + " challenge" + (world.goals.length === 1 ? "" : "s") + ". " +
-      verdict(now.peakShare, now.found.length > 0);
+      now.found.length + " of " + world.goals.length + " challenge" + (world.goals.length === 1 ? "" : "s") + ".";
     // Only a run that got nowhere is worth painting as a failure; a middling
     // climb is still a climb, and the grade already says so.
     $("hcMsg").className = "msg" + (now.score >= 55 ? " good" : now.score < 35 ? " bad" : "");
@@ -740,10 +795,11 @@ import type { Run, RunState } from "./HillClimb-run";
    */
   function ease(span: number, onStep: (p: number) => void, then: () => void) {
     const began = performance.now();
+    const activeRun = run;
     let over = false;
-    const land = () => { if (over) return; over = true; onStep(1); then(); };
+    const land = () => { if (over || run !== activeRun) return; over = true; onStep(1); then(); };
     const step = (at: number) => {
-      if (over) return;
+      if (over || run !== activeRun) return;
       const p = Math.min(1, (at - began) / span);
       onStep(1 - Math.pow(1 - p, 3));
       if (p < 1) requestAnimationFrame(step); else land();
@@ -808,6 +864,7 @@ import type { Run, RunState } from "./HillClimb-run";
   }
   function showScore() {
     $("hcScoreDay").textContent = "HillClimb, " + longLabel(day);
+    $("hcScoreInsight").textContent = recap.insight;
     startNextMapCountdown();
     // The arithmetic, so the number that just counted up can be read back off
     // the card: the climb, and what was picked up on the way to it.
@@ -840,7 +897,11 @@ import type { Run, RunState } from "./HillClimb-run";
         soundGrade(now.grade);
       });
   }
-  $("hcScoreDone").onclick = () => scoreBox.close();
+  $("hcScoreDone").onclick = () => {
+    scoreBox.close();
+    $("hcJourney").focus({ preventScroll: true });
+    canvas.scrollIntoView({ behavior: still() ? "auto" : "smooth", block: "start" });
+  };
   $("hcScoreShare").onclick = () => { scoreBox.close(); $("hcShare").click(); };
   scoreBox.addEventListener("pointerdown", (e) => { if (e.target === scoreBox) scoreBox.close(); });
 
@@ -896,6 +957,7 @@ import type { Run, RunState } from "./HillClimb-run";
     } catch (_) { return null; }
   }
   async function reportResult(bucket: string, fresh: boolean) {
+    const resultDay = day, resultRun = run;
     mine = bucket;
     if (!statsOn) return;
     if (fresh) {
@@ -904,20 +966,22 @@ import type { Run, RunState } from "./HillClimb-run";
         try {
           await fetch("/api/result", {
             method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ day, game: "HillClimb", bucket, player }),
+            body: JSON.stringify({ day: resultDay, game: "HillClimb", bucket, player }),
           });
         } catch (_) { /* the run is already over; the tally is not worth an error */ }
       }
     }
-    await drawResults();
+    if (day === resultDay && run === resultRun) await drawResults();
   }
   async function drawResults() {
+    const resultDay = day, resultRun = run;
     const box = $("hcResults");
     let data: any = null;
     try {
-      const res = await fetch("/api/stats?date=" + encodeURIComponent(day), { cache: "no-store" });
+      const res = await fetch("/api/stats?date=" + encodeURIComponent(resultDay), { cache: "no-store" });
       if (res.ok) data = await res.json();
     } catch (_) { /* offline, or no database attached */ }
+    if (day !== resultDay || run !== resultRun) return;
     const slot = data && data.enabled !== false && data.games ? data.games.HillClimb : null;
     if (!slot || !slot.total) { statsOn = Boolean(slot); box.classList.add("hidden"); return; }
     const scores = Object.keys(slot.buckets)
@@ -939,7 +1003,7 @@ import type { Run, RunState } from "./HillClimb-run";
     const most = Math.max(...bins.map(bin => bin.count), 1);
     const mineScore = mine === null ? null : Number(mine);
     box.querySelector(".results-head").textContent =
-      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished today";
+      slot.total + (slot.total === 1 ? " player has" : " players have") + " finished " + (day === TODAY ? "today" : "this map");
     const bars = box.querySelector(".results-bars") as HTMLElement;
     bars.style.setProperty("--histogram-bins", String(bins.length));
     bars.setAttribute("aria-label", "Player score distribution in groups of 10 points");
@@ -986,12 +1050,8 @@ import type { Run, RunState } from "./HillClimb-run";
   $("shareDone").onclick = () => shareBox.close();
   shareBox.addEventListener("pointerdown", (e) => { if (e.target === shareBox) shareBox.close(); });
   $("hcShare").onclick = () => {
-    openShare(
-      "HillClimb " + day + "\n" +
-      now.score + " " + gradeSquares(now.grade) + "\n" +
-      "⛰ " + metresLabel(now.best) + " of " + metresLabel(world.summitM) + ", " + now.climb + "\n" +
-      "🧭 " + now.found.length + "/" + world.goals.length + " challenges, +" + now.landmarkBonus + "\n" +
-      SHARE_URL);
+    openShare(run.stopped ? shareResult(world, run, now)
+      : "HillClimb " + day + "\nExplore this hidden world with me.\n" + dailyLink(day));
   };
 
   // ---------- help, dates, boot ----------
@@ -1018,6 +1078,11 @@ import type { Run, RunState } from "./HillClimb-run";
      them rather than only a way to get back to one. */
   const archive = $("hcArchive");
   const archiveDate = $("hcArchiveDate") as HTMLInputElement;
+  function showLinkNotice(value: string | null) {
+    const unavailable = value !== null && !linkedDay(value, OLDEST, TODAY);
+    $("hcLinkNotice").classList.toggle("hidden", !unavailable);
+    $("hcLinkNotice").textContent = unavailable ? "That daily map is unavailable. Showing today's map." : "";
+  }
   function gradeOn(key: string): string {
     try {
       const d = JSON.parse(localStorage.getItem("hm-" + key + "-HillClimb-" + hillClimbRevision(key)) || "null");
@@ -1048,11 +1113,26 @@ import type { Run, RunState } from "./HillClimb-run";
     if (open) renderArchive();
   }
   function goTo(key: string) {
-    if (key < OLDEST || key > TODAY) return;
+    if (!linkedDay(key, OLDEST, TODAY)) return;
+    scoreBox.close();
+    shareBox.close();
     day = key;
+    const url = new URL(location.href);
+    url.searchParams.set("date", day);
+    history.pushState(null, "", url);
+    $("hcLinkNotice").classList.add("hidden");
     showArchive(false);
     start();
   }
+  window.addEventListener("popstate", () => {
+    scoreBox.close();
+    shareBox.close();
+    const value = new URL(location.href).searchParams.get("date");
+    day = linkedDay(value, OLDEST, TODAY) || TODAY;
+    showLinkNotice(value);
+    showArchive(false);
+    start();
+  });
   $("hcPrevDay").onclick = () => goTo(addDays(day, -1));
   $("hcNextDay").onclick = () => goTo(addDays(day, 1));
   $("hcDateBtn").onclick = () => showArchive(archive.classList.contains("hidden"));
@@ -1060,6 +1140,9 @@ import type { Run, RunState } from "./HillClimb-run";
 
   function start() {
     viewCol = 0;
+    recap = null;
+    mapDetails = true;
+    ($("hcMapDetails") as HTMLInputElement).checked = true;
     const stored = saved();
     const seed = dropSeed(stored);
     world = generateWorld(day, seed);
@@ -1090,6 +1173,7 @@ import type { Run, RunState } from "./HillClimb-run";
   try { stored = localStorage.getItem("hm-theme") || "light"; } catch (_) {}
   setTheme(stored);
   start();
+  showLinkNotice(requestedDay);
   showWelcomeOnce();
   let resizeTimer: number;
   window.addEventListener("resize", () => {

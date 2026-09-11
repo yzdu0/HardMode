@@ -74,6 +74,7 @@
           </div>
         </div>
 
+        <p id="hcLinkNotice" class="hchint hidden" role="status"></p>
         <div id="hcBrief" class="hcbrief"></div>
         <div id="hcMoves" class="hcmoves" aria-live="polite"></div>
         <div class="hcmap-wrap">
@@ -83,6 +84,17 @@
         </div>
         <div id="hcLayers" class="hclayers hidden" role="group" aria-label="What to show on the map"></div>
         <div id="hcScale" class="hcscale hidden" aria-hidden="true"></div>
+        <section id="hcJourney" class="hc-journey hidden" aria-labelledby="hcJourneyTitle" tabindex="-1">
+          <div class="hc-journey-heading">
+            <h3 id="hcJourneyTitle">Your journey</h3>
+            <label class="hc-map-details"><input id="hcMapDetails" type="checkbox" checked /> Map details</label>
+          </div>
+          <p id="hcInsight" class="hc-insight"></p>
+          <svg id="hcProfile" class="hc-profile" viewBox="0 0 600 72" preserveAspectRatio="none" role="img" aria-label="Elevation along your journey"></svg>
+          <label id="hcJourneyReading" for="hcJourneyMove" class="hc-journey-reading"></label>
+          <input id="hcJourneyMove" class="hc-journey-move" type="range" min="0" max="28" value="0" aria-label="Explore your journey by move" />
+          <p class="hc-map-key"><span>○ Start</span><span>● Finish</span><span>★ Your high</span><span>▲ Summit</span><span class="hc-missed-key">Outlined: unvisited challenges</span></p>
+        </section>
         <p id="hcHint" class="hchint">Tap the map to head that way, or use WASD or the arrow keys to move. Drag sideways to rotate the world. Hover a square to name it.</p>
         <div id="hcRead" class="hcread"></div>
 
@@ -138,10 +150,11 @@
     <p class="scorebox-n" id="hcScoreN">0</p>
     <p class="scorebox-grade" id="hcScoreGrade"></p>
     <dl class="scorebox-rows" id="hcScoreRows"></dl>
+    <p id="hcScoreInsight" class="hc-score-insight"></p>
     <p class="scorebox-more">HillClimb is new. <a href="../contact/">Share quick feedback</a></p>
-    <div class="row">
-      <button id="hcScoreShare" class="btn">Share</button>
-      <button id="hcScoreDone" class="btn primary" autofocus>Done</button>
+    <div class="row hc-finish-actions">
+      <button id="hcScoreShare" class="btn primary">Share</button>
+      <button id="hcScoreDone" class="btn" autofocus>Done</button>
     </div>
   </dialog>
   <dialog id="shareBox" class="sharebox" aria-labelledby="shareTitle">
